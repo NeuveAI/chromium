@@ -922,3 +922,21 @@ Use XCUITest framework to test complete user workflows.
 5. **Test incrementally**: Build and test each component as you develop
 
 This architecture allows you to create a modern, SwiftUI-based iOS client while leveraging all of Chromium's powerful browser services and maintaining compatibility with the existing codebase.
+
+## Building and Running th Neuve:
+
+For the build:
+```
+autoninja -C out/Debug-iphonesimulator neuve_chrome
+```
+
+For iOS 26 specific builds, we still are using Xcode-beta, so you need to reference the path to build with the correct SDK:
+```
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer autoninja -C out/ios26_simulator neuve_chrome
+```
+
+
+For the ios run:
+```
+cd out/Debug-iphonesimulator && xcrun simctl install booted "Neuve Chrome.app"
+```
