@@ -1,8 +1,10 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Legacy UIViewRepresentable wrappers (for Chrome WebState integration)
+
 // SwiftUI wrapper for Chrome's WebState content
-struct WebContentView: UIViewRepresentable {
+struct LegacyWebContentView: UIViewRepresentable {
     let tabIndex: Int
     let webStateBridge: WebStateBridge
     
@@ -17,80 +19,68 @@ struct WebContentView: UIViewRepresentable {
     }
 }
 
-// Simple web view for testing when Chrome WebState is not available
-struct SimpleWebView: UIViewRepresentable {
-    let url: URL
-    @Binding var isLoading: Bool
-    
-    func makeUIView(context: Context) -> UIView {
-        let containerView = UIView()
-        containerView.backgroundColor = UIColor.systemBackground
-        
-        // Create a simple label showing the URL for now
-        let label = UILabel()
-        label.text = "Loading: \(url.absoluteString)"
-        label.textAlignment = .center
-        label.font = UIFont.systemFont(ofSize: 16)
-        label.textColor = UIColor.label
-        label.numberOfLines = 0
-        label.translatesAutoresizingMaskIntoConstraints = false
-        
-        containerView.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
-            label.leadingAnchor.constraint(greaterThanOrEqualTo: containerView.leadingAnchor, constant: 20),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: containerView.trailingAnchor, constant: -20)
-        ])
-        
-        return containerView
-    }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {
-        // Update loading state if needed
-    }
-}
+// MARK: - Modern WebTabContentView using ControlledWebView
 
-// SwiftUI integration for web content in tabs
+/// SwiftUI integration for web content in tabs using the new WebKit for SwiftUI API
 struct WebTabContentView: View {
     let tab: WebTab
     @ObservedObject var framework: NeuveUIFramework
-    @State private var isLoading = false
+    @State private var navigationPolicy: NavigationPolicy = .defaultPolicy
+    @AppStorage("javascriptEnabled") private var javascriptEnabled = true
+    @AppStorage("httpsUpgradeEnabled") private var httpsUpgradeEnabled = true
     
     var body: some View {
-        ZStack {
-            if let webStateBridge = framework.webStateBridge {
-                WebContentView(
-                    tabIndex: framework.activeTabIndex, 
-                    webStateBridge: webStateBridge
+        Group {
+            if framework.webStateBridge != nil {
+                // Use legacy Chrome WebState integration if available
+                LegacyWebContentView(
+                    tabIndex: framework.activeTabIndex,
+                    webStateBridge: framework.webStateBridge!
                 )
             } else {
-                SimpleWebView(url: tab.url, isLoading: $isLoading)
-            }
-            
-            // Loading indicator overlay
-            if isLoading {
-                VStack {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                    Text("Loading...")
-                        .font(.caption)
+                // Use modern ControlledWebView with WebKit for SwiftUI (iOS 26+)
+                if #available(iOS 26.0, *) {
+                    ControlledWebView(
+                        url: tab.url,
+                        configuration: webViewConfiguration
+                    )
+                } else {
+                    // Fallback for pre-iOS 26
+                    Text("iOS 26 or later required for modern web view")
                         .foregroundColor(.secondary)
-                        .padding(.top, 8)
-                }
-                .padding()
-                .background(Color(.systemBackground).opacity(0.9))
-                .cornerRadius(12)
-            }
-        }
-        .onAppear {
-            // Simulate loading for the simple web view
-            if framework.webStateBridge == nil {
-                isLoading = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    isLoading = false
+                        .padding()
                 }
             }
         }
+    }
+    
+    @available(iOS 26.0, *)
+    private var webViewConfiguration: ControlledWebView.Configuration {
+        ControlledWebView.Configuration(
+            navigationPolicy: navigationPolicy,
+            allowsBackForwardGestures: true,
+            allowsLinkPreview: true,
+            javascriptEnabled: javascriptEnabled,
+            deviceSensorAuthorization: .default
+        )
+    }
+}
+
+// MARK: - Extension for Navigation Policy Management
+
+extension WebTabContentView {
+    /// Update navigation policy based on user preferences or security requirements
+    mutating func updateNavigationPolicy(_ policy: NavigationPolicy) {
+        self.navigationPolicy = policy
+    }
+    
+    /// Apply a restricted domain policy for kiosk or managed environments
+    mutating func applyRestrictedDomains(_ domains: [String]) {
+        self.navigationPolicy = NavigationPolicy.restrictedDomains(domains)
+    }
+    
+    /// Enable ad blocking policy
+    mutating func enableAdBlocking() {
+        self.navigationPolicy = NavigationPolicy.adBlockingPolicy()
     }
 }

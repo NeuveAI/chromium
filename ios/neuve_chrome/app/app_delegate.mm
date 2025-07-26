@@ -14,7 +14,11 @@
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+    NSLog(@"iOS 26 Neuve Chrome starting");
+    
+    // Create window for iOS 26 - using windowScene will be handled by the system
+    self.window = [[UIWindow alloc] init];
+    self.window.backgroundColor = [UIColor systemBackgroundColor];
     
     // Start with fallback view
     [self createFallbackViewController];
@@ -29,6 +33,8 @@
                     self.window.rootViewController = swiftUIController;
                     NSLog(@"Successfully loaded SwiftUI interface");
                 }
+            } else {
+                NSLog(@"Could not find SwiftUIHostingHelper class");
             }
         } @catch (NSException *exception) {
             NSLog(@"Failed to create SwiftUI view: %@", exception);

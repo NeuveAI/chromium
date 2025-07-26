@@ -86,8 +86,16 @@ struct WebTabsView: View {
                         // Web navigation toolbar
                         webNavigationToolbar
                         
-                        // Web content
-                        WebTabContentView(tab: activeTab, framework: framework)
+                        // Web content - simple placeholder for now
+                        VStack {
+                            Text("Web Content: \(activeTab.title)")
+                                .font(.title2)
+                            Text("URL: \(activeTab.url.absoluteString)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.gray.opacity(0.1))
                     }
                     .ignoresSafeArea(edges: .bottom)
                 }

@@ -1,0 +1,7 @@
+# iOS deployment target for Neuve Chrome
+# This ensures we can use iOS 26 WebKit for SwiftUI APIs
+
+declare_args() {
+  # Explicitly set iOS 26.0 as the deployment target for Neuve Chrome
+  neuve_chrome_ios_deployment_target = "26.0"
+}

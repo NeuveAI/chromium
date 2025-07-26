@@ -2,6 +2,7 @@ import("//build/apple/compile_entitlements.gni")
 import("//build/apple/tweak_info_plist.gni")
 import("//build/config/ios/ios_sdk.gni")
 import("//build/config/ios/rules.gni")
+import("//ios/neuve_chrome/ios_deployment_target.gni")
 
 # Tweak the Info.plist for Neuve Chrome
 tweak_info_plist("neuve_chrome_info_plist") {
@@ -38,11 +39,11 @@ source_set("neuve_chrome_objc") {
 source_set("neuve_chrome_swift") {
   sources = [
     "app/SwiftUIHostingHelper.swift",
+    "app/browser/NavigationPolicy.swift",
     "ui/framework/NeuveUIFramework.swift",
     "ui/views/WebTabsView.swift",
     "ui/views/MemoriesView.swift",
     "ui/views/SearchView.swift",
-    "ui/views/WebContentView.swift",
     "services/TabModelBridge.swift",
     "services/TabModelBridgeImpl.swift",
   ]
@@ -61,6 +62,8 @@ source_set("neuve_chrome_swift") {
     "WebKit.framework",
     "Foundation.framework",
   ]
+  
+  # iOS 26 deployment target set via ios_deployment_target.gni
 }
 
 # Main source set combining both
@@ -81,6 +84,7 @@ ios_app_bundle("neuve_chrome") {
   extra_substitutions = [
     "CHROMIUM_SHORT_NAME=Neuve Chrome",
     "IOS_BUNDLE_ID_PREFIX=org.chromium",
+    "IOS_DEPLOYMENT_TARGET=${neuve_chrome_ios_deployment_target}",
   ]
   
   deps = [
