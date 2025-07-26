@@ -1,0 +1,89 @@
+import("//build/apple/compile_entitlements.gni")
+import("//build/apple/tweak_info_plist.gni")
+import("//build/config/ios/ios_sdk.gni")
+import("//build/config/ios/rules.gni")
+
+# Tweak the Info.plist for Neuve Chrome
+tweak_info_plist("neuve_chrome_info_plist") {
+  info_plists = [ "Info.plist" ]
+}
+
+# Create entitlements for Neuve Chrome
+compile_entitlements("neuve_chrome_entitlements") {
+  substitutions = [ "IOS_BUNDLE_ID_PREFIX=org.chromium" ]
+  output_name = "$target_gen_dir/neuve_chrome.app.entitlements"
+  entitlements_templates = [ "//build/config/ios/entitlements.plist" ]
+}
+
+# Objective-C++ sources
+source_set("neuve_chrome_objc") {
+  sources = [ 
+    "main.mm",
+    "app/app_delegate.mm",
+    "services/WebStateBridge.mm",
+  ]
+  
+  deps = [
+    "//base",
+  ]
+  
+  frameworks = [
+    "Foundation.framework",
+    "UIKit.framework",
+    "WebKit.framework",
+  ]
+}
+
+# Swift sources
+source_set("neuve_chrome_swift") {
+  sources = [
+    "app/SwiftUIHostingHelper.swift",
+    "ui/framework/NeuveUIFramework.swift",
+    "ui/views/WebTabsView.swift",
+    "ui/views/MemoriesView.swift",
+    "ui/views/SearchView.swift",
+    "ui/views/WebContentView.swift",
+    "services/TabModelBridge.swift",
+    "services/TabModelBridgeImpl.swift",
+  ]
+  
+  # Bridging header to expose Objective-C++ to Swift
+  bridge_header = "NeuveChrome-Bridging-Header.h"
+  
+  deps = [
+    ":neuve_chrome_objc",
+    "//base",
+  ]
+  
+  frameworks = [
+    "UIKit.framework",
+    "SwiftUI.framework",
+    "WebKit.framework",
+    "Foundation.framework",
+  ]
+}
+
+# Main source set combining both
+group("neuve_chrome_main") {
+  deps = [
+    ":neuve_chrome_objc",
+    ":neuve_chrome_swift",
+  ]
+}
+
+# Use the ios_app_bundle template for a simpler iOS app
+ios_app_bundle("neuve_chrome") {
+  output_name = "Neuve Chrome"
+  entitlements_target = ":neuve_chrome_entitlements"
+  info_plist_target = ":neuve_chrome_info_plist"
+  bundle_identifier = "org.chromium.neuve-chrome"
+  
+  extra_substitutions = [
+    "CHROMIUM_SHORT_NAME=Neuve Chrome",
+    "IOS_BUNDLE_ID_PREFIX=org.chromium",
+  ]
+  
+  deps = [
+    ":neuve_chrome_main",
+  ]
+}

@@ -21,6 +21,7 @@ group("all") {
     deps = [
       # List all the targets that need to be built on iOS by default.
       "//ios/chrome/app:chrome",
+      "//ios/neuve_chrome:neuve_chrome",
       "//ios/web/shell:ios_web_shell",
       "//ios/web_view/shell:ios_web_view_shell",
 
