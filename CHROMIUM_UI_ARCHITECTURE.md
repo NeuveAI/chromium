@@ -99,6 +99,9 @@ Current iOS UI uses a mix of:
 
 ## Creating a New iOS Client
 
+### Project Overview and Goal
+**Neuve Chrome** - A modern iOS browser built with SwiftUI, leveraging the Chromium engine while providing a fresh, intuitive user interface. The project creates a new iOS app target that reuses existing Chrome browser services while implementing a completely new SwiftUI-based user interface.
+
 ### Approach 1: New Target (Recommended)
 
 Create a completely new iOS app target that reuses core Chromium services:
@@ -714,7 +717,7 @@ Replace existing UI components incrementally:
    ios/chrome/browser/ui/new_tab_page_omnibox/
    ```
 
-## Directory Structure for New Client
+## Suggested Directory Structure for New Client (subjected to change on new PRDs)
 
 ```
 ios/neuve_chrome/                    # New app target
