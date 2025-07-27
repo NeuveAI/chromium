@@ -540,7 +540,7 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     subgraph "SwiftUI Layer"
-        A[ControlledWebView] --> B[@StateObject WebPage]
+        A[ControlledWebView] --> B[StateObject WebPage]
         A --> C[WebView Component]
     end
     
@@ -634,7 +634,7 @@ graph TB
     end
     
     subgraph "Chromium Base"
-        L[//base utilities]
+        L[Base Utilities]
         M[Memory Management]
         N[Threading]
     end
@@ -681,10 +681,10 @@ flowchart LR
     end
     
     subgraph "Chromium Infrastructure"
-        G[//build/config/ios/rules.gni] --> B
-        H[//base dependencies] --> C
+        G[Build Config iOS Rules] --> B
+        H[Base Dependencies] --> C
         H --> D
-        I[//build/apple/] --> J[Code Signing]
+        I[Build Apple Tools] --> J[Code Signing]
     end
     
     subgraph "Output"
