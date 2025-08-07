@@ -61,7 +61,6 @@
 #include "chrome/browser/ui/webui/ash/multidevice_setup/multidevice_setup_dialog.h"
 #include "chrome/browser/ui/webui/ash/set_time/set_time_dialog.h"
 #include "chrome/browser/upgrade_detector/upgrade_detector.h"
-#include "chrome/common/channel_info.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
@@ -433,7 +432,7 @@ void SystemTrayClientImpl::ShowDarkModeSettings() {
   // Settings/System Tray.
   ash::personalization_app::LogPersonalizationEntryPoint(
       ash::PersonalizationEntryPoint::kSystemTray);
-  ash::NewWindowDelegate::GetPrimary()->OpenPersonalizationHub();
+  ash::NewWindowDelegate::GetInstance()->OpenPersonalizationHub();
 }
 
 void SystemTrayClientImpl::ShowStorageSettings() {
@@ -902,7 +901,7 @@ void SystemTrayClientImpl::ShowChromebookPerksYouTubePage() {
 }
 
 void SystemTrayClientImpl::ShowEolInfoPage() {
-  ash::NewWindowDelegate::GetPrimary()->OpenUrl(
+  ash::NewWindowDelegate::GetInstance()->OpenUrl(
       GURL(chrome::kEolNotificationURL),
       ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,
       ash::NewWindowDelegate::Disposition::kNewForegroundTab);

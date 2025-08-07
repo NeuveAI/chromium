@@ -39,6 +39,8 @@
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "components/country_codes/country_codes.h"
+#include "components/google/core/common/google_util.h"
+#include "components/omnibox/common/omnibox_feature_configs.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
@@ -65,13 +67,14 @@
 #include "components/sync/base/features.h"
 #include "components/sync/model/sync_change.h"
 #include "components/sync/model/sync_change_processor.h"
+#include "components/sync/protocol/entity_data.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
 #include "components/sync/protocol/search_engine_specifics.pb.h"
-#include "components/sync/protocol/entity_data.h"
 #include "components/url_formatter/url_fixer.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+#include "url/third_party/mozilla/url_parse.h"
 #include "url/url_util.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -169,9 +172,9 @@ bool Contains(TemplateURLService::OwnedTemplateURLVector* template_urls,
   return FindTemplateURL(template_urls, turl) != template_urls->end();
 }
 
-bool IsCreatedByExtension(const TemplateURL* template_url) {
-  return template_url->type() == TemplateURL::NORMAL_CONTROLLED_BY_EXTENSION ||
-         template_url->type() == TemplateURL::OMNIBOX_API_EXTENSION;
+bool IsCreatedByExtension(const TemplateURL& template_url) {
+  return template_url.type() == TemplateURL::NORMAL_CONTROLLED_BY_EXTENSION ||
+         template_url.type() == TemplateURL::OMNIBOX_API_EXTENSION;
 }
 
 // Check if `is_active` status should be merged.  This is true if the
@@ -369,6 +372,34 @@ bool ShouldCommitUpdateToAccount(
   base::UmaHistogramBoolean("Sync.SearchEngine.FaviconOnlyUpdate",
                             !account_data_changed);
   return account_data_changed;
+}
+
+// Checks if `url` is a Google AI mode URL. Uses the `udm` query param. Only
+// works for Google URLs because it's unknown what other search providers will
+// use to distinguish their AI mode and traditional search URLs.
+bool IsGoogleAiModeUrl(GURL url) {
+  // Check that:
+  // 1. `url` contains a `udm=50` query param which distinguish Google AI mode
+  //    and traditional search URLs. This check alone isn't sufficient because
+  //    any website could coincidentally use the same query param for its own
+  //    purposes.
+  // 2. `url` is a Google URL. This check is done 2nd because it's slower (0.5us
+  //    v 5us).
+
+  std::string_view query = url.query_piece();
+  url::Component query_iterator(0, query.length());
+  url::Component key, value;
+  bool udm_50 = false;
+  while (url::ExtractQueryKeyValue(query, &query_iterator, &key, &value) &&
+         !udm_50) {
+    std::string_view key_string = query.substr(key.begin, key.len);
+    std::string_view value_string = query.substr(value.begin, value.len);
+    udm_50 = key_string == "udm" && value_string == "50";
+  }
+
+  return udm_50 && google_util::IsGoogleDomainUrl(
+                       url, google_util::DISALLOW_SUBDOMAIN,
+                       google_util::DISALLOW_NON_STANDARD_PORTS);
 }
 
 }  // namespace
@@ -760,7 +791,7 @@ const TemplateURL* TemplateURLService::GetTemplateURLForHost(
 TemplateURL* TemplateURLService::Add(
     std::unique_ptr<TemplateURL> template_url) {
   DCHECK(template_url);
-  DCHECK(!IsCreatedByExtension(template_url.get()) ||
+  DCHECK(!IsCreatedByExtension(*template_url.get()) ||
          (!FindTemplateURLForExtension(
               template_url->GetExtensionInfo()->extension_id,
               template_url->type()) &&
@@ -1000,7 +1031,7 @@ void TemplateURLService::ResetTemplateURL(TemplateURL* url,
                                           const std::u16string& title,
                                           const std::u16string& keyword,
                                           const std::string& search_url) {
-  DCHECK(!IsCreatedByExtension(url));
+  DCHECK(!IsCreatedByExtension(*url));
   DCHECK(!keyword.empty());
   DCHECK(!search_url.empty());
 
@@ -1207,7 +1238,7 @@ void TemplateURLService::UpdateProviderFavicons(
 
   Scoper scoper(this);
   for (TemplateURL* turl : urls_for_host_copy) {
-    if (!IsCreatedByExtension(turl) &&
+    if (!IsCreatedByExtension(*turl) &&
         turl->policy_origin() !=
             TemplateURLData::PolicyOrigin::kSearchAggregator &&
         turl->IsSearchURL(potential_search_url, search_terms_data()) &&
@@ -1238,7 +1269,7 @@ void TemplateURLService::SetUserSelectedDefaultSearchProvider(
   // Omnibox keywords cannot be made default. Extension-controlled search
   // engines can be made default only by the extension itself because they
   // aren't persisted.
-  DCHECK(!url || !IsCreatedByExtension(url));
+  DCHECK(!url || !IsCreatedByExtension(*url));
   if (url) {
     url->set_is_active(TemplateURLData::ActiveStatus::kTrue);
   }
@@ -2467,11 +2498,11 @@ void TemplateURLService::Init() {
   }
 
   pref_change_registrar_.Init(&prefs_.get());
-    pref_change_registrar_.Add(
-        prefs::kDefaultSearchProviderGUID,
-        base::BindRepeating(
-            &TemplateURLService::OnDefaultSearchProviderGUIDChanged,
-            base::Unretained(this)));
+  pref_change_registrar_.Add(
+      prefs::kDefaultSearchProviderGUID,
+      base::BindRepeating(
+          &TemplateURLService::OnDefaultSearchProviderGUIDChanged,
+          base::Unretained(this)));
 
   DefaultSearchManager::Source source = DefaultSearchManager::FROM_USER;
   const TemplateURLData* dse =
@@ -2719,6 +2750,15 @@ void TemplateURLService::UpdateKeywordSearchTermsForURL(
     return;
   }
 
+  // AI mode URLs should not be stored. Otherwise, since they fit the
+  // traditional search `TemplateURL`'s URL, those would be incorrectly
+  // attributed.
+  if (omnibox_feature_configs::AiMode::Get()
+          .do_not_show_historic_aim_suggestions &&
+      IsGoogleAiModeUrl(details.url)) {
+    return;
+  }
+
   const TemplateURLSet* urls_for_host =
       provider_map_->GetURLsForHost(details.url.host());
   if (!urls_for_host) {
@@ -2727,26 +2767,36 @@ void TemplateURLService::UpdateKeywordSearchTermsForURL(
 
   TemplateURL* visited_url = nullptr;
   for (auto i = urls_for_host->begin(); i != urls_for_host->end(); ++i) {
+    TemplateURL& template_url = **i;
+
+    // AI mode keyword should not be attributed. Otherwise, they would be
+    // incorrectly attributed by traditional search URLs, which fit the AI mode
+    // `TemplateURL`'s URL.
+    if (template_url.starter_pack_id() ==
+        template_url_starter_pack_data::StarterPackId::kAiMode) {
+      continue;
+    }
+
     std::u16string search_terms;
-    if ((*i)->ExtractSearchTermsFromURL(details.url, search_terms_data(),
-                                        &search_terms) &&
+    if (template_url.ExtractSearchTermsFromURL(details.url, search_terms_data(),
+                                               &search_terms) &&
         !search_terms.empty()) {
       if (details.is_keyword_transition) {
         // The visit is the result of the user entering a keyword, generate a
         // KEYWORD_GENERATED visit for the KEYWORD so that the keyword typed
         // count is boosted.
-        AddTabToSearchVisit(**i);
+        AddTabToSearchVisit(template_url);
       }
       if (client_) {
-        client_->SetKeywordSearchTermsForURL(details.url, (*i)->id(),
+        client_->SetKeywordSearchTermsForURL(details.url, template_url.id(),
                                              search_terms);
       }
       // Caches the matched TemplateURL so its last_visited could be updated
       // later after iteration.
       // Note: Update() will replace the entry from the container of this
       // iterator, so update here directly will cause an error about it.
-      if (!IsCreatedByExtension(*i)) {
-        visited_url = *i;
+      if (!IsCreatedByExtension(template_url)) {
+        visited_url = &template_url;
       }
     }
   }

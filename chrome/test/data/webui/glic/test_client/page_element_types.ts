@@ -132,11 +132,13 @@ export interface PageElementTypes {
   fetchPinned: HTMLButtonElement;
   shareCandidateQuery: HTMLInputElement;
   shareCandidates: HTMLElement;
+  enableShareCandidates: HTMLInputElement;
   unpin: HTMLButtonElement;
   viewChangedBtn: HTMLButtonElement;
   viewChangedCurrentView: HTMLSelectElement;
   viewChangedAutomaticallyAccept: HTMLInputElement;
   mqlsClientIdBtn: HTMLButtonElement;
+  multiTabFetchScreenshot: HTMLInputElement;
 }
 
 export const $: PageElementTypes = new Proxy({}, {

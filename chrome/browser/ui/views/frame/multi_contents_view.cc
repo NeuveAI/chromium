@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 #include "base/check_deref.h"
 #include "base/feature_list.h"
@@ -45,15 +46,8 @@ MultiContentsView::MultiContentsView(
       start_contents_view_inset_(
           gfx::Insets(kSplitViewContentInset).set_top(0).set_right(0)),
       end_contents_view_inset_(
-          gfx::Insets(kSplitViewContentInset).set_top(0).set_left(0)) {
-#if BUILDFLAG(IS_OZONE)
-  if (!ui::OzonePlatform::GetInstance()
-           ->GetPlatformProperties()
-           .supports_split_view_drag_and_drop) {
-    is_drag_and_drop_enabled_ = false;
-  }
-#endif
-
+          gfx::Insets(kSplitViewContentInset).set_top(0).set_left(0)),
+      is_drag_and_drop_enabled_(SupportsSplitViewDragAndDrop()) {
   SetLayoutManager(std::make_unique<views::DelegatingLayoutManager>(this));
   contents_container_views_.push_back(
       AddChildView(std::make_unique<ContentsContainerView>(browser_view_)));
@@ -113,11 +107,25 @@ ContentsWebView* MultiContentsView::GetActiveContentsView() {
 }
 
 ContentsWebView* MultiContentsView::GetInactiveContentsView() {
-  return contents_container_views_[GetInactiveIndex()]->GetContentsView();
+  return GetInactiveContentsContainerView()->GetContentsView();
 }
 
 ContentsContainerView* MultiContentsView::GetActiveContentsContainerView() {
   return contents_container_views_[active_index_];
+}
+
+ContentsContainerView* MultiContentsView::GetInactiveContentsContainerView() {
+  return contents_container_views_[GetInactiveIndex()];
+}
+
+ContentsContainerView* MultiContentsView::GetContentsContainerViewFor(
+    content::WebContents* web_contents) {
+  for (auto* container_view : contents_container_views_) {
+    if (container_view->GetContentsView()->web_contents() == web_contents) {
+      return container_view;
+    }
+  }
+  return nullptr;
 }
 
 bool MultiContentsView::IsInSplitView() const {
@@ -226,25 +234,51 @@ int MultiContentsView::GetMinViewWidth() const {
   return std::min(min_fixed_value, min_percentage);
 }
 
+std::vector<views::View*> MultiContentsView::GetAccessiblePanes() {
+  std::vector<views::View*> accessible_panes;
+  for (auto* contents_container_view : contents_container_views_) {
+    auto contents_accessible_panes =
+        contents_container_view->GetAccessiblePanes();
+    accessible_panes.insert(accessible_panes.end(),
+                            contents_accessible_panes.begin(),
+                            contents_accessible_panes.end());
+  }
+  return accessible_panes;
+}
+
 void MultiContentsView::OnResize(int resize_amount, bool done_resizing) {
   if (!initial_start_width_on_resize_.has_value()) {
     initial_start_width_on_resize_ =
         std::make_optional(contents_container_views_[0]->size().width());
   }
-
   double total_width = contents_container_views_[0]->size().width() +
                        contents_container_views_[0]->GetInsets().width() +
                        contents_container_views_[1]->size().width() +
                        contents_container_views_[1]->GetInsets().width();
-  double start_ratio = (initial_start_width_on_resize_.value() +
-                        contents_container_views_[0]->GetInsets().width() +
-                        static_cast<double>(resize_amount)) /
-                       total_width;
-  delegate_->ResizeWebContents(start_ratio, done_resizing);
+  double end_width = (initial_start_width_on_resize_.value() +
+                      contents_container_views_[0]->GetInsets().width() +
+                      static_cast<double>(resize_amount));
+
+  // If end_width is within the snap point widths, update to the snap point.
+  delegate_->ResizeWebContents(
+      CalculateRatioWithSnapPoints(end_width, total_width), done_resizing);
 
   if (done_resizing) {
     initial_start_width_on_resize_ = std::nullopt;
   }
+}
+
+double MultiContentsView::CalculateRatioWithSnapPoints(
+    double end_width,
+    double total_width) const {
+  for (const double& snap_point : snap_points_) {
+    double dp_snap_point = snap_point * total_width;
+    if (std::abs(dp_snap_point - end_width) <
+        features::kSideBySideSnapDistance.Get()) {
+      return snap_point;
+    }
+  }
+  return end_width / total_width;
 }
 
 void MultiContentsView::OnPaint(gfx::Canvas* canvas) {
@@ -402,6 +436,26 @@ void MultiContentsView::UpdateContentsBorderAndOverlay() {
     contents_container_view->UpdateBorderAndOverlay(IsInSplitView(), is_active,
                                                     show_inactive_scrim_);
   }
+}
+
+bool MultiContentsView::SupportsSplitViewDragAndDrop() const {
+  // Split view drag and drop is only supported on normal browser types.
+  if (!browser_view_->GetIsNormalType()) {
+    return false;
+  }
+
+  // This is needed because drag and drop is broken on Wayland. Once that is
+  // resolved, this check should be deleted.
+  // TODO(crbug.com/425715421): Fix drag and drop on Wayland.
+#if BUILDFLAG(IS_OZONE)
+  if (!ui::OzonePlatform::GetInstance()
+           ->GetPlatformProperties()
+           .supports_split_view_drag_and_drop) {
+    return false;
+  }
+#endif
+
+  return true;
 }
 
 BEGIN_METADATA(MultiContentsView)

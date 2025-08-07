@@ -64,6 +64,11 @@ public interface SiteSettingsDelegate {
     boolean isIncognitoModeEnabled();
 
     /**
+     * @return true if the delegate is for an incognito-branded profile.
+     */
+    boolean isIncognito();
+
+    /**
      * @return true if the QuietNotificationPrompts Feature is enabled.
      */
     boolean isQuietNotificationPromptsFeatureEnabled();
@@ -224,11 +229,6 @@ public interface SiteSettingsDelegate {
      * @param callback Callback runs with the BrowsingDataModel object when the model is built.
      */
     void getBrowsingDataModel(Callback<BrowsingDataModel> callback);
-
-    /**
-     * @return whether the Privacy Sandbox Rws UI should be shown in the Settings.
-     */
-    boolean shouldShowPrivacySandboxRwsUi();
 
     /**
      * @return whether the Safety Hub is enabled.

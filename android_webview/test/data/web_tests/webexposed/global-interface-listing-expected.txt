@@ -447,6 +447,7 @@ interface Blob
     getter size
     getter type
     method arrayBuffer
+    method bytes
     method constructor
     method slice
     method stream
@@ -510,6 +511,7 @@ interface BroadcastChannel : EventTarget
 interface BrowserCaptureMediaStreamTrack : MediaStreamTrack
     attribute @@toStringTag
     method constructor
+    method cropTo
 interface ByteLengthQueuingStrategy
     attribute @@toStringTag
     getter highWaterMark
@@ -578,6 +580,11 @@ interface CSSCounterStyleRule : CSSRule
     setter suffix
     setter symbols
     setter system
+interface CSSCustomMediaRule : CSSRule
+    attribute @@toStringTag
+    getter name
+    getter query
+    method constructor
 interface CSSFontFaceRule : CSSRule
     attribute @@toStringTag
     getter style
@@ -1455,6 +1462,7 @@ interface CountQueuingStrategy
 interface CrashReportStorage
     attribute @@toStringTag
     method constructor
+    method initialize
     method remove
     method set
 interface CreateMonitor : EventTarget
@@ -1474,6 +1482,10 @@ interface CredentialsContainer
     method get
     method preventSilentAccess
     method store
+interface CropTarget
+    static method fromElement
+    attribute @@toStringTag
+    method constructor
 interface Crypto
     attribute @@toStringTag
     getter subtle
@@ -1837,6 +1849,7 @@ interface DigitalCredential : Credential
     getter data
     getter protocol
     method constructor
+    method toJSON
 interface Directive
     attribute @@toStringTag
     getter type
@@ -2094,7 +2107,10 @@ interface Document : Node
     method importNode
     method moveBefore
     method open
+    method patchAfter
     method patchAll
+    method patchBefore
+    method patchBetween
     method patchSelf
     method prepend
     method queryCommandEnabled
@@ -2264,7 +2280,10 @@ interface DocumentFragment : Node
     method getElementById
     method getPartRoot
     method moveBefore
+    method patchAfter
     method patchAll
+    method patchBefore
+    method patchBetween
     method patchSelf
     method prepend
     method querySelector
@@ -2460,7 +2479,10 @@ interface Element : Node
     method insertAdjacentText
     method matches
     method moveBefore
+    method patchAfter
     method patchAll
+    method patchBefore
+    method patchBetween
     method patchSelf
     method prepend
     method pseudo
@@ -5582,15 +5604,6 @@ interface LargestContentfulPaint : PerformanceEntry
     getter url
     method constructor
     method toJSON
-interface LaunchParams
-    attribute @@toStringTag
-    getter files
-    getter targetURL
-    method constructor
-interface LaunchQueue
-    attribute @@toStringTag
-    method constructor
-    method setConsumer
 interface LayoutShift : PerformanceEntry
     attribute @@toStringTag
     getter hadRecentInput
@@ -6823,6 +6836,16 @@ interface OrientationSensor : Sensor
     getter quaternion
     method constructor
     method populateMatrix
+interface Origin
+    static method fromURL
+    static method parse
+    attribute @@toStringTag
+    getter opaque
+    method constructor
+    method isSameOrigin
+    method isSameSite
+    method toJSON
+    method toString
 interface OscillatorNode : AudioScheduledSourceNode
     attribute @@toStringTag
     getter detune
@@ -6892,14 +6915,14 @@ interface PasswordCredential : Credential
     getter name
     getter password
     method constructor
-interface PatchEvent : Event
-    attribute @@toStringTag
-    getter patch
-    method constructor
-interface PatchStatus
+interface Patch
     attribute @@toStringTag
     getter finished
     getter source
+    method constructor
+interface PatchEvent : Event
+    attribute @@toStringTag
+    getter patch
     method constructor
 interface Path2D
     attribute @@toStringTag
@@ -7134,6 +7157,10 @@ interface PerformanceResourceTiming : PerformanceEntry
     getter secureConnectionStart
     getter serverTiming
     getter transferSize
+    getter workerCacheLookupStart
+    getter workerFinalSourceType
+    getter workerMatchedSourceType
+    getter workerRouterEvaluationStart
     getter workerStart
     method constructor
     method toJSON
@@ -12088,7 +12115,6 @@ namespace console
     getter innerHeight
     getter innerWidth
     getter isSecureContext
-    getter launchQueue
     getter length
     getter localStorage
     getter location

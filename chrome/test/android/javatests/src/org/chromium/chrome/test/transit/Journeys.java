@@ -6,7 +6,9 @@ package org.chromium.chrome.test.transit;
 
 import static org.junit.Assert.assertTrue;
 
+import static org.chromium.base.ThreadUtils.runOnUiThreadBlocking;
 import static org.chromium.base.test.transit.Triggers.noopTo;
+import static org.chromium.chrome.test.util.ChromeTabUtils.getTabCountOnUiThread;
 
 import org.chromium.base.Log;
 import org.chromium.base.Token;
@@ -171,8 +173,10 @@ public class Journeys {
             boolean captureThumbnails) {
         assert urlsForRegularTabs.size() >= 1;
         TabModelSelector tabModelSelector = startingStation.getTabModelSelector();
-        int currentTabCount = tabModelSelector.getModel(/* incognito= */ false).getCount();
-        int currentIncognitoTabCount = tabModelSelector.getModel(/* incognito= */ true).getCount();
+        int currentTabCount =
+                getTabCountOnUiThread(tabModelSelector.getModel(/* incognito= */ false));
+        int currentIncognitoTabCount =
+                getTabCountOnUiThread(tabModelSelector.getModel(/* incognito= */ true));
         assert currentTabCount == 1;
         assert currentIncognitoTabCount == 0;
         T station =
@@ -274,7 +278,8 @@ public class Journeys {
     public static TabSwitcherGroupCardFacility mergeAllTabsToNewGroup(
             TabSwitcherStation tabSwitcher) {
         TabModel tabModel = tabSwitcher.tabModelElement.get();
-        List<Tab> tabs = TabModelUtils.convertTabListToListOfTabs(tabModel);
+        List<Tab> tabs =
+                runOnUiThreadBlocking(() -> TabModelUtils.convertTabListToListOfTabs(tabModel));
         return mergeTabsToNewGroup(tabSwitcher, tabs);
     }
 
@@ -292,7 +297,8 @@ public class Journeys {
         TabModel currentModel = tabSwitcher.tabModelElement.get();
         TabSwitcherListEditorFacility editor = tabSwitcher.openAppMenu().clickSelectTabs();
 
-        TabBinList tabBinList = TabBinningUtil.binTabsByCard(currentModel);
+        TabBinList tabBinList =
+                runOnUiThreadBlocking(() -> TabBinningUtil.binTabsByCard(currentModel));
         for (Tab tab : tabs) {
             TabBinPosition tabPosition = tabBinList.tabIdToPositionMap.get(tab.getId());
             assert tabPosition != null;
@@ -337,7 +343,7 @@ public class Journeys {
         List<Token> tabGroupIdsOfGroupedTabs = new ArrayList<>();
         for (Tab tab : tabs) {
             int id = tab.getId();
-            Tab tabById = currentModel.getTabById(id);
+            Tab tabById = runOnUiThreadBlocking(() -> currentModel.getTabById(id));
             if (tabById != null) {
                 Token tabGroupId = tabById.getTabGroupId();
                 tabGroupIdsOfGroupedTabs.add(tabGroupId);

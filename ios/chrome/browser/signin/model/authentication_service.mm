@@ -10,11 +10,13 @@
 #import "base/functional/bind.h"
 #import "base/functional/callback_helpers.h"
 #import "base/location.h"
+#import "base/logging.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/histogram_macros.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/task/single_thread_task_runner.h"
 #import "components/browser_sync/sync_to_signin_migration.h"
+#import "components/policy/core/common/management/platform_management_service.h"
 #import "components/pref_registry/pref_registry_syncable.h"
 #import "components/prefs/pref_service.h"
 #import "components/signin/ios/browser/features.h"
@@ -340,7 +342,7 @@ bool AuthenticationService::ShouldClearDataForSignedInPeriodOnSignOut() const {
   // 2. The app management configuration key is present.
   // Note: data will be cleared from the time of sign-in in this case.
   return HasPrimaryIdentityManaged(signin::ConsentLevel::kSignin) &&
-         !IsApplicationManagedByMDM();
+         !policy::PlatformManagementService::GetInstance()->IsManaged();
 }
 
 id<SystemIdentity> AuthenticationService::GetPrimaryIdentity(
@@ -612,6 +614,15 @@ bool AuthenticationService::HandleMDMError(id<SystemIdentity> identity,
 
   SystemIdentityManager* system_identity_manager =
       GetApplicationContext()->GetSystemIdentityManager();
+  if (base::FeatureList::IsEnabled(switches::kAllowlistScopesForMdmErrors)) {
+    bool scope_limited_error_suppressed =
+        system_identity_manager->IsScopeLimitedError(error);
+    base::UmaHistogramBoolean("Signin.ScopeLimitedErrorSuppressed",
+                              scope_limited_error_suppressed);
+    if (scope_limited_error_suppressed) {
+      return false;
+    }
+  }
 
   if (system_identity_manager->HandleMDMNotification(
           identity, ActiveIdentities(), error,

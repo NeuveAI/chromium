@@ -668,6 +668,7 @@ chromium-metrics-reviews@google.com.
   <int value="156" label="WebSettingsCompat.getBackForwardCacheSettings"/>
   <int value="157" label="BackForwardCacheSettings.getTimeoutInSeconds"/>
   <int value="158" label="BackForwardCacheSettings.getMaxPagesInCache"/>
+  <int value="159" label="Profile.preconnect"/>
 <!-- LINT.ThenChange(/android_webview/support_library/java/src/org/chromium/support_lib_glue/SupportLibWebViewChromiumFactory.java:ApiCall) -->
 
 </enum>
@@ -1139,6 +1140,8 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="Incognito searchbox"/>
   <int value="2" label="Regular loupe"/>
   <int value="3" label="Incognito loupe"/>
+  <int value="4" label="Tab groups searchbox"/>
+  <int value="5" label="Tab groups loupe"/>
 </enum>
 
 <!-- LINT.ThenChange(//chrome/browser/hub/internal/android/java/src/org/chromium/chrome/browser/hub/HubToolbarMediator.java:HubSearchEntrypoint) -->
@@ -1404,6 +1407,7 @@ chromium-metrics-reviews@google.com.
   <int value="7" label="TILE_NAVSUGGEST"/>
   <int value="8" label="GROUP_SEPARATOR"/>
   <int value="9" label="OBSOLETE_QUERY_TILES"/>
+  <int value="10" label="TAB_GROUP_SUGGESTION"/>
 </enum>
 
 <!-- LINT.ThenChange(//components/omnibox/browser/android/java/src/org/chromium/components/omnibox/suggestions/OmniboxSuggestionUiType.java:OmniboxSuggestionUiType) -->
@@ -1585,6 +1589,7 @@ chromium-metrics-reviews@google.com.
   <int value="6" label="FRE Not Completed"/>
   <int value="7" label="Custom back arrow"/>
   <int value="8" label="Bring Tab To Front"/>
+  <int value="9" label="Bring Tab Group To Front"/>
 </enum>
 
 <!-- LINT.ThenChange(//chrome/android/java/src/org/chromium/chrome/browser/searchwidget/SearchActivity.java:TerminationReason) -->

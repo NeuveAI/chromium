@@ -217,7 +217,6 @@ infra/config/subprojects/chrome
 infra/config/subprojects/webrtc/consoles
 ios/build/bots/scripts
 ios/chrome/browser/reader_mode/model/resources
-ios/chrome/test/earl_grey
 ios/chrome/test/wpt/tools
 media/audio/alsa
 media/audio/android
@@ -273,6 +272,7 @@ testing/scripts/variations_smoke_test_data/http_server
 third_party/abseil-cpp
 third_party/abseil-cpp/absl/base
 third_party/abseil-cpp/absl/base/internal
+third_party/abseil-cpp/absl/profiling/internal
 third_party/abseil-cpp/absl/random
 third_party/abseil-cpp/absl/random/internal
 third_party/abseil-cpp/absl/status
@@ -697,8 +697,6 @@ third_party/rust/chromium_crates_io/vendor/simd-adler32-v0_3/.github/workflows
 third_party/rust/chromium_crates_io/vendor/smallvec-v1/.github/workflows
 third_party/rust/chromium_crates_io/vendor/static_assertions-v1
 third_party/rust/chromium_crates_io/vendor/static_assertions-v1/src
-third_party/rust/chromium_crates_io/vendor/strum_macros-v0_27
-third_party/rust/chromium_crates_io/vendor/strum-v0_27
 third_party/rust/chromium_crates_io/vendor/strum-v0_27/src
 third_party/rust/chromium_crates_io/vendor/subtle-v2
 third_party/rust/chromium_crates_io/vendor/subtle-v2/src

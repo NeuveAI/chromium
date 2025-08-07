@@ -976,7 +976,10 @@ class PageInfoBubbleViewHttpsUpgradesBrowserTest
     : public PageInfoBubbleViewBrowserTest {
  public:
   PageInfoBubbleViewHttpsUpgradesBrowserTest() {
-    feature_list_.InitAndEnableFeature(features::kHttpsUpgrades);
+    // TODO(crbug.com/351990829): Get these tests working with the new
+    // Ask-before-HTTP dialog UI and then re-enable the feature here.
+    feature_list_.InitWithFeatures({features::kHttpsUpgrades},
+                                   {features::kHttpsFirstDialogUi});
   }
   ~PageInfoBubbleViewHttpsUpgradesBrowserTest() override = default;
 
@@ -1070,6 +1073,9 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewHttpsUpgradesBrowserTest,
   GURL http_url = embedded_test_server()->GetURL("foo.com", "/simple.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), http_url));
   EXPECT_EQ(http_url, web_contents()->GetLastCommittedURL());
+  // TODO(crbug.com/351990829): Adapt this test to work with the new
+  // Ask-before-HTTP dialog UI, and then re-enable the HttpsFirstDialogUi
+  // feature on this test suite.
   ASSERT_TRUE(chrome_browser_interstitials::IsShowingHttpsFirstModeInterstitial(
       web_contents()));
 
@@ -1439,39 +1445,13 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewAboutThisSiteDisabledBrowserTest,
       AboutThisSiteInteraction::kNotShownOptimizationGuideNotAllowed, 1);
 }
 
-class PageInfoBubbleViewSiteSettingsBrowserTest : public InProcessBrowserTest {
- public:
-  PageInfoBubbleViewSiteSettingsBrowserTest() {
-    feature_list.InitWithFeatures({page_info::kPageInfoHideSiteSettings}, {});
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list;
-};
-
-IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewSiteSettingsBrowserTest,
-                       SiteSettingsNotValid) {
-  GURL url = GURL("https://www.google.com/");
-  EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-  OpenPageInfoBubble(browser());
-
-  views::Widget* page_info_bubble =
-      PageInfoBubbleView::GetPageInfoBubbleForTesting()->GetWidget();
-  EXPECT_TRUE(page_info_bubble);
-
-  views::View* view = page_info_bubble->GetRootView()->GetViewByID(
-      PageInfoViewFactory::VIEW_ID_PAGE_INFO_LINK_OR_BUTTON_SITE_SETTINGS);
-  EXPECT_FALSE(view);
-}
-
 class PageInfoBubbleViewBrowserTestCookiesSubpage
     : public PageInfoBubbleViewBrowserTest,
       public testing::WithParamInterface</*is_3pcd_enabled*/ bool> {
  public:
   PageInfoBubbleViewBrowserTestCookiesSubpage() {
     std::vector<base::test::FeatureRef>
-        enabled_features =
-            {privacy_sandbox::kPrivacySandboxRelatedWebsiteSetsUi},
+        enabled_features = {},
         disabled_features = {privacy_sandbox::kActUserBypassUx,
                              privacy_sandbox::kFingerprintingProtectionUx,
                              privacy_sandbox::kIpProtectionUx};
@@ -1613,10 +1593,10 @@ IN_PROC_BROWSER_TEST_P(PageInfoBubbleViewBrowserTestCookiesSubpage,
       PageInfoViewFactory::VIEW_ID_PAGE_INFO_LINK_OR_BUTTON_RWS_SETTINGS));
 
   EXPECT_EQ(rws_button->GetTitleText(),
-            l10n_util::GetStringUTF16(IDS_PAGE_INFO_RWS_V2_BUTTON_TITLE));
-  EXPECT_EQ(rws_button->GetSubtitleText(),
-            l10n_util::GetStringFUTF16(IDS_PAGE_INFO_RWS_V2_BUTTON_SUBTITLE,
-                                       rws_owner));
+            l10n_util::GetStringUTF16(IDS_PAGE_INFO_RWS_BUTTON_TITLE));
+  EXPECT_EQ(
+      rws_button->GetSubtitleText(),
+      l10n_util::GetStringFUTF16(IDS_PAGE_INFO_RWS_BUTTON_SUBTITLE, rws_owner));
 
   // Checking if rws button opens correct page and records correctly user
   // actions.

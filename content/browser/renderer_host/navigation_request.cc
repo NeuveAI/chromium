@@ -187,6 +187,7 @@
 #include "services/network/public/mojom/web_client_hints_types.mojom-shared.h"
 #include "services/network/public/mojom/web_client_hints_types.mojom.h"
 #include "services/network/public/mojom/web_sandbox_flags.mojom.h"
+#include "storage/browser/blob/blob_url_registry.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 #include "third_party/blink/public/common/blob/blob_utils.h"
 #include "third_party/blink/public/common/chrome_debug_urls.h"
@@ -220,6 +221,7 @@
 #include "third_party/blink/public/mojom/timing/resource_timing.mojom-forward.h"
 #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom.h"
 #include "third_party/blink/public/platform/resource_request_blocked_reason.h"
+#include "third_party/perfetto/include/perfetto/tracing/track.h"
 #include "ui/compositor/compositor_lock.h"
 #include "url/origin.h"
 #include "url/url_constants.h"
@@ -418,9 +420,7 @@ void AddAdditionalRequestHeaders(
   }
 
   // Add the "Sec-Purpose: prefetch;prerender" header to prerender navigations
-  // including subframe navigations. Add "Purpose: prefetch" as well for
-  // compatibility concerns (See
-  // https://github.com/WICG/nav-speculation/issues/133).
+  // including subframe navigations.
   if (frame_tree_node->frame_tree().is_prerendering()) {
     PrerenderHost::GetFromFrameTreeNode(*frame_tree_node)
         .AddAdditionalRequestHeaders(*headers, *frame_tree_node);
@@ -697,27 +697,23 @@ base::debug::CrashKeyString* GetNavigationRequestIsSameDocumentCrashKey() {
 }
 
 // Start a new nested async event with the given name.
-void EnterChildTraceEvent(const char* name, NavigationRequest* request) {
-  // Passing nullptr as the event name will match the end event with the last
-  // unmatched begin event.
-  TRACE_EVENT_NESTABLE_ASYNC_END0("navigation", nullptr,
-                                  request->GetNavigationId());
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("navigation", name,
-                                    request->GetNavigationId());
+void EnterChildTraceEvent(perfetto::StaticString name,
+                          NavigationRequest* request) {
+  TRACE_EVENT_END("navigation", perfetto::Track(request->GetNavigationId()));
+  TRACE_EVENT_BEGIN("navigation", name,
+                    perfetto::Track(request->GetNavigationId()));
 }
 
 // Start a new nested async event with the given name and args.
 template <typename ArgType>
-void EnterChildTraceEvent(const char* name,
+void EnterChildTraceEvent(perfetto::StaticString name,
                           NavigationRequest* request,
                           const char* arg_name,
                           ArgType arg_value) {
-  // Passing nullptr as the event name will match the end event with the last
-  // unmatched begin event.
-  TRACE_EVENT_NESTABLE_ASYNC_END0("navigation", nullptr,
-                                  request->GetNavigationId());
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN1(
-      "navigation", name, request->GetNavigationId(), arg_name, arg_value);
+  TRACE_EVENT_END("navigation", perfetto::Track(request->GetNavigationId()));
+  TRACE_EVENT_BEGIN("navigation", name,
+                    perfetto::Track(request->GetNavigationId()), arg_name,
+                    arg_value);
 }
 
 network::mojom::RequestDestination GetDestinationFromFrameTreeNode(
@@ -1774,10 +1770,11 @@ NavigationRequest::NavigationRequest(
   // Ensure the blink::RuntimeFeatureStateContext is initialized.
   runtime_feature_state_context_ = blink::RuntimeFeatureStateContext();
 
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN1("navigation", "NavigationRequest",
-                                    navigation_id_, "navigation_request", this);
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("navigation", "Initializing",
-                                    navigation_id_);
+  TRACE_EVENT_BEGIN("navigation", "NavigationRequest",
+                    perfetto::Track(navigation_id_), "navigation_request",
+                    this);
+  TRACE_EVENT_BEGIN("navigation", "Initializing",
+                    perfetto::Track(navigation_id_));
 
   if (GetInitiatorFrameToken().has_value()) {
     RenderFrameHostImpl* initiator_rfh = RenderFrameHostImpl::FromFrameToken(
@@ -2206,11 +2203,11 @@ NavigationRequest::~NavigationRequest() {
   DCHECK(is_safe_to_delete_);
 #endif
 
-  // Close the last child event. Passing nullptr as the event name will match
-  // the end event with the last unmatched begin event.
-  TRACE_EVENT_NESTABLE_ASYNC_END0("navigation", nullptr, navigation_id_);
-  TRACE_EVENT_NESTABLE_ASYNC_END0("navigation", "NavigationRequest",
-                                  navigation_id_);
+  // Close "Initializing", or the last child event emitted in
+  // EnterChildTraceEvent().
+  TRACE_EVENT_END("navigation", perfetto::Track(navigation_id_));
+  TRACE_EVENT_END("navigation",
+                  /* NavigationRequest */ perfetto::Track(navigation_id_));
 
   // IMPORTANT NOTE: DO NOT return early from the destructor before this line.
   // Otherwise, a queued navigation might get stuck in a queueing state forever.
@@ -2308,10 +2305,12 @@ NavigationRequest::~NavigationRequest() {
     GetDelegate()->DidFinishNavigation(this);
     ProcessOriginAgentClusterEndResult();
     if (IsInMainFrame()) {
-      TRACE_EVENT_NESTABLE_ASYNC_END2(
-          "navigation", "Navigation StartToCommit",
-          TRACE_ID_WITH_SCOPE("StartToCommit", TRACE_ID_LOCAL(this)), "URL",
-          common_params_->url.spec(), "Net Error Code", net_error_);
+      // Navigation StartToCommit
+      TRACE_EVENT_END("navigation",
+                      perfetto::NamedTrack("StartToCommit",
+                                           reinterpret_cast<uintptr_t>(this)),
+                      "URL", common_params_->url.spec(), "Net Error Code",
+                      net_error_);
       MaybeRecordTraceEventsAndHistograms();
     }
     MaybeRecordNavigationStartAdjustments();
@@ -2592,6 +2591,7 @@ void NavigationRequest::OnPrerenderingActivationChecksComplete(
 
   DCHECK(candidate_prerender_frame_tree_node_id.has_value());
   DCHECK(!prerender_frame_tree_node_id_.has_value());
+  DCHECK(!reserved_prerender_host_info_.has_value());
 
   // Attempt to reserve the potential PrerenderHost.
   //
@@ -2599,9 +2599,13 @@ void NavigationRequest::OnPrerenderingActivationChecksComplete(
   // CommitDeferringConditions, ReserveHostToActivate() returns an invalid
   // FrameTreeNodeId, and then NavigationRequest continues as regular
   // navigation.
-  prerender_frame_tree_node_id_ =
+  reserved_prerender_host_info_ =
       GetPrerenderHostRegistry().ReserveHostToActivate(
           *this, candidate_prerender_frame_tree_node_id.value());
+  prerender_frame_tree_node_id_ =
+      reserved_prerender_host_info_.has_value()
+          ? reserved_prerender_host_info_->frame_tree_node_id
+          : FrameTreeNodeId();
   if (prerender_frame_tree_node_id_.value().is_null()) {
     // If we ran commit deferring conditions for a potential pre-render which
     // eventually wasn't activated, abort the ViewTransition. The state was
@@ -2756,16 +2760,12 @@ void NavigationRequest::BeginNavigationImpl() {
           frame_tree_node_->frame_tree().is_prerendering(),
           ui::PageTransitionFromInt(common_params_->transition),
           &should_override_url_loading)) {
-    if (prerender_frame_tree_node_id_.has_value() &&
-        !prerender_frame_tree_node_id_.value().is_null()) {
+    if (reserved_prerender_host_info_.has_value()) {
       // Prerender activation must not fail but some reports imply it can
       // actually be failing: crbug.com/408969974. This dump is useful for
       // debugging it.
-      PrerenderHostRegistry& registry = GetPrerenderHostRegistry();
       std::string prerender_type = GeneratePrerenderHistogramSuffix(
-          registry.GetPrerenderTriggerType(prerender_frame_tree_node_id()),
-          registry.GetPrerenderEmbedderHistogramSuffix(
-              prerender_frame_tree_node_id()));
+          GetPrerenderTriggerType(), GetPrerenderEmbedderHistogramSuffix());
       SCOPED_CRASH_KEY_STRING64("Bug411566699", "prerender_type",
                                 prerender_type);
       base::debug::DumpWithoutCrashing();
@@ -3200,11 +3200,11 @@ void NavigationRequest::StartNavigation() {
   if (IsInMainFrame()) {
     DCHECK(!common_params_->navigation_start.is_null());
     DCHECK(!blink::IsRendererDebugURL(common_params_->url));
-    TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP1(
-        "navigation", "Navigation StartToCommit",
-        TRACE_ID_WITH_SCOPE("StartToCommit", TRACE_ID_LOCAL(this)),
-        common_params_->navigation_start, "Initial URL",
-        common_params_->url.spec());
+    TRACE_EVENT_BEGIN("navigation", "Navigation StartToCommit",
+                      perfetto::NamedTrack("StartToCommit",
+                                           reinterpret_cast<uintptr_t>(this)),
+                      common_params_->navigation_start, "Initial URL",
+                      common_params_->url.spec());
   }
 
   if (IsSameDocument()) {
@@ -3252,10 +3252,12 @@ void NavigationRequest::ResetForCrossDocumentRestart() {
   if (IsNavigationStarted()) {
     GetDelegate()->DidFinishNavigation(this);
     if (IsInMainFrame()) {
-      TRACE_EVENT_NESTABLE_ASYNC_END2(
-          "navigation", "Navigation StartToCommit",
-          TRACE_ID_WITH_SCOPE("StartToCommit", TRACE_ID_LOCAL(this)), "URL",
-          common_params_->url.spec(), "Net Error Code", net_error_);
+      // Navigation StartToCommit
+      TRACE_EVENT_END("navigation",
+                      perfetto::NamedTrack("StartToCommit",
+                                           reinterpret_cast<uintptr_t>(this)),
+                      "URL", common_params_->url.spec(), "Net Error Code",
+                      net_error_);
     }
   }
 
@@ -3435,6 +3437,12 @@ NavigationRequest::TakeDipReporter() {
 
 ukm::SourceId NavigationRequest::GetPreviousPageUkmSourceId() {
   return previous_page_ukm_source_id_;
+}
+
+bool NavigationRequest::ShouldClearParsedHeadersOnTestReceiveRedirect() {
+  // This method is only for testing and thus must do nothing and return `false`
+  // here.
+  return false;
 }
 
 void NavigationRequest::OnRequestRedirected(
@@ -5117,16 +5125,12 @@ void NavigationRequest::OnRequestFailedInternal(
            error_page_content.has_value()));
   ScopedCrashKeys crash_keys(*this);
 
-  if (prerender_frame_tree_node_id_.has_value() &&
-      !prerender_frame_tree_node_id_.value().is_null()) {
+  if (reserved_prerender_host_info_.has_value()) {
     // Prerender activation must not fail but some reports imply it can actually
     // be failing: crbug.com/411566699, crbug.com/408969974. This dump is useful
     // for debugging it.
-    PrerenderHostRegistry& registry = GetPrerenderHostRegistry();
     std::string prerender_type = GeneratePrerenderHistogramSuffix(
-        registry.GetPrerenderTriggerType(prerender_frame_tree_node_id()),
-        registry.GetPrerenderEmbedderHistogramSuffix(
-            prerender_frame_tree_node_id()));
+        GetPrerenderTriggerType(), GetPrerenderEmbedderHistogramSuffix());
     SCOPED_CRASH_KEY_STRING64("Bug411566699", "prerender_type", prerender_type);
     base::debug::DumpWithoutCrashing();
   }
@@ -6557,18 +6561,31 @@ void NavigationRequest::CommitNavigation() {
   }
 
   // Sticky user activation should only be preserved for same-site subframe
-  // navigations. This is done to prevent newly navigated documents from
-  // re-using the sticky user activation state from the previously navigated
-  // document in the frame. We persist user activation across same-site
-  // navigations for compatibility reasons, and this does not need to match the
-  // same-site checks used in the process model. See: crbug.com/736415.
-  // TODO(crbug.com/40228985): Remove this once we find a way to reset
-  // activation unconditionally without breaking sites in practice.
+  // navigations, and same-origin top-frame navigations behind the feature flag
+  // StickyUserActivationAcrossSameOriginNavigation. These checks limit newly
+  // navigated documents from reusing the sticky user activation state from the
+  // previously navigated document in the frame.
+  //
+  // - We persist user activation across same-site navigations for compatibility
+  //   reasons, and this does not need to match the same-site checks used in the
+  //   process model. See https://crbug.com/40527366.
+  //
+  //   TODO(crbug.com/40228985): Remove this once we find a way to reset
+  //   activation unconditionally without breaking sites in practice.
+  //
+  // - The feature flag StickyUserActivationAcrossSameOriginNavigation relaxes
+  //   the preservation of sticky activation to include same-origin navigations
+  //   to ease multi-page app development which currently face problem with, for
+  //   example, virtual keyboards.  See https://crbug.com/433729626.
   commit_params_->should_have_sticky_user_activation =
-      !frame_tree_node_->IsMainFrame() &&
       old_frame_host->HasStickyUserActivation() &&
-      net::SchemefulSite::IsSameSite(old_frame_host->GetLastCommittedOrigin(),
-                                     origin_to_commit);
+      ((!frame_tree_node_->IsMainFrame() &&
+        net::SchemefulSite::IsSameSite(old_frame_host->GetLastCommittedOrigin(),
+                                       origin_to_commit)) ||
+       (base::FeatureList::IsEnabled(
+            blink::features::kStickyUserActivationAcrossSameOriginNavigation) &&
+        frame_tree_node_->IsMainFrame() &&
+        old_frame_host->GetLastCommittedOrigin() == origin_to_commit));
 
   // Generate a UKM source and track it on NavigationRequest. This will be
   // passed down to the blink::Document to be created, if any, and used for UKM
@@ -6876,25 +6893,12 @@ void NavigationRequest::CommitPageActivation() {
     frame_tree_node_->render_manager()->RestorePage(
         activated_entry->TakeStoredPage());
   } else {
-    // Copy the prerender trigger type before PrerenderHost is destroyed in
-    // ActivateReservedHost().
-    PreloadingTriggerType trigger_type =
-        GetPrerenderHostRegistry().GetPrerenderTriggerType(
-            prerender_frame_tree_node_id());
-    const std::string embedder_histogram_suffix =
-        GetPrerenderHostRegistry().GetPrerenderEmbedderHistogramSuffix(
-            prerender_frame_tree_node_id());
-
     std::unique_ptr<StoredPage> stored_page =
         GetPrerenderHostRegistry().ActivateReservedHost(
             prerender_frame_tree_node_id_.value(), *this);
     CHECK(stored_page);
 
     RenderFrameHostImpl* rfh = stored_page->render_frame_host();
-
-    // Set the prerender trigger type and embedder histogram suffix for metrics.
-    set_prerender_trigger_type(trigger_type);
-    set_prerender_embedder_histogram_suffix(embedder_histogram_suffix);
 
     // The prerender page might have navigated. Update the URL and the redirect
     // chain, as the prerendered page might have been redirected or performed
@@ -8486,6 +8490,24 @@ void NavigationRequest::UpdatePrivateNetworkRequestPolicy() {
     return;
   }
 
+  // Deprecation trial is to allow http sites to run LNA requests assuming the
+  // user grants the permission to the web site.
+  //
+  // Support for origin trial tokens in <meta> tags or programmatically are not
+  // supported, for the same reasons as in the previous PNA trial:
+  // https://developer.chrome.com/blog/private-network-access-update#register-deprecation-trial
+  if (!policies.is_web_secure_context &&
+      policies.allow_non_secure_local_network_access &&
+      base::FeatureList::IsEnabled(
+          network::features::kLocalNetworkAccessChecks)) {
+    web_features_to_log_.push_back(
+        blink::mojom::WebFeature::
+            kLocalNetworkAccessNonSecureContextAllowedDeprecationTrial);
+  }
+
+  // TODO(crbug.com/433300380): The lna_secure_context_overide check needs to be
+  // done in all other policy derivation points. This boolean should probably be
+  // put into PolicyContainerPolicies.
   private_network_request_policy_ = DerivePrivateNetworkRequestPolicy(
       policies, PrivateNetworkRequestContext::kSubresource);
 
@@ -8493,8 +8515,7 @@ void NavigationRequest::UpdatePrivateNetworkRequestPolicy() {
       ContentBrowserClient::PrivateNetworkRequestPolicyOverride::
           kBlockInsteadOfWarn) {
     private_network_request_policy_ =
-        OverrideBlockWithWarn(DerivePrivateNetworkRequestPolicy(
-            policies, PrivateNetworkRequestContext::kSubresource));
+        OverrideBlockWithWarn(private_network_request_policy_);
   }
 }
 
@@ -9943,7 +9964,24 @@ NavigationRequest::BuildClientSecurityStateForNavigationFetch() {
     //
     // TODO(crbug.com/40258826): Determine how to treat guest views.
     case FrameType::kPrimaryMainFrame:
-    case FrameType::kGuestMainFrame:
+    case FrameType::kGuestMainFrame: {
+      if (!policy_container_builder_->InitiatorPolicies()) {
+        return nullptr;
+      }
+
+      network::mojom::ClientSecurityStatePtr state = DeriveClientSecurityState(
+          *policy_container_builder_->InitiatorPolicies(),
+          PrivateNetworkRequestContext::kMainFrameNavigation);
+
+      // Remove the initiator's COEP, it is unused. For iframes, the parent's
+      // COEP should be used: that is checked in `EnforceCOEP()`. The value
+      // in `ClientSecurityState` is used for subresources only, in which case
+      // the network service performs the check on behalf of the client.
+      state->cross_origin_embedder_policy =
+          network::CrossOriginEmbedderPolicy();
+
+      return state;
+    }
     case FrameType::kSubframe: {
       if (!policy_container_builder_->InitiatorPolicies()) {
         return nullptr;
@@ -9951,7 +9989,7 @@ NavigationRequest::BuildClientSecurityStateForNavigationFetch() {
 
       network::mojom::ClientSecurityStatePtr state = DeriveClientSecurityState(
           *policy_container_builder_->InitiatorPolicies(),
-          PrivateNetworkRequestContext::kNavigation);
+          PrivateNetworkRequestContext::kSubframeNavigation);
 
       // Remove the initiator's COEP, it is unused. For iframes, the parent's
       // COEP should be used: that is checked in `EnforceCOEP()`. The value
@@ -9979,23 +10017,6 @@ NavigationRequest::BuildClientSecurityStateForNavigationFetch() {
     // `is_embedder_initiated_fenced_frame_navigation_` to discriminate (1) from
     // (2).
     //
-    // NOTE: For an embedder initiated fenced frame navigation that is subject
-    // to private network access checks:
-    //
-    // 1. The preflight request is sent with an opaque origin: "Origin: null".
-    //    See: `FencedFrame::Navigate()`.
-    // 2. The credentials mode of the preflight request is "include". This
-    //    prevents response header `Access-Control-Allow-Origin: '*'` from
-    //    working. The response header must explicitly specify the origin.
-    // 3. However, we cannot know the origin because of (1).
-    // 4. It is also unsafe to respond to the preflight with response header
-    //    `Access-Control-Allow-Origin: 'null'`. See:
-    //    https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
-    //
-    // This implies there is a limitation for fenced frames that send a
-    // preflight request because of private network access. Fenced frame
-    // embedder initiated private network accesses always fail.
-    //
     // NOTE: Fenced frames always have an outer document,
     // `GetParentFrameOrOuterDocument()` is never nullptr.
     case FrameType::kFencedFrameRoot: {
@@ -10004,14 +10025,11 @@ NavigationRequest::BuildClientSecurityStateForNavigationFetch() {
 
       // TODO(crbug.com/40258851): Remove COEP from
       // `client_security_state`, see the reasoning for subframes above.
-
-      // TODO(crbug.com/40258851): Consider enabling PNA for fenced
-      // frames independently of PNA for iframes.
       client_security_state->private_network_request_policy =
           DerivePrivateNetworkRequestPolicy(
               client_security_state->ip_address_space,
-              client_security_state->is_web_secure_context,
-              PrivateNetworkRequestContext::kNavigation);
+              client_security_state->is_web_secure_context, false,
+              PrivateNetworkRequestContext::kFencedFrameNavigation);
 
       return client_security_state;
     }
@@ -10255,6 +10273,24 @@ void NavigationRequest::ComputePoliciesToCommit() {
       CalculateIPAddressSpace(url, response_head_.get(),
                               GetContentClient()->browser());
   policy_container_builder_->SetIPAddressSpace(response_address_space);
+
+  // Deprecation trial is to allow http sites to run LNA requests assuming the
+  // user grants the permission to the web site.
+  //
+  // We don't set the use counter here yet because we only want to count the
+  // number of times this is actually included on a non-secure context, and
+  // whether a context is secure or not is computed later.
+  if (base::FeatureList::IsEnabled(
+          network::features::kLocalNetworkAccessChecks) &&
+      // If there is no response or no headers in the response, there are
+      // definitely no trial token headers.
+      response_head_ && response_head_->headers &&
+      blink::TrialTokenValidator().RequestEnablesDeprecatedFeature(
+          common_params_->url, response_head_->headers.get(),
+          "LocalNetworkAccessNonSecureContextAllowed", base::Time::Now())) {
+    policy_container_builder_->SetLocalNetworkAccessNonSecureContextAllowed(
+        true);
+  }
 
   if (!devtools_instrumentation::ShouldBypassCSP(*this)) {
     if (response_head_) {
@@ -10781,16 +10817,12 @@ NavigationRequest::ComputeCrossOriginIsolationKey() {
   // differences. To avoid this, we return the current CrossOriginIsolationKey
   // if the navigation is same-origin.
   if (!policy_container_builder_->HasComputedPolicies()) {
-    if (origin.IsSameOriginWith(frame_tree_node_->current_origin()) &&
-        frame_tree_node_->current_frame_host()
-            ->GetSiteInstance()
-            ->GetSiteInfo()
-            .agent_cluster_key()) {
+    if (origin.IsSameOriginWith(frame_tree_node_->current_origin())) {
       return frame_tree_node_->current_frame_host()
           ->GetSiteInstance()
           ->GetSiteInfo()
           .agent_cluster_key()
-          ->GetCrossOriginIsolationKey();
+          .GetCrossOriginIsolationKey();
     }
     return std::nullopt;
   }
@@ -10934,12 +10966,18 @@ NavigationRequest::ScopedCrashKeys::ScopedCrashKeys(
 NavigationRequest::ScopedCrashKeys::~ScopedCrashKeys() = default;
 
 PreloadingTriggerType NavigationRequest::GetPrerenderTriggerType() {
-  DCHECK(prerender_trigger_type_.has_value());
-  return prerender_trigger_type_.value();
+  DCHECK(reserved_prerender_host_info_.has_value());
+  return reserved_prerender_host_info_->trigger_type;
 }
 
 std::string NavigationRequest::GetPrerenderEmbedderHistogramSuffix() {
-  return prerender_embedder_histogram_suffix_;
+  DCHECK(reserved_prerender_host_info_.has_value());
+  return reserved_prerender_host_info_->embedder_histogram_suffix;
+}
+
+bool NavigationRequest::IsPrerenderHostReused() {
+  DCHECK(reserved_prerender_host_info_.has_value());
+  return reserved_prerender_host_info_->is_prerender_host_reused;
 }
 
 #if BUILDFLAG(IS_ANDROID)
@@ -11450,8 +11488,8 @@ void NavigationRequest::MaybeRecordTraceEventsAndHistograms() {
   DCHECK(!blink::IsRendererDebugURL(common_params_->url));
   base::TimeTicks navigation_start_time = common_params_->navigation_start;
   DCHECK(!navigation_start_time.is_null());
-  const auto trace_id = TRACE_ID_WITH_SCOPE("NavigationBreakdown",
-                                            TRACE_ID_LOCAL(navigation_id_));
+  const auto trace_id =
+      perfetto::NamedTrack("NavigationBreakdown", navigation_id_);
   const base::TimeTicks loader_start_time =
       navigation_handle_timing_.loader_start_time;
   const base::TimeTicks first_request_start_time =
@@ -11459,41 +11497,38 @@ void NavigationRequest::MaybeRecordTraceEventsAndHistograms() {
   const base::TimeTicks navigation_commit_sent_time =
       navigation_handle_timing_.navigation_commit_sent_time;
 
-#define MAYBE_RECORD_TRACE_AND_HISTOGRAM0(name, begin_time, end_time)         \
-  do {                                                                        \
-    if (!begin_time.is_null() && !end_time.is_null() &&                       \
-        navigation_start_time <= begin_time &&                                \
-        end_time <= navigation_commit_sent_time) {                            \
-      TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP0("navigation", name,    \
-                                                       trace_id, begin_time); \
-      TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0("navigation", name,      \
-                                                     trace_id, end_time);     \
-      if (record_metrics) {                                                   \
-        base::UmaHistogramTimes(                                              \
-            "Navigation.MainFrame.NewNavigation.IgnoreRestore."               \
-            "IsHTTPOrHTTPS." name ".Time2",                                   \
-            end_time - begin_time);                                           \
-      }                                                                       \
-    }                                                                         \
+#define MAYBE_RECORD_TRACE_AND_HISTOGRAM0(name, begin_time, end_time) \
+  do {                                                                \
+    if (!begin_time.is_null() && !end_time.is_null() &&               \
+        navigation_start_time <= begin_time &&                        \
+        end_time <= navigation_commit_sent_time) {                    \
+      TRACE_EVENT_BEGIN("navigation", name, trace_id, begin_time);    \
+      TRACE_EVENT_END("navigation", trace_id, end_time);              \
+      if (record_metrics) {                                           \
+        base::UmaHistogramTimes(                                      \
+            "Navigation.MainFrame.NewNavigation.IgnoreRestore."       \
+            "IsHTTPOrHTTPS." name ".Time2",                           \
+            end_time - begin_time);                                   \
+      }                                                               \
+    }                                                                 \
   } while (0)
 
-#define MAYBE_RECORD_TRACE_AND_HISTOGRAM1(name, begin_time, end_time,     \
-                                          arg1_name, arg1_val)            \
-  do {                                                                    \
-    if (!begin_time.is_null() && !end_time.is_null() &&                   \
-        navigation_start_time <= begin_time &&                            \
-        end_time <= navigation_commit_sent_time) {                        \
-      TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP1(                   \
-          "navigation", name, trace_id, begin_time, arg1_name, arg1_val); \
-      TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0("navigation", name,  \
-                                                     trace_id, end_time); \
-      if (record_metrics) {                                               \
-        base::UmaHistogramTimes(                                          \
-            "Navigation.MainFrame.NewNavigation.IgnoreRestore."           \
-            "IsHTTPOrHTTPS." name ".Time2",                               \
-            end_time - begin_time);                                       \
-      }                                                                   \
-    }                                                                     \
+#define MAYBE_RECORD_TRACE_AND_HISTOGRAM1(name, begin_time, end_time,        \
+                                          arg1_name, arg1_val)               \
+  do {                                                                       \
+    if (!begin_time.is_null() && !end_time.is_null() &&                      \
+        navigation_start_time <= begin_time &&                               \
+        end_time <= navigation_commit_sent_time) {                           \
+      TRACE_EVENT_BEGIN("navigation", name, trace_id, begin_time, arg1_name, \
+                        arg1_val);                                           \
+      TRACE_EVENT_END("navigation", trace_id, end_time);                     \
+      if (record_metrics) {                                                  \
+        base::UmaHistogramTimes(                                             \
+            "Navigation.MainFrame.NewNavigation.IgnoreRestore."              \
+            "IsHTTPOrHTTPS." name ".Time2",                                  \
+            end_time - begin_time);                                          \
+      }                                                                      \
+    }                                                                        \
   } while (0)
 
   MAYBE_RECORD_TRACE_AND_HISTOGRAM0("NavigationStartToBeginNavigation",
@@ -11650,14 +11685,11 @@ void NavigationRequest::MaybeRecordNavigationStartAdjustments() {
   base::UmaHistogramPercentage(histogram_name + ".Percentage", percentage);
 
   // Show trace events indicating where the adjustment occurred in time.
-  const auto trace_id = TRACE_ID_WITH_SCOPE("NavigationStartAdjustment",
-                                            TRACE_ID_LOCAL(navigation_id_));
-  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP1(
-      "navigation", "NavigationStartAdjustment", trace_id,
-      original_navigation_start_, "Percentage", percentage);
-  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0(
-      "navigation", "NavigationStartAdjustment", trace_id,
-      common_params().navigation_start);
+  const auto trace_id =
+      perfetto::NamedTrack("NavigationStartAdjustment", navigation_id_);
+  TRACE_EVENT_BEGIN("navigation", "NavigationStartAdjustment", trace_id,
+                    original_navigation_start_, "Percentage", percentage);
+  TRACE_EVENT_END("navigation", trace_id, common_params().navigation_start);
 }
 
 void NavigationRequest::WillStartBeforeUnload() {

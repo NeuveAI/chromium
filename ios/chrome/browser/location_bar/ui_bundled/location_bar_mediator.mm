@@ -8,6 +8,7 @@
 #import "components/google/core/common/google_util.h"
 #import "components/lens/lens_url_utils.h"
 #import "components/omnibox/common/omnibox_features.h"
+#import "ios/chrome/browser/intelligence/bwg/metrics/bwg_metrics.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_service.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_service_factory.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
@@ -229,7 +230,7 @@ const CGFloat kIconPointSize = 16.0;
           ProfileIOS::FromBrowserState(webState->GetBrowserState());
       BwgService* BWGService = BwgServiceFactory::GetForProfile(profile);
       if (BWGService) {
-        return BWGService->IsBwgAvailableForWebState(webState);
+        return BWGService->IsProfileEligibleForBwg();
       }
     }
   }
@@ -250,6 +251,8 @@ const CGFloat kIconPointSize = 16.0;
   }
 
   if ([self isAIHubAvailable]) {
+    // Record Gemini entry point impression when AI Hub is available and shown.
+    RecordGeminiEntryPointImpression();
     [self.consumer
         setPlaceholderType:LocationBarPlaceholderType::kPageActionMenu];
     return;

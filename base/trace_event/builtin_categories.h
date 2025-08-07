@@ -76,10 +76,6 @@ PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(
     perfetto::Category("blink.animations"),
     perfetto::Category("blink.bindings"),
     perfetto::Category("blink.console"),
-    perfetto::Category("blink.debug.invalidation_tracking")
-        .SetDescription(
-            "Debugging events for style invalidation, related to "
-            "devtools.timeline.InvalidationTracking").SetTags("debug"),
     perfetto::Category("blink.net"),
     perfetto::Category("blink.resource"),
     perfetto::Category("blink.user_timing"),
@@ -253,7 +249,6 @@ PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(
     perfetto::Category("wayland"),
     perfetto::Category("webaudio").SetTags("audio"),
     perfetto::Category("webengine.fidl"),
-    perfetto::Category("weblayer"),
     perfetto::Category("WebCore"),
     perfetto::Category("webnn"),
     perfetto::Category("webrtc").SetTags("audio", "video"),

@@ -34,7 +34,17 @@ chromium-metrics-reviews@google.com.
   <variant name="ComposeProactiveNudge"
       summary="For Compose feature; shown on autofill popup."/>
   <variant name="DevToolsAiAssistanceFileAgent"
-      summary="Promotion forDevTools AI Assistance File Agent."/>
+      summary="Promotion for DevTools AI Assistance File Agent."/>
+  <variant name="DevToolsAiAssistanceNetworkAgent"
+      summary="Promotion for DevTools AI Assistance Network Agent."/>
+  <variant name="DevToolsAiAssistancePerformanceAgent"
+      summary="Promotion for DevTools AI Assistance Performance Agent."/>
+  <variant name="DevToolsAiDebugWithAi"
+      summary="Promotion for DevTools AI Debug with AI menu item."/>
+  <variant name="DevToolsAiSubmenuPrompts"
+      summary="Promotion for DevTools AI submenu prompts."/>
+  <variant name="DevToolsFreestyler"
+      summary="Promotion for DevTools AI Assistance Freestyler Agent."/>
   <variant name="Glic" summary="Glic toggle on settings page."/>
   <variant name="GlicAppMenuNewBadge"
       summary="Glic menu item in the three dot menu."/>
@@ -60,6 +70,27 @@ chromium-metrics-reviews@google.com.
   <variant name="TabstripDeclutter"
       summary="Promotion for Close Unused Tabs in the app menu."/>
 </variants>
+
+<!-- LINT.IfChange(NtpPromoActions) -->
+
+<variants name="NtpPromoAction">
+  <variant name="Clicked" summary="Promo was clicked"/>
+  <variant name="Completed" summary="Promo was completed"/>
+  <variant name="Shown" summary="Promo was shown"/>
+  <variant name="ShownTopSpot" summary="Promo was shown in the top spot"/>
+</variants>
+
+<!-- LINT.ThenChange(//components/user_education/common/ntp_promo/ntp_promo_controller.cc:NtpPromoActions) -->
+
+<!-- LINT.IfChange(NtpPromoIdentifiers) -->
+
+<variants name="NtpPromoIdentifier">
+  <variant name="Customization" summary="Customize Chrome promo"/>
+  <variant name="Extensions" summary="Extensions promo"/>
+  <variant name="SignIn" summary="Sign-In promo"/>
+</variants>
+
+<!-- LINT.ThenChange(//chrome/browser/user_education/ntp_promo_identifiers.h:NtpPromoIdentifiers) -->
 
 <variants name="TutorialID">
   <variant name="" summary="any tutorial"/>
@@ -216,7 +247,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="UserEducation.MessageNotShown.TimeInQueue" units="ms"
-    expires_after="2025-11-23">
+    expires_after="2026-01-25">
   <owner>dfried@chromium.org</owner>
   <owner>frizzle-team@google.com</owner>
   <summary>
@@ -224,21 +255,6 @@ chromium-metrics-reviews@google.com.
     shown. Is not recorded for promos that are immediately rejected due to
     failed requirements, promos which are explicitly canceled, or promos which
     are actually shown (see UserEducation.MessageShown.TimeInQueue).
-  </summary>
-</histogram>
-
-<histogram name="UserEducation.MessageShown.RotatingPromoIndex" units="Index"
-    expires_after="2025-08-31">
-  <expired_intentionally>
-    Deprecated. Replaced by UserEducation.RotatingPromoIndex.{IPHFeature}.
-  </expired_intentionally>
-  <owner>dfried@chromium.org</owner>
-  <owner>frizzle-team@google.com</owner>
-  <summary>
-    Record the index of a rotating promo when it is shown to the user. This can
-    be used to determine how deep in the rotation of rotating promos users are
-    going, and also what proportion of users have seen a particular promo from a
-    rotating promo set.
   </summary>
 </histogram>
 
@@ -321,6 +337,19 @@ chromium-metrics-reviews@google.com.
     Completed&quot;.
   </summary>
   <token key="NewBadgeFeature" variants="NewBadgeFeature"/>
+</histogram>
+
+<histogram
+    name="UserEducation.NtpPromos.Promos.{NtpPromoIdentifier}.{NtpPromoAction}"
+    units="int" expires_after="2026-09-01">
+  <owner>cjgrant@chromium.org</owner>
+  <owner>frizzle-team@google.com</owner>
+  <summary>
+    Records when the NTP {NtpPromoIdentifier} promo sees a {NtpPromoAction}
+    event. Logged on desktop platforms.
+  </summary>
+  <token key="NtpPromoIdentifier" variants="NtpPromoIdentifier"/>
+  <token key="NtpPromoAction" variants="NtpPromoAction"/>
 </histogram>
 
 <histogram name="UserEducation.Session.ActivePeriodDuration.Min.Under1Hour"

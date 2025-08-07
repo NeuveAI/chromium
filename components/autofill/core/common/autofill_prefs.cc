@@ -5,6 +5,7 @@
 #include "components/autofill/core/common/autofill_prefs.h"
 
 #include "base/feature_list.h"
+#include "base/metrics/histogram_functions.h"
 #include "build/build_config.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
@@ -48,6 +49,9 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
       kAutofillPaymentCardBenefits, true,
       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
 
+  registry->RegisterStringPref(kAutofillNameAndEmailProfileSignature, "",
+                               user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+
   // Non-synced prefs. Used for per-device choices, e.g., signin promo.
   registry->RegisterDictionaryPref(kAutofillAiOptInStatus);
   registry->RegisterBooleanPref(kAutofillCreditCardFidoAuthEnabled, false);
@@ -88,6 +92,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterStringPref(kAutofillAblationSeedPref, "");
   registry->RegisterBooleanPref(kAutofillRanQuasiDuplicateExtraDeduplication,
                                 false);
+#if BUILDFLAG(IS_ANDROID)
+  registry->RegisterBooleanPref(kFacilitatedPaymentsPixAccountLinkingDeprecated,
+                                /*default_value=*/true);
+#endif  // BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(IS_ANDROID)
   registry->RegisterBooleanPref(kAutofillUsingVirtualViewStructure, false);
@@ -99,9 +107,11 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(
       kFacilitatedPaymentsPix, /*default_value=*/true,
       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
-  registry->RegisterBooleanPref(
-      kFacilitatedPaymentsPixAccountLinking, /*default_value=*/true,
-      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+  // The Pix account linking pref is a profile pref but not synced across
+  // devices since users may prefer to have a different value for it on
+  // different devices.
+  registry->RegisterBooleanPref(kFacilitatedPaymentsPixAccountLinking,
+                                /*default_value=*/true);
   registry->RegisterBooleanPref(
       kFacilitatedPaymentsA2AEnabled, /*default_value=*/true,
       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
@@ -141,6 +151,10 @@ void MigrateDeprecatedAutofillPrefs(PrefService* pref_service) {
   pref_service->ClearPref(kAutofillRanQuasiDuplicateExtraDeduplication);
   // Added 03/2025
   pref_service->ClearPref(kAutofillEnabledDeprecated);
+#if BUILDFLAG(IS_ANDROID)
+  // Added 08/2025
+  pref_service->ClearPref(kFacilitatedPaymentsPixAccountLinkingDeprecated);
+#endif  // BUILDFLAG(IS_ANDROID)
 }
 
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
@@ -190,7 +204,24 @@ bool IsAutofillProfileEnabled(const PrefService* prefs) {
 }
 
 void SetAutofillProfileEnabled(PrefService* prefs, bool enabled) {
+  if (prefs->GetBoolean(kAutofillProfileEnabled) == enabled) {
+    return;
+  }
+
   prefs->SetBoolean(kAutofillProfileEnabled, enabled);
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  //
+  // LINT.IfChange(AutofillAddressOptInChange)
+  enum class AutofillAddressOptInChange {
+    kOptIn = 0,
+    kOptOut = 1,
+    kMaxValue = kOptOut
+  };
+  // LINT.ThenChange(/tools/metrics/histograms/metadata/autofill/enums.xml:AutofillAddressOptInChange)
+  using enum AutofillAddressOptInChange;
+  base::UmaHistogramEnumeration("Autofill.Address.IsEnabled.Change",
+                                enabled ? kOptIn : kOptOut);
 }
 
 bool IsPaymentMethodsMandatoryReauthEnabled(const PrefService* prefs) {
@@ -313,6 +344,21 @@ bool IsFacilitatedPaymentsPixAccountLinkingEnabled(const PrefService* prefs) {
 #else
   // Default to false on other platforms as the feature is Android-only.
   return false;
+#endif  // BUILDFLAG(IS_ANDROID)
+}
+
+bool IsFacilitatedPaymentsA2AEnabled(const PrefService* prefs) {
+#if BUILDFLAG(IS_ANDROID)
+  return prefs->GetBoolean(kFacilitatedPaymentsA2AEnabled);
+#else
+  // Default to false on other platforms as the feature is Android-only.
+  return false;
+#endif  // BUILDFLAG(IS_ANDROID)
+}
+
+void SetFacilitatedPaymentsA2ATriggeredOnce(PrefService* prefs, bool value) {
+#if BUILDFLAG(IS_ANDROID)
+  prefs->SetBoolean(kFacilitatedPaymentsA2ATriggeredOnce, value);
 #endif  // BUILDFLAG(IS_ANDROID)
 }
 

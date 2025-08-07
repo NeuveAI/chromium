@@ -78,7 +78,7 @@ class WebAuthenticationProxyApiTest : public ExtensionApiTest {
             browser(), https_test_server_.GetURL(test_domain_, "/page.html"))) {
       ADD_FAILURE() << "Failed to navigate to test URL";
     }
-    return content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
+    return content::EvalJs(GetActiveWebContents(),
                            "PublicKeyCredential."
                            "isUserVerifyingPlatformAuthenticatorAvailable();")
         .ExtractBool();
@@ -127,9 +127,9 @@ class WebAuthenticationProxyApiTest : public ExtensionApiTest {
               let err = await createPromise;
               return err;
             })();)";
-    return content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
-                           kMakeCredentialJs)
-               .error.find("AbortError") >= 0;
+    return testing::Value(
+        content::EvalJs(GetActiveWebContents(), kMakeCredentialJs),
+        content::EvalJsResult::ErrorIs(testing::HasSubstr("AbortError")));
   }
 
   content::EvalJsResult NavigateAndCallGetAssertion() {
@@ -145,8 +145,7 @@ class WebAuthenticationProxyApiTest : public ExtensionApiTest {
               }});
               return credential.id;
             })();)";
-    return content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
-                           kGetAssertionJs);
+    return content::EvalJs(GetActiveWebContents(), kGetAssertionJs);
   }
 
   bool NavigateAndCallGetAssertionThenCancel() {
@@ -167,9 +166,9 @@ class WebAuthenticationProxyApiTest : public ExtensionApiTest {
               let err = await getPromise;
               return err;
             })();)";
-    return content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
-                           kGetAssertionJs)
-               .error.find("AbortError") >= 0;
+    return testing::Value(
+        content::EvalJs(GetActiveWebContents(), kGetAssertionJs),
+        content::EvalJsResult::ErrorIs(testing::HasSubstr("AbortError")));
   }
 
   bool ProxyIsActive() { return ProxyIsActiveForContext(profile()); }

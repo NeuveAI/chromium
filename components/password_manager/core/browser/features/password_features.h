@@ -25,6 +25,12 @@ BASE_DECLARE_FEATURE(kActorLogin);
 BASE_DECLARE_FEATURE(kAndroidSmsOtpFilling);
 #endif  // BUILDFLAG(IS_ANDROID)
 
+// Enables using clientside form classifier predictions for password forms.
+BASE_DECLARE_FEATURE(kApplyClientsideModelPredictionsForPasswordTypes);
+
+// Enables using clientside form classifier predictions for OTP forms.
+BASE_DECLARE_FEATURE(kApplyClientsideModelPredictionsForOtps);
+
 // When enabled, updates to shared existing passwords from the same sender are
 // auto-approved.
 BASE_DECLARE_FEATURE(kAutoApproveSharedPasswordUpdatesFromSameSender);
@@ -99,6 +105,7 @@ BASE_DECLARE_FEATURE(kIOSPasswordBottomSheetV2);
 BASE_DECLARE_FEATURE(kIOSProactivePasswordGenerationBottomSheet);
 
 // Allows filling from a secondary recovery password saved as a backup on iOS.
+// Acts as an iOS kill switch for the `kImprovedPasswordChangeService` feature.
 BASE_DECLARE_FEATURE(kIOSFillRecoveryPassword);
 
 #endif  // BUILDFLAG(IS_IOS)

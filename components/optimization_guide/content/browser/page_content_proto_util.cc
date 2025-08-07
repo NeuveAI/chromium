@@ -46,6 +46,10 @@ optimization_guide::proto::ClickabilityReason ConvertClickabilityReason(
       return optimization_guide::proto::CLICKABILITY_REASON_ARIA_EXPANDED_TRUE;
     case blink::mojom::AIPageContentClickabilityReason::kAriaExpandedFalse:
       return optimization_guide::proto::CLICKABILITY_REASON_ARIA_EXPANDED_FALSE;
+    case blink::mojom::AIPageContentClickabilityReason::kTabIndex:
+      return optimization_guide::proto::CLICKABILITY_REASON_TAB_INDEX;
+    case blink::mojom::AIPageContentClickabilityReason::kAutocomplete:
+      return optimization_guide::proto::CLICKABILITY_REASON_AUTOCOMPLETE;
   }
   NOTREACHED();
 }
@@ -617,7 +621,10 @@ void ConvertFrameData(
     optimization_guide::proto::FrameData* proto_frame_data,
     blink::mojom::PageMetadata& metadata,
     FrameTokenSet& frame_token_set) {
-  ConvertFrameMetadata(render_frame_info.url, mojom_frame_data, metadata);
+  ConvertFrameMetadata(
+      render_frame_info.source_origin.GetTupleOrPrecursorTupleIfOpaque()
+          .GetURL(),
+      mojom_frame_data, metadata);
   SecurityOriginSerializer::Serialize(
       render_frame_info.source_origin,
       proto_frame_data->mutable_security_origin());

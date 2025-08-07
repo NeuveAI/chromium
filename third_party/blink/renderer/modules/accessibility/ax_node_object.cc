@@ -154,6 +154,7 @@
 #include "third_party/blink/renderer/core/navigation_api/navigation_api.h"
 #include "third_party/blink/renderer/core/page/focus_controller.h"
 #include "third_party/blink/renderer/core/page/page.h"
+#include "third_party/blink/renderer/core/style/computed_style_base_constants.h"
 #include "third_party/blink/renderer/core/style/computed_style_constants.h"
 #include "third_party/blink/renderer/core/svg/svg_a_element.h"
 #include "third_party/blink/renderer/core/svg/svg_desc_element.h"
@@ -1270,7 +1271,7 @@ bool AXNodeObject::ComputeIsIgnored(IgnoredReasons* ignored_reasons) const {
 
     // Fallback elements inside of a <canvas> are invisible, but are not ignored
     if (IsHiddenViaStyle() || !node || !node->parentElement() ||
-        !node->parentElement()->IsInCanvasSubtree()) {
+        !node->parentElement()->IsCanvasOrInCanvasSubtree()) {
       return true;
     }
   }
@@ -3293,13 +3294,12 @@ AccessibilityExpanded AXNodeObject::IsExpanded() const {
   // the HTML spec invokers commandfor functionality first, and only
   // popovertarget after, if commandfor was not executed.
   if (auto* button = DynamicTo<HTMLButtonElement>(element)) {
-    const AtomicString& action =
-        button->FastGetAttribute(html_names::kCommandAttr);
-    CommandEventType type = button->GetCommandEventType(action);
     if (HTMLElement* command_for =
             DynamicTo<HTMLElement>(button->commandForElement())) {
-      bool is_valid_popover_command =
-          command_for->IsValidBuiltinPopoverCommand(*button, type);
+      const AtomicString& action =
+          button->FastGetAttribute(html_names::kCommandAttr);
+      bool is_valid_popover_command = command_for->IsValidBuiltinPopoverCommand(
+          *button, HTMLButtonElement::GetCommandEventType(action));
       bool is_child = button->IsDescendantOrShadowDescendantOf(command_for);
       // Buttons for popovers should indicate the expanded/collapsed state.
       if (is_valid_popover_command && !is_child) {
@@ -3989,6 +3989,10 @@ ax::mojom::blink::TextAlign AXNodeObject::GetTextAlign() const {
       return ax::mojom::blink::TextAlign::kCenter;
     case ETextAlign::kJustify:
       return ax::mojom::blink::TextAlign::kJustify;
+    case ETextAlign::kMatchParent:
+      return style->IsLeftToRightDirection()
+                 ? ax::mojom::blink::TextAlign::kLeft
+                 : ax::mojom::blink::TextAlign::kRight;
   }
 }
 
@@ -4935,7 +4939,14 @@ String AXNodeObject::GetName(ax::mojom::blink::NameFrom& name_from,
     // Prioritize alt text if available.
     std::optional<String> alt_text = GetCSSAltText(element);
     if (alt_text && !alt_text->empty()) {
+      name_from = ax::mojom::blink::NameFrom::kCssAltText;
       return *alt_text;
+    }
+
+    if (!name.empty()) {
+      // Scroll button has a non-empty name, so there is no need to use a
+      // fallback.
+      return name;
     }
 
     // If the alt text is not available, return a "Scroll [direction]" name,
@@ -4955,6 +4966,8 @@ String AXNodeObject::GetName(ax::mojom::blink::NameFrom& name_from,
         NOTREACHED()
             << "ScrollButtonPseudoElement must be one of known directions";
       }
+
+      name_from = ax::mojom::blink::NameFrom::kCssAltText;
 
       switch (physical) {
         case PhysicalDirection::kRight:
@@ -4977,11 +4990,13 @@ String AXNodeObject::GetName(ax::mojom::blink::NameFrom& name_from,
   if (element && element->IsScrollMarkerPseudoElement()) {
     std::optional<String> alt_text = GetCSSAltText(element);
     if (alt_text && !alt_text->empty()) {
+      name_from = ax::mojom::blink::NameFrom::kCssAltText;
       return *alt_text;
     }
 
     std::optional<String> content = GetCSSContentText(element);
     if (content && !content->empty()) {
+      name_from = ax::mojom::blink::NameFrom::kContents;
       return *content;
     }
 
@@ -5527,7 +5542,7 @@ void AXNodeObject::GetRelativeBounds(AXObject** out_container,
   // If it's in a canvas but doesn't have an explicit rect, or has display:
   // contents set, get the bounding rect of its children.
   if ((GetNode()->parentElement() &&
-       GetNode()->parentElement()->IsInCanvasSubtree()) ||
+       GetNode()->parentElement()->IsCanvasOrInCanvasSubtree()) ||
       (element && element->HasDisplayContentsStyle())) {
     Vector<gfx::RectF> rects;
     for (Node& child : NodeTraversal::ChildrenOf(*GetNode())) {
@@ -5751,7 +5766,7 @@ void AXNodeObject::LoadInlineTextBoxes() {
       continue;
     }
 
-    if (CanHaveInlineTextBoxChildren(work_obj)) {
+    if (CanHaveInlineTextBoxChildren(work_obj) && HasLayoutText(work_obj)) {
       if (work_obj->CachedChildrenIncludingIgnored().empty()) {
         // We only need to add inline textbox children if they aren't present.
         // Although some platforms (e.g. Android), load inline text boxes
@@ -8302,13 +8317,22 @@ AXObject* AXNodeObject::NextOnLine() const {
   if (const auto* list_marker =
           GetListMarker(*layout_object, ParentObjectIfPresent())) {
     // A list marker should be followed by a list item on the same line.
-    // Note that pseudo content is always included in the tree, so
-    // NextSiblingIncludingIgnored() will succeed.
     auto* ax_list_marker = AXObjectCache().Get(list_marker);
-    if (ax_list_marker && ax_list_marker->IsIncludedInTree()) {
+    // If the list marker is ignored, it is OK to connect it to an ignored node.
+    if (ax_list_marker && ax_list_marker->IsIgnoredButIncludedInTree()) {
       return SetNextOnLine(
           GetFirstInlineBlockOrDeepestInlineAXChildInLayoutTree(
               ax_list_marker->NextSiblingIncludingIgnored(), true));
+    }
+    // If the list marker is not ignored, it should be connected to the next
+    // unignored sibling that is in the same line.
+    if (ax_list_marker && !ax_list_marker->IsIgnored()) {
+      AXObject* next_sibling = ax_list_marker->UnignoredNextSiblingSlow();
+      if (next_sibling) {
+        return SetNextOnLine(
+            GetFirstInlineBlockOrDeepestInlineAXChildInLayoutTree(next_sibling,
+                                                                  true));
+      }
     }
     return SetNextOnLine(nullptr);
   }

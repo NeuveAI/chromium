@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <utility>
 
 #include "base/strings/string_number_conversions.h"
 #include "base/types/expected.h"
@@ -113,7 +114,10 @@ void TabStripServiceImpl::GetTab(const tabs_api::NodeId& tab_mojom_id,
     auto& handle = tabs.at(i);
     if (tab_id == handle.raw_value()) {
       auto renderer_data = tab_strip_model_adapter_->GetTabRendererData(i);
-      tab_result = tabs_api::converters::BuildMojoTab(handle, renderer_data);
+      const ui::ColorProvider& color_provider =
+          tab_strip_model_adapter_->GetColorProvider();
+      tab_result = tabs_api::converters::BuildMojoTab(handle, renderer_data,
+                                                      color_provider);
     }
   }
 
@@ -163,7 +167,10 @@ void TabStripServiceImpl::CreateTabAt(
 
   auto renderer_data =
       tab_strip_model_adapter_->GetTabRendererData(tab_index.value());
-  auto mojo_tab = tabs_api::converters::BuildMojoTab(tab_handle, renderer_data);
+  const ui::ColorProvider& color_provider =
+      tab_strip_model_adapter_->GetColorProvider();
+  auto mojo_tab = tabs_api::converters::BuildMojoTab(tab_handle, renderer_data,
+                                                     color_provider);
   std::move(callback).Run(base::ok(std::move(mojo_tab)));
 }
 
@@ -209,7 +216,7 @@ void TabStripServiceImpl::CloseTabs(const std::vector<tabs_api::NodeId>& ids,
     tab_strip_model_adapter_->CloseTab(idx);
   }
 
-  std::move(callback).Run(mojo_base::mojom::Empty::New());
+  std::move(callback).Run(std::monostate());
 }
 
 void TabStripServiceImpl::ActivateTab(const tabs_api::NodeId& id,
@@ -239,7 +246,7 @@ void TabStripServiceImpl::ActivateTab(const tabs_api::NodeId& id,
   }
 
   tab_strip_model_adapter_->ActivateTab(maybe_idx.value());
-  std::move(callback).Run(mojo_base::mojom::Empty::New());
+  std::move(callback).Run(std::monostate());
 }
 
 void TabStripServiceImpl::MoveTab(const tabs_api::NodeId& id,
@@ -272,14 +279,52 @@ void TabStripServiceImpl::MoveTab(const tabs_api::NodeId& id,
     }
     default:
       std::move(callback).Run(base::unexpected(mojo_base::mojom::Error::New(
-          mojo_base::mojom::Code::kInvalidArgument, "Invalid node type")));
+          mojo_base::mojom::Code::kInvalidArgument, "invalid node type")));
       return;
   }
 
-  std::move(callback).Run(mojo_base::mojom::Empty::New());
+  std::move(callback).Run(std::monostate());
+}
+
+void TabStripServiceImpl::UpdateTabGroupVisual(
+    const tabs_api::NodeId& id,
+    const tab_groups::TabGroupVisualData& visual_data,
+    UpdateTabGroupVisualCallback callback) {
+  if (id.Type() != tabs_api::NodeId::Type::kCollection) {
+    std::move(callback).Run(base::unexpected(mojo_base::mojom::Error::New(
+        mojo_base::mojom::Code::kInvalidArgument, "id must be a collection")));
+    return;
+  }
+
+  const std::optional<tabs::TabCollectionHandle> collection_handle =
+      id.ToTabCollectionHandle();
+  if (!collection_handle.has_value()) {
+    std::move(callback).Run(base::unexpected(mojo_base::mojom::Error::New(
+        mojo_base::mojom::Code::kInvalidArgument, "id is malformed")));
+    return;
+  }
+
+  const std::optional<const tab_groups::TabGroupId> group_id =
+      tab_strip_model_adapter_->FindGroupIdFor(collection_handle.value());
+  if (!group_id.has_value()) {
+    std::move(callback).Run(base::unexpected(mojo_base::mojom::Error::New(
+        mojo_base::mojom::Code::kNotFound,
+        "group with the specified ID not found.")));
+    return;
+  }
+
+  tab_strip_model_adapter_->UpdateTabGroupVisuals(group_id.value(),
+                                                  visual_data);
+
+  std::move(callback).Run(std::monostate());
 }
 
 void TabStripServiceImpl::Accept(
     mojo::PendingReceiver<tabs_api::mojom::TabStripService> client) {
   clients_.Add(this, std::move(client));
+}
+
+void TabStripServiceImpl::AcceptExperimental(
+    mojo::PendingReceiver<tabs_api::mojom::TabStripExperimentService> client) {
+  experiment_clients_.Add(this, std::move(client));
 }

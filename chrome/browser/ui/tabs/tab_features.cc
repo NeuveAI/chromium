@@ -21,18 +21,19 @@
 #include "chrome/browser/image_fetcher/image_fetcher_service_factory.h"
 #include "chrome/browser/loader/from_gws_navigation_and_keep_alive_request_observer.h"
 #include "chrome/browser/net/qwac_web_contents_observer.h"
-#include "chrome/browser/passage_embeddings/embedder_tab_observer.h"
 #include "chrome/browser/privacy_sandbox/incognito/privacy_sandbox_incognito_tab_observer.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_tab_observer.h"
 #include "chrome/browser/privacy_sandbox/tracking_protection_settings_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_key.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
+#include "chrome/browser/ssl/ask_before_http_dialog_controller.h"
 #include "chrome/browser/sync/sessions/sync_sessions_router_tab_helper.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
 #include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/autofill/bubble_manager.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/commerce/commerce_ui_tab_helper.h"
@@ -46,6 +47,7 @@
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/inactive_window_mouse_event_controller.h"
 #include "chrome/browser/ui/tabs/public/tab_dialog_manager.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/collaboration_messaging_page_action_controller.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/collaboration_messaging_tab_data.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_web_contents_listener.h"
@@ -75,6 +77,7 @@
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/chrome_features.h"
+#include "components/autofill/core/common/autofill_features.h"
 #include "components/browsing_topics/browsing_topics_service.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/fingerprinting_protection_filter/common/fingerprinting_protection_filter_features.h"
@@ -252,6 +255,15 @@ void TabFeatures::Init(TabInterface& tab, Profile* profile) {
           std::make_unique<tab_groups::CollaborationMessagingTabData>(profile);
     }
 
+    if (IsPageActionMigrated(PageActionIconType::kCollaborationMessaging) &&
+        tab_groups::SavedTabGroupUtils::SupportsSharedTabGroups()) {
+      collaboration_messaging_page_action_controller_ =
+          GetUserDataFactory()
+              .CreateInstance<CollaborationMessagingPageActionController>(
+                  tab, tab, *page_action_controller_,
+                  *collaboration_messaging_tab_data_);
+    }
+
 #if BUILDFLAG(ENABLE_GLIC)
     if (glic::GlicEnabling::IsProfileEligible(
             tab.GetBrowserWindowInterface()->GetProfile())) {
@@ -264,7 +276,8 @@ void TabFeatures::Init(TabInterface& tab, Profile* profile) {
         profile->IsRegularProfile()) {
       actor_ui_tab_controller_ =
           std::make_unique<actor::ui::ActorUiTabController>(
-              tab, actor::ActorKeyedService::Get(profile));
+              tab, actor::ActorKeyedService::Get(profile),
+              std::make_unique<actor::ui::ActorUiTabControllerFactory>());
     }
   }  // IsInNormalWindow() end.
 
@@ -283,6 +296,11 @@ void TabFeatures::Init(TabInterface& tab, Profile* profile) {
               commerce::ProductSpecificationsPageActionViewController>(
               tab, *page_action_controller_, *commerce_ui_tab_helper_);
     }
+  }
+
+  if (base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
+    autofill_bubble_manager_ = autofill::BubbleManager::Create();
   }
 
   customize_chrome_side_panel_controller_ =
@@ -362,6 +380,11 @@ void TabFeatures::Init(TabInterface& tab, Profile* profile) {
   if (base::FeatureList::IsEnabled(net::features::kVerifyQWACs)) {
     qwac_web_contents_observer_ =
         std::make_unique<QwacWebContentsObserver>(tab);
+  }
+
+  if (base::FeatureList::IsEnabled(features::kHttpsFirstDialogUi)) {
+    ask_before_http_dialog_controller_ =
+        std::make_unique<AskBeforeHttpDialogController>(&tab);
   }
 }
 

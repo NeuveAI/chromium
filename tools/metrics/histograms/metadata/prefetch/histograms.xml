@@ -42,19 +42,25 @@ chromium-metrics-reviews@google.com.
   <variant name="Embedder_WebView" summary="Embedder trigger, WebView"/>
   <variant name="SpeculationRule_Conservative"
       summary="SpeculationRules trigger, Conservative"/>
-  <variant name="SpeculationRule_Immediate"
+  <variant name="SpeculationRule_Eager2"
+      summary="SpeculationRules trigger, Eager"/>
+  <variant name="SpeculationRule_Immediate2"
       summary="SpeculationRules trigger, Immediate"/>
   <variant name="SpeculationRule_Moderate"
       summary="SpeculationRules trigger, Moderate"/>
   <variant name="SpeculationRuleFromAutoSpeculationRules_Conservative"
       summary="SpeculationRulesFromAutoSpeculationRules trigger, Conservative"/>
-  <variant name="SpeculationRuleFromAutoSpeculationRules_Immediate"
+  <variant name="SpeculationRuleFromAutoSpeculationRules_Eager2"
+      summary="SpeculationRulesFromAutoSpeculationRules trigger, Eager"/>
+  <variant name="SpeculationRuleFromAutoSpeculationRules_Immediate2"
       summary="SpeculationRulesFromAutoSpeculationRules trigger, Immediate"/>
   <variant name="SpeculationRuleFromAutoSpeculationRules_Moderate"
       summary="SpeculationRulesFromAutoSpeculationRules trigger, Moderate"/>
   <variant name="SpeculationRuleFromIsolatedWorld_Conservative"
       summary="SpeculationRulesFromIsolatedWorld trigger, Conservative"/>
-  <variant name="SpeculationRuleFromIsolatedWorld_Immediate"
+  <variant name="SpeculationRuleFromIsolatedWorld_Eager2"
+      summary="SpeculationRulesFromIsolatedWorld trigger, Eager"/>
+  <variant name="SpeculationRuleFromIsolatedWorld_Immediate2"
       summary="SpeculationRulesFromIsolatedWorld trigger, Immediate"/>
   <variant name="SpeculationRuleFromIsolatedWorld_Moderate"
       summary="SpeculationRulesFromIsolatedWorld trigger, Moderate"/>
@@ -127,7 +133,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Prefetch.PrefetchContainer.AddedToHeaderDeterminedSuccessfully.{TriggerTypeAndEagerness}"
-    units="ms" expires_after="2025-11-30">
+    units="ms" expires_after="2026-02-01">
   <owner>kenoss@chromium.org</owner>
   <owner>chrome-loading@chromium.org</owner>
   <summary>
@@ -144,7 +150,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Prefetch.PrefetchContainer.AddedToInitialEligibility.{TriggerTypeAndEagerness}"
-    units="ms" expires_after="2025-11-30">
+    units="ms" expires_after="2026-02-01">
   <owner>kenoss@chromium.org</owner>
   <owner>chrome-loading@chromium.org</owner>
   <summary>
@@ -161,7 +167,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Prefetch.PrefetchContainer.AddedToPrefetchCompletedSuccessfully.{TriggerTypeAndEagerness}"
-    units="ms" expires_after="2025-11-30">
+    units="ms" expires_after="2026-02-01">
   <owner>kenoss@chromium.org</owner>
   <owner>chrome-loading@chromium.org</owner>
   <summary>
@@ -178,7 +184,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Prefetch.PrefetchContainer.AddedToPrefetchStarted.{TriggerTypeAndEagerness}"
-    units="ms" expires_after="2025-11-30">
+    units="ms" expires_after="2026-02-01">
   <owner>kenoss@chromium.org</owner>
   <owner>chrome-loading@chromium.org</owner>
   <summary>
@@ -196,7 +202,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Prefetch.PrefetchContainer.AddedToURLRequestStarted.{TriggerTypeAndEagerness}"
-    units="ms" expires_after="2025-12-01">
+    units="ms" expires_after="2026-02-01">
   <owner>taiyo@chromium.org</owner>
   <owner>kenoss@chromium.org</owner>
   <owner>chrome-loading@chromium.org</owner>
@@ -292,6 +298,25 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram
+    name="Prefetch.PrefetchContainer.ServedCount.{TriggerTypeAndEagerness}"
+    units="count" expires_after="2026-01-11">
+  <owner>taiyo@chromium.org</owner>
+  <owner>chrome-loading@chromium.org</owner>
+  <summary>
+    This histogram records how many times the `PrefetchContainer` has been
+    served to the navigation.
+
+    The count is incremented when `PrefetchContainer` receives the
+    `PrefetchMatchResolver`'s notification that the container is serevd (i.e.
+    `PrefetchMatchResolver::UnregisterCandidate`), and its value is recorded on
+    `PrefetchContainer::dtor()`.
+
+    This histogram is recorded with its TriggerType and Eagerness as
+    {TriggerTypeAndEagerness}.
+  </summary>
+</histogram>
+
+<histogram
     name="Prefetch.PrefetchMatchingBlockedNavigation.PerMatchingCandidate.{PrerenderOrNonPrerender}.{TriggerTypeAndEagerness}"
     enum="Boolean" expires_after="2025-12-14">
   <owner>kouhei@chromium.org</owner>
@@ -342,6 +367,30 @@ chromium-metrics-reviews@google.com.
 
     Before 2025-04-25, this histogram was recorded as
     `PrefetchProxy.AfterClick.PrefetchMatchingBlockedNavigationWithPrefetch.*`
+  </summary>
+  <token key="TriggerTypeAndEagerness" variants="TriggerTypeAndEagerness"/>
+</histogram>
+
+<histogram
+    name="Prefetch.PrefetchPotentialCandidateServingResult.PerMatchingCandidate.{TriggerTypeAndEagerness}"
+    enum="PrefetchPotentialCandidateServingResult" expires_after="2026-01-14">
+  <owner>taiyo@chromium.org</owner>
+  <owner>chrome-loading@chromium.org</owner>
+  <summary>
+    When a navigation started, `PrefetchMatchResolver` collects potentially
+    matching prefetches for it. Judging a prefetch actually matches or not needs
+    non-redirect header. If a prefetch has non-redirect header and actually
+    matched, then this judging ends synchronously. If not, it being the
+    `PrefetchMatchResolver` waits for non-redirect headers until it finds a
+    matched and servable one or there is no more candidates.
+
+    This histogram records the result of the serving judgement per those
+    potentially matching candidates. Recorded when that serving judgement is
+    settled and the candidate is unregistered from the resolver (i.e.
+    `PrefetchMatchResolver::UnregisterCandidate`).
+
+    This histogram is recorded per potentially matching candidate, with its
+    TriggerType and Eagerness as {TriggerTypeAndEagerness}.
   </summary>
   <token key="TriggerTypeAndEagerness" variants="TriggerTypeAndEagerness"/>
 </histogram>

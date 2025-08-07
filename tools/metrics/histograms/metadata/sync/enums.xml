@@ -354,6 +354,8 @@ chromium-metrics-reviews@google.com.
   <int value="89" label="AutofillWorkMetadata"/>
   <int value="90" label="FacilitatedPaymentsA2AEnabled"/>
   <int value="91" label="FacilitatedPaymentsA2ATriggeredOnce"/>
+  <int value="92" label="FingerprintingProtectionEnabled"/>
+  <int value="93" label="AutofillNameAndEmailProfileSignature"/>
 <!-- LINT.ThenChange(/components/sync_preferences/common_syncable_prefs_database.cc:CommonSyncablePref)-->
 
 <!-- LINT.IfChange(ChromeSyncablePref) -->
@@ -653,7 +655,7 @@ chromium-metrics-reviews@google.com.
   <int value="100266" label="AccessibilityFaceGazeCursorSpeedRight"/>
   <int value="100267" label="(obsolete) AccessibilityFaceGazeCursorSmoothing"/>
   <int value="100268" label="AccessibilityFaceGazeCursorUseAcceleration"/>
-  <int value="100269" label="FingerprintingProtectionEnabled"/>
+  <int value="100269" label="(obsolete) FingerprintingProtectionEnabled"/>
   <int value="100270" label="AccessibilityFaceGazeGesturesToMacros"/>
   <int value="100271" label="AccessibilityFaceGazeGesturesToConfidence"/>
   <int value="100272" label="ShelfGeminiAppPinRolls"/>
@@ -1512,6 +1514,10 @@ chromium-metrics-reviews@google.com.
   <int value="4" label="Needs trusted vault key for everything"/>
   <int value="5" label="Trusted vault recoverability degraded for passwords"/>
   <int value="6" label="Trusted vault recoverability degraded for everything"/>
+  <int value="7" label="Needs settings confirmation"/>
+  <int value="8" label="Unrecoverable error"/>
+  <int value="9" label="Needs UPM backend upgrade"/>
+  <int value="10" label="Needs client upgrade"/>
 </enum>
 
 <!-- LINT.ThenChange(/components/sync/service/sync_service.h:UserActionableError) -->

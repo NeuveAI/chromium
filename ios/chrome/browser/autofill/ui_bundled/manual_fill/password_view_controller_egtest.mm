@@ -231,6 +231,11 @@ void CheckPasswordManagerUIDismissesAfterFailedAuthentication(
 
 // Checks that the password manual filling option is as expected and visible.
 void CheckPasswordFillingOptionIsVisible(NSString* site) {
+  [[EarlGrey selectElementWithMatcher:
+                 grey_accessibilityID(
+                     manual_fill::kExpandedManualFillPasswordFaviconID)]
+      assertWithMatcher:grey_sufficientlyVisible()];
+
   [[EarlGrey selectElementWithMatcher:grey_text(site)]
       assertWithMatcher:grey_sufficientlyVisible()];
 
@@ -366,6 +371,8 @@ void CheckKeyboardIsUpAndNotCovered() {
       performAction:grey_tap()];
 }
 
+#pragma mark - Tests
+
 // Tests that the passwords view controller appears on screen.
 - (void)testPasswordsViewControllerIsPresented {
   // Disable the password bottom sheet.
@@ -385,7 +392,7 @@ void CheckKeyboardIsUpAndNotCovered() {
   // table view is visible.
   OpenPasswordManualFillView(/*has_suggestions=*/true);
 
-  // Verify that the number of visible suggestions in the keyboard accessory was
+  // Verify that the number of visible suggestions in the manual fallback was
   // correctly recorded.
   NSString* histogram =
       [AutofillAppInterface isKeyboardAccessoryUpgradeEnabled]
@@ -441,6 +448,12 @@ void CheckKeyboardIsUpAndNotCovered() {
 // Tests that the Password Manager is dismissed when local authentication fails
 // after tapping "Manage Passwords...".
 - (void)testManagePasswordsActionWithFailedAuthDismissesPasswordManager {
+// TODO(crbug.com/436459761): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (base::ios::IsRunningOnIOS26OrLater()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
   CheckPasswordManagerUIDismissesAfterFailedAuthentication(
       manual_fill::ManagePasswordsMatcher());
 
@@ -628,6 +641,13 @@ void CheckKeyboardIsUpAndNotCovered() {
 
 // Tests that the other password list can be dismissed with a swipe down.
 - (void)testClosingOtherPasswordListViaSwipeDown {
+// TODO(crbug.com/435134454): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (iOS26_OR_ABOVE()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
+
   [self openOtherPasswords];
 
   [[EarlGrey
@@ -685,6 +705,12 @@ void CheckKeyboardIsUpAndNotCovered() {
 // Tests that the "Select Password..." UI is dismissed after failed local
 // authentication.
 - (void)testOtherPasswordListUIDismissedAfterFailedAuth {
+// TODO(crbug.com/436457807): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (base::ios::IsRunningOnIOS26OrLater()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
   // Setup failed authentication.
   [PasswordSettingsAppInterface mockReauthenticationModuleExpectedResult:
                                     ReauthenticationResult::kFailure];
@@ -1021,7 +1047,7 @@ void CheckKeyboardIsUpAndNotCovered() {
   [[EarlGrey selectElementWithMatcher:noPasswordsFoundMessage]
       assertWithMatcher:grey_sufficientlyVisible()];
 
-  // Verify that the number of visible suggestions in the keyboard accessory was
+  // Verify that the number of visible suggestions in the manual fallback was
   // correctly recorded.
   GREYAssertNil(
       [MetricsAppInterface

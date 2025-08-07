@@ -139,7 +139,8 @@ class TabLifecycleUnitSource::TabLifecycleUnit
   // when kWebContentsDiscard is enabled.
   void FinishDiscardAndPreserveWebContents(
       LifecycleUnitDiscardReason discard_reason,
-      uint64_t tab_resident_set_size_estimate);
+      uint64_t tab_resident_set_size_estimate,
+      base::TimeTicks discard_start_time);
 
   // Attempts to fast kill the process hosting the main frame of `web_contents`
   // if only hosting the main frame.
@@ -155,7 +156,7 @@ class TabLifecycleUnitSource::TabLifecycleUnit
   void CheckDeviceUsage(DecisionDetails* decision_details) const;
 
   // TabStripModel to which this tab belongs.
-  raw_ptr<TabStripModel, DanglingUntriaged> tab_strip_model_;
+  raw_ptr<TabStripModel> tab_strip_model_;
 
   // Last time ticks at which this tab was focused, or TimeTicks::Max() if it is
   // currently focused. For tabs that aren't currently focused this is

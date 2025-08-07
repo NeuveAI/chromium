@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/lens/lens_overlay_side_panel_coordinator.h"
 
+#include <vector>
+
 #include "base/metrics/histogram_functions.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/companion/text_finder/text_finder_manager.h"
@@ -222,8 +224,8 @@ bool LensOverlaySidePanelCoordinator::MaybeHandleTextDirectives(
     // also adds an additional check to make sure the text query parameters
     // match.
     if (lens::IsValidSearchResultsUrl(nav_url)) {
-      auto page_url_text_query = lens::GetTextQueryParameterValue(page_url);
-      auto nav_url_text_query = lens::GetTextQueryParameterValue(nav_url);
+      auto page_url_text_query = lens::ExtractTextQueryParameterValue(page_url);
+      auto nav_url_text_query = lens::ExtractTextQueryParameterValue(nav_url);
       if (page_url.host() != nav_url.host() ||
           page_url.path() != nav_url.path() ||
           page_url_text_query != nav_url_text_query) {
@@ -279,7 +281,7 @@ void LensOverlaySidePanelCoordinator::NotifyNewQueryLoaded(std::string query,
   // A search URL without a Lens mode parameter indicates a click on a related
   // search or other in-SRP refinement. In this case, we should clear all
   // selection and thumbnail state.
-  const std::string lens_mode = lens::GetLensModeParameterValue(search_url);
+  const std::string lens_mode = lens::ExtractLensModeParameterValue(search_url);
   if (lens_mode.empty()) {
     GetLensOverlayController()->SetAdditionalSearchQueryParams(
         /*additional_search_query_params=*/{});
@@ -634,6 +636,13 @@ void LensOverlaySidePanelCoordinator::SetPageContentUploadProgress(
   }
 }
 
+void LensOverlaySidePanelCoordinator::SendClientMessageToAim(
+    const std::vector<uint8_t>& serialized_message) {
+  if (side_panel_page_) {
+    side_panel_page_->SendClientMessageToAim(serialized_message);
+  }
+}
+
 void LensOverlaySidePanelCoordinator::SuppressGhostLoader() {
   if (side_panel_page_) {
     side_panel_page_->SuppressGhostLoader();
@@ -970,9 +979,9 @@ void LensOverlaySidePanelCoordinator::RegisterEntry() {
             &LensOverlaySidePanelCoordinator::GetOpenInNewTabUrl,
             base::Unretained(this)),
         GetMoreInfoCallback(),
-        lens::features::IsLensSearchSidePanelDefaultWidthChangeEnabled()
-            ? lens::features::GetLensSearchSidePanelDefaultWidth()
-            : SidePanelEntry::kSidePanelDefaultContentWidth);
+        base::BindRepeating(
+            &LensOverlaySidePanelCoordinator::GetPreferredDefaultWidth,
+            base::Unretained(this)));
     entry->SetProperty(kShouldShowTitleInSidePanelHeaderKey, false);
     registry->Register(std::move(entry));
 
@@ -1020,6 +1029,12 @@ GURL LensOverlaySidePanelCoordinator::GetOpenInNewTabUrl() {
   } else {
     return GURL();
   }
+}
+
+int LensOverlaySidePanelCoordinator::GetPreferredDefaultWidth() {
+  return lens::features::IsLensSearchSidePanelDefaultWidthChangeEnabled()
+             ? lens::features::GetLensSearchSidePanelDefaultWidth()
+             : SidePanelEntry::kSidePanelDefaultContentWidth;
 }
 
 base::RepeatingCallback<std::unique_ptr<ui::MenuModel>()>

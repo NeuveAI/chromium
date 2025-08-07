@@ -14,6 +14,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/types/optional_util.h"
+#include "bubble_controller_base.h"
 #include "chrome/browser/autofill/ui/ui_util.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/global_features.h"
@@ -157,7 +158,7 @@ void AddressBubblesController::OnUserDecision(
   if (decision == AutofillClient::AddressPromptUserDecision::kEditDeclined) {
     // Reopen this bubble if the user canceled editing.
     shown_by_user_gesture_ = false;
-    Show();
+    ShowBubble();
     return;
   }
   if (address_profile_save_prompt_callback_) {
@@ -191,7 +192,7 @@ void AddressBubblesController::OnIconClicked() {
     return;
   }
   shown_by_user_gesture_ = true;
-  Show();
+  ShowBubble();
 }
 
 bool AddressBubblesController::IsBubbleActive() const {
@@ -233,6 +234,15 @@ void AddressBubblesController::DoShowBubble() {
   CHECK(bubble_view());
 }
 
+BubbleType AddressBubblesController::GetBubbleType() const {
+  return BubbleType::kSaveUpdateAddress;
+}
+
+base::WeakPtr<BubbleControllerBase>
+AddressBubblesController::GetBubbleControllerBaseWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
+}
+
 void AddressBubblesController::SetUpAndShowBubble(
     ShowBubbleViewCallback show_bubble_view_callback,
     std::u16string page_action_icon_tootip,
@@ -267,7 +277,7 @@ void AddressBubblesController::SetUpAndShowBubble(
   is_migration_to_account_ = is_migration_to_account;
   user_has_any_profile_saved_ = user_has_any_profile_saved;
 
-  Show();
+  ShowBubble();
 }
 
 void AddressBubblesController::MaybeShowIOSDektopAddressPromo() {

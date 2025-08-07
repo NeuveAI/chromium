@@ -74,8 +74,7 @@ bool ContentSettingsInfo::Delegate::IsValid(
   return info_->IsSettingValid(*content_setting);
 }
 
-std::optional<PermissionSetting>
-ContentSettingsInfo::Delegate::InheritInIncognito(
+PermissionSetting ContentSettingsInfo::Delegate::InheritInIncognito(
     const PermissionSetting& setting) const {
   ContentSetting content_setting = std::get<ContentSetting>(setting);
   switch (info_->incognito_behavior()) {
@@ -99,8 +98,18 @@ bool ContentSettingsInfo::Delegate::ShouldCoalesceEphemeralState() const {
 }
 
 bool ContentSettingsInfo::Delegate::IsAnyPermissionAllowed(
-    PermissionSetting setting) const {
-  return std::get<ContentSetting>(setting) == CONTENT_SETTING_ALLOW;
+    const PermissionSetting& permission_setting) const {
+  auto& setting = std::get<ContentSetting>(permission_setting);
+  return setting == CONTENT_SETTING_ALLOW ||
+         setting == CONTENT_SETTING_SESSION_ONLY;
+}
+
+bool ContentSettingsInfo::Delegate::IsUndecided(
+    const PermissionSetting& permission_setting) const {
+  auto& setting = std::get<ContentSetting>(permission_setting);
+  // DEFAULT should be represented as an empty optional PermissionSetting.
+  DCHECK(setting != CONTENT_SETTING_DEFAULT);
+  return setting == CONTENT_SETTING_ASK;
 }
 
 bool ContentSettingsInfo::Delegate::CanTrackLastVisit() const {

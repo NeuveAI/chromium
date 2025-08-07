@@ -58,90 +58,6 @@ using content_settings::SettingSource;
 
 const int kInvalidResourceID = -1;
 
-// The resource IDs for the strings that are displayed on the permissions
-// button if the permission setting is managed by policy.
-const int kPermissionButtonTextIDPolicyManaged[] = {
-    kInvalidResourceID,
-    IDS_PAGE_INFO_PERMISSION_ALLOWED_BY_POLICY,
-    IDS_PAGE_INFO_PERMISSION_BLOCKED_BY_POLICY,
-    IDS_PAGE_INFO_PERMISSION_ASK_BY_POLICY,
-    kInvalidResourceID,
-    kInvalidResourceID};
-static_assert(std::size(kPermissionButtonTextIDPolicyManaged) ==
-                  CONTENT_SETTING_NUM_SETTINGS,
-              "kPermissionButtonTextIDPolicyManaged array size is incorrect");
-
-// The resource IDs for the strings that are displayed on the permissions
-// button if the permission setting is managed by an extension.
-const int kPermissionButtonTextIDExtensionManaged[] = {
-    kInvalidResourceID,
-    IDS_PAGE_INFO_PERMISSION_ALLOWED_BY_EXTENSION,
-    IDS_PAGE_INFO_PERMISSION_BLOCKED_BY_EXTENSION,
-    IDS_PAGE_INFO_PERMISSION_ASK_BY_EXTENSION,
-    kInvalidResourceID,
-    kInvalidResourceID};
-static_assert(std::size(kPermissionButtonTextIDExtensionManaged) ==
-                  CONTENT_SETTING_NUM_SETTINGS,
-              "kPermissionButtonTextIDExtensionManaged array size is "
-              "incorrect");
-
-// The resource IDs for the strings that are displayed on the permissions
-// button if the permission setting is managed by the user.
-const int kPermissionButtonTextIDUserManaged[] = {
-    kInvalidResourceID,
-    IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_USER,
-    IDS_PAGE_INFO_BUTTON_TEXT_BLOCKED_BY_USER,
-    IDS_PAGE_INFO_BUTTON_TEXT_ASK_BY_USER,
-    kInvalidResourceID,
-    IDS_PAGE_INFO_BUTTON_TEXT_DETECT_IMPORTANT_CONTENT_BY_USER};
-static_assert(std::size(kPermissionButtonTextIDUserManaged) ==
-                  CONTENT_SETTING_NUM_SETTINGS,
-              "kPermissionButtonTextIDUserManaged array size is incorrect");
-
-// The resource IDs for the strings that are displayed on the permissions
-// button if the permission setting is the global default setting.
-const int kPermissionButtonTextIDDefaultSetting[] = {
-    kInvalidResourceID,
-    IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_DEFAULT,
-    IDS_PAGE_INFO_BUTTON_TEXT_BLOCKED_BY_DEFAULT,
-    IDS_PAGE_INFO_BUTTON_TEXT_ASK_BY_DEFAULT,
-    kInvalidResourceID,
-    IDS_PAGE_INFO_BUTTON_TEXT_DETECT_IMPORTANT_CONTENT_BY_DEFAULT};
-static_assert(std::size(kPermissionButtonTextIDDefaultSetting) ==
-                  CONTENT_SETTING_NUM_SETTINGS,
-              "kPermissionButtonTextIDDefaultSetting array size is incorrect");
-
-#if !BUILDFLAG(IS_ANDROID)
-// The resource IDs for the strings that are displayed on the sound permission
-// button if the sound permission setting is managed by the user.
-const int kSoundPermissionButtonTextIDUserManaged[] = {
-    kInvalidResourceID,
-    IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_USER,
-    IDS_PAGE_INFO_BUTTON_TEXT_MUTED_BY_USER,
-    kInvalidResourceID,
-    kInvalidResourceID,
-    kInvalidResourceID};
-static_assert(
-    std::size(kSoundPermissionButtonTextIDUserManaged) ==
-        CONTENT_SETTING_NUM_SETTINGS,
-    "kSoundPermissionButtonTextIDUserManaged array size is incorrect");
-
-// The resource IDs for the strings that are displayed on the sound permission
-// button if the permission setting is the global default setting and the
-// block autoplay preference is disabled.
-const int kSoundPermissionButtonTextIDDefaultSetting[] = {
-    kInvalidResourceID,
-    IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_DEFAULT,
-    IDS_PAGE_INFO_BUTTON_TEXT_MUTED_BY_DEFAULT,
-    kInvalidResourceID,
-    kInvalidResourceID,
-    kInvalidResourceID};
-static_assert(
-    std::size(kSoundPermissionButtonTextIDDefaultSetting) ==
-        CONTENT_SETTING_NUM_SETTINGS,
-    "kSoundPermissionButtonTextIDDefaultSetting array size is incorrect");
-#endif
-
 base::span<const PageInfoUI::PermissionUIInfo> GetContentSettingsUIInfo() {
   DCHECK(base::FeatureList::GetInstance() != nullptr);
   static const PageInfoUI::PermissionUIInfo kPermissionUIInfo[] = {
@@ -293,19 +209,13 @@ CreateSecurityDescriptionForSafetyTip(
   return security_description;
 }
 
-// Gets the actual setting for a ContentSettingsType, taking into account what
-// the default setting value is and whether Html5ByDefault is enabled.
+// Gets the actual setting for a ContentSettingsType.
 ContentSetting GetEffectiveSetting(ContentSettingsType type,
                                    ContentSetting setting,
                                    ContentSetting default_setting) {
   ContentSetting effective_setting = setting;
   if (effective_setting == CONTENT_SETTING_DEFAULT)
     effective_setting = default_setting;
-
-  // Display the UI string for ASK instead of DETECT for Flash.
-  // TODO(tommycli): Just migrate the actual content setting to ASK.
-  if (effective_setting == CONTENT_SETTING_DETECT_IMPORTANT_CONTENT)
-    effective_setting = CONTENT_SETTING_ASK;
 
   return effective_setting;
 }
@@ -679,67 +589,6 @@ std::u16string PageInfoUI::PermissionSubpageButtonTooltipString(
 base::span<const PageInfoUI::PermissionUIInfo>
 PageInfoUI::GetContentSettingsUIInfoForTesting() {
   return GetContentSettingsUIInfo();
-}
-
-// static
-std::u16string PageInfoUI::PermissionActionToUIString(
-    PageInfoUiDelegate* delegate,
-    ContentSettingsType type,
-    ContentSetting setting,
-    ContentSetting default_setting,
-    SettingSource source,
-    bool is_one_time) {
-  ContentSetting effective_setting =
-      GetEffectiveSetting(type, setting, default_setting);
-  const int* button_text_ids = nullptr;
-  switch (source) {
-    case SettingSource::kUser:
-      if (setting == CONTENT_SETTING_DEFAULT) {
-#if !BUILDFLAG(IS_ANDROID)
-        if (type == ContentSettingsType::SOUND) {
-          // If the block autoplay enabled preference is enabled and the
-          // sound default setting is ALLOW, we will return a custom string
-          // indicating that Chrome is controlling autoplay and sound
-          // automatically.
-          if (delegate->IsBlockAutoPlayEnabled() &&
-              effective_setting == ContentSetting::CONTENT_SETTING_ALLOW) {
-            return l10n_util::GetStringUTF16(
-                IDS_PAGE_INFO_BUTTON_TEXT_AUTOMATIC_BY_DEFAULT);
-          }
-
-          button_text_ids = kSoundPermissionButtonTextIDDefaultSetting;
-          break;
-        }
-#endif
-        button_text_ids = kPermissionButtonTextIDDefaultSetting;
-        break;
-      }
-      [[fallthrough]];
-    case SettingSource::kPolicy:
-    case SettingSource::kExtension:
-#if !BUILDFLAG(IS_ANDROID)
-      if (type == ContentSettingsType::SOUND) {
-        button_text_ids = kSoundPermissionButtonTextIDUserManaged;
-        break;
-      }
-#endif
-      button_text_ids = kPermissionButtonTextIDUserManaged;
-      break;
-    case SettingSource::kAllowList:
-    case SettingSource::kNone:
-    default:
-      NOTREACHED();
-  }
-  int button_text_id = button_text_ids[effective_setting];
-
-  if (is_one_time) {
-    DCHECK_EQ(source, SettingSource::kUser);
-    DCHECK_EQ(type, ContentSettingsType::GEOLOCATION);
-    DCHECK_EQ(button_text_id, IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_USER);
-    button_text_id = IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_ONCE_BY_USER;
-  }
-  DCHECK_NE(button_text_id, kInvalidResourceID);
-  return l10n_util::GetStringUTF16(button_text_id);
 }
 
 // static

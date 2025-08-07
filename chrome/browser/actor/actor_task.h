@@ -10,13 +10,14 @@
 
 #include "base/callback_list.h"
 #include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/weak_ptr.h"
 #include "base/types/pass_key.h"
 #include "chrome/browser/actor/task_id.h"
 #include "chrome/browser/actor/tools/tool_request.h"
 #include "chrome/common/actor.mojom-forward.h"
-#include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "components/tabs/public/tab_interface.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 
 class Profile;
@@ -49,13 +50,14 @@ class ActorTask {
   void SetIdForTesting(int id);
 
   // Once state leaves kCreated it should never go back. One state enters
-  // kFinished it should never change. We may want to add a kCancelled in the
-  // future, TBD.
+  // kFinished or kCancelled it should never change.
   enum class State {
     kCreated,
     kActing,
     kReflecting,
-    kPausedByClient,
+    kPausedByActor,
+    kPausedByUser,
+    kCancelled,
     kFinished
   };
 
@@ -67,12 +69,14 @@ class ActorTask {
   void Act(std::vector<std::unique_ptr<ToolRequest>>&& actions,
            ActCallback callback);
 
-  // Sets State to kFinished and cancels any pending actions.
-  void Stop();
+  // Sets State to kFinished if `success` is true or to kCancelled if
+  // `success` is false and cancels any pending actions.
+  void Stop(bool success);
 
-  // Pause() is called to indicate that the user is pausing server-driven
-  // actuation. This will cancel any ongoing actuation.
-  void Pause();
+  // Pause() is called to indicate that either the actor or user is pausing
+  // server-driven actuation determined by the `from_actor` flag. This will
+  // cancel any ongoing actuation.
+  void Pause(bool from_actor);
 
   // Resume() indicates the user wants server-driven actuation to resume. The
   // caller is responsible for sending new state to the server (e.g. APC).
@@ -80,10 +84,13 @@ class ActorTask {
 
   bool IsPaused() const;
 
+  bool IsStopped() const;
+
   ExecutionEngine* GetExecutionEngine() const;
 
   // Add/remove the given TabHandle to the set of tabs this task is operating
-  // over and notify the UI if this is a new tab for the task.
+  // over and notify the UI if this is a new tab for the task. Added tabs will
+  // enter actuation mode and be kept as visible.
   using AddTabCallback = base::OnceCallback<void(mojom::ActionResultPtr)>;
   void AddTab(tabs::TabHandle tab, AddTabCallback callback);
   void RemoveTab(tabs::TabHandle tab);
@@ -98,7 +105,15 @@ class ActorTask {
   // TODO(crbug.com/411462297): This will be replaced by GetTabs soon.
   tabs::TabInterface* GetTabForObservation() const;
 
+  // The set of tabs that have been acted on at any point during this task.
   const absl::flat_hash_set<tabs::TabHandle>& GetTabs() const {
+    return tab_handles_;
+  }
+
+  // The set of tabs that were acted on by the last call to Act.
+  const absl::flat_hash_set<tabs::TabHandle>& GetLastActedTabs() const {
+    // TODO(bokan): Currently the client only acts on a single tab but this
+    // should track which tabs were acted on in the last call to Act.
     return tab_handles_;
   }
 
@@ -123,6 +138,12 @@ class ActorTask {
 
   // The set of all tabs this task has acted upon.
   absl::flat_hash_set<tabs::TabHandle> tab_handles_;
+
+  // A map from a tab's handle to a ScopedClosureRunner that keeps the tab
+  // in "actuation mode". This is released when the tab is removed from the
+  // task.
+  absl::flat_hash_map<tabs::TabHandle, base::ScopedClosureRunner>
+      actuation_mode_runners_;
 
   base::WeakPtrFactory<ui::UiEventDispatcher> ui_weak_ptr_factory_;
   base::WeakPtrFactory<ActorTask> weak_ptr_factory_{this};

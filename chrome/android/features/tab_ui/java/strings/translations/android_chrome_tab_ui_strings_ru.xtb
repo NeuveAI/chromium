@@ -34,6 +34,7 @@
 <translation id="1982637982196732906">Переместить в список неактивных</translation>
 <translation id="2050597508048557928">{TABS_COUNT,plural, =1{Добавить в закладки <ph name="TABS_COUNT_ONE" /> выбранную вкладку}one{Добавить в закладки <ph name="TABS_COUNT_MANY" /> выбранную вкладку}few{Добавить в закладки <ph name="TABS_COUNT_MANY" /> выбранные вкладки}many{Добавить в закладки <ph name="TABS_COUNT_MANY" /> выбранных вкладок}other{Добавить в закладки <ph name="TABS_COUNT_MANY" /> выбранной вкладки}}</translation>
 <translation id="2055057176188061528">Выберите группу вкладок или создайте новую</translation>
+<translation id="2074527029802029717">Открепить вкладку</translation>
 <translation id="2118649612461486615">Сведения о магазине</translation>
 <translation id="2123073051266141035">{INCOGNITO_TABS_COUNT,plural, =1{Вернуть закрытые вкладки и группы можно в разделах "Недавние вкладки" и "Группы вкладок". Вкладка инкогнито не сохранится.}one{Вернуть закрытые вкладки и группы можно в разделах "Недавние вкладки" и "Группы вкладок". # вкладка инкогнито не сохранится.}few{Вернуть закрытые вкладки и группы можно в разделах "Недавние вкладки" и "Группы вкладок". # вкладки инкогнито не сохранятся.}many{Вернуть закрытые вкладки и группы можно в разделах "Недавние вкладки" и "Группы вкладок". # вкладок инкогнито не сохранится.}other{Вернуть закрытые вкладки и группы можно в разделах "Недавние вкладки" и "Группы вкладок". # вкладки инкогнито не сохранится.}}</translation>
 <translation id="2162620598375156287"><ph name="CURRENT_PRICE" /> на сайте <ph name="SOURCE_WEBSITE" /></translation>
@@ -44,7 +45,6 @@
 <translation id="2359808026110333948">Продолжить</translation>
 <translation id="2371084566192454134">Вкладки и группы вкладок</translation>
 <translation id="2375257132547014176">{TABS_COUNT,plural, =1{Свернуть группу вкладок "<ph name="TITLE_OF_GROUP" />" с <ph name="TABS_COUNT_ONE" /> вкладкой.}one{Свернуть группу вкладок "<ph name="TITLE_OF_GROUP" />" с <ph name="TABS_COUNT_MANY" /> вкладкой.}few{Свернуть группу вкладок "<ph name="TITLE_OF_GROUP" />" с <ph name="TABS_COUNT_MANY" /> вкладками.}many{Свернуть группу вкладок "<ph name="TITLE_OF_GROUP" />" с <ph name="TABS_COUNT_MANY" /> вкладками.}other{Свернуть группу вкладок "<ph name="TITLE_OF_GROUP" />" с <ph name="TABS_COUNT_MANY" /> вкладки.}}</translation>
-<translation id="2479148705183875116">Открыть настройки</translation>
 <translation id="2498435670446402865">Новое имя группы вкладок</translation>
 <translation id="2536366509642644298">Группы вкладок "<ph name="TAB_GROUP_NAME_1" />" и "<ph name="TAB_GROUP_NAME_2" />" больше не доступны.</translation>
 <translation id="2539705006853443997">{TABS_COUNT,plural, =1{Свернуть <ph name="TABS_COUNT_ONE" /> вкладку.}one{Свернуть группу из <ph name="TABS_COUNT_MANY" /> вкладки.}few{Свернуть группу из <ph name="TABS_COUNT_MANY" /> вкладок.}many{Свернуть группу из <ph name="TABS_COUNT_MANY" /> вкладок.}other{Свернуть группу из <ph name="TABS_COUNT_MANY" /> вкладки.}}</translation>
@@ -61,6 +61,7 @@
 <translation id="2801787514987684416">Посмотреть сведения о магазине?</translation>
 <translation id="2883875523421277445">{NUMBER_OF_TABS_CLOSED,plural, =1{Закрыта <ph name="ONE_CLOSED" /> вкладка.}one{Закрыта <ph name="MANY_CLOSED" /> вкладка.}few{Закрыты <ph name="MANY_CLOSED" /> вкладки.}many{Закрыто <ph name="MANY_CLOSED" /> вкладок.}other{Закрыто <ph name="MANY_CLOSED" /> вкладки.}}</translation>
 <translation id="2894757982205307093">Добавить новую вкладку в группу</translation>
+<translation id="2918484639460781603">Перейти к настройкам</translation>
 <translation id="2928243913527329289">Google | О магазине</translation>
 <translation id="3008554597174452548">Не отслеживать товар</translation>
 <translation id="3026391124054406831">Создавайте группы, чтобы упорядочивать вкладки.</translation>

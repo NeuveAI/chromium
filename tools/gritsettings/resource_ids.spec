@@ -232,10 +232,6 @@
     "META": {"sizes": {"includes": [5]}},
     "includes": [3000],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/chromeos/assistant_optin/assistant_optin_resources.grd": {
-    "META": {"sizes": {"includes": [80]}},
-    "includes": [3040],
-  },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/chromeos/audio/resources.grd": {
     "META": {"sizes": {"includes": [30]}},
     "includes": [3060],
@@ -747,6 +743,14 @@
     "META": {"sizes": {"includes": [5]}},
     "includes": [5240],
   },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/webui_browser/resources.grd": {
+    "META": {"sizes": {"includes": [6]}},
+    "includes": [5250],
+  },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/webui_browser/internal/resources.grd": {
+    "META": {"sizes": {"includes": [5]}},
+    "includes": [5260],
+  },
   # END chrome/ WebUI resources section
 
   # START chrome/ miscellaneous section.
@@ -795,6 +799,10 @@
   },
   "chromeos/ash/resources/internal/ash_internal_strings.grd": {
     "messages": [5820],
+  },
+  "<(SHARED_INTERMEDIATE_DIR)/ash/webui/boca_receiver_app_ui/resources/untrusted/resources.grd": {
+    "META": {"sizes": {"includes": [120],}},
+    "includes": [5830],
   },
   # Both boca_app_bundle_resources.grd and boca_app_bundle_mock_resources.grd
   # start with the same id because only one of them is built depending on if
@@ -1517,9 +1525,6 @@
   "<(SHARED_INTERMEDIATE_DIR)/ui/webui/resources/webui_resources.grd": {
     "META": {"sizes": {"includes": [1100]}},
     "includes": [10000],
-  },
-  "weblayer/weblayer_resources.grd": {
-    "includes": [10020],
   },
 
   # This file is generated during the build.

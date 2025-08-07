@@ -283,7 +283,6 @@ exempted_from_description_builders = {
         "mac-swangle-chromium-x64",
         "mac12-arm64-rel-tests",
         "mac13-arm64-rel-tests",
-        "rts-model-packager",
         "rts-suite-analysis",
         "win-angle-chromium-x64-builder",
         "win-angle-chromium-x86-builder",
@@ -314,6 +313,17 @@ exempted_from_description_builders = {
         "win32-archive-rel",
         "win32-arm64-rel",
         "win32-official",
+
+        # Libfuzzer testers that were recently added while description checking
+        # was broken
+        "chromeos-x64-libfuzzer-asan-rel-tests",
+        "linux-x64-libfuzzer-asan-dbg-tests",
+        "linux-x64-libfuzzer-asan-rel-tests",
+        "linux-x64-libfuzzer-msan-rel-tests",
+        "linux-x64-libfuzzer-ubsan-rel-tests",
+        "linux-x86-libfuzzer-asan-rel-tests",
+        "mac-arm64-libfuzzer-asan-rel-tests",
+        "win-x64-libfuzzer-asan-rel-tests",
     ]),
     "codesearch": set([
         "gen-android-try",
@@ -486,7 +496,6 @@ exempted_from_description_builders = {
         "linux-headless-shell-rel",
         "linux-js-code-coverage",
         "linux-js-coverage-rel",
-        "linux-layout-tests-edit-ng",
         "linux-libfuzzer-asan-rel",
         "linux-msan-chained-origins-rel",
         "linux-msan-no-origins-rel",
@@ -723,7 +732,6 @@ exempted_from_contact_builders = {
         "mac-rust-x64-dbg",
         "mac-ubsan-fyi-rel",
         "metadata-exporter",
-        "rts-model-packager",
         "rts-suite-analysis",
         "win-annotator-rel",
         "win-build-perf-developer",
@@ -849,7 +857,6 @@ exempted_from_contact_builders = {
         "linux-headless-shell-rel",
         "linux-js-code-coverage",
         "linux-js-coverage-rel",
-        "linux-layout-tests-edit-ng",
         "linux-libfuzzer-asan-rel",
         "linux-msan-chained-origins-rel",
         "linux-msan-no-origins-rel",
@@ -1112,7 +1119,6 @@ exempted_gardened_mirrors_in_cq_builders = [
 
 standalone_trybot_excluded_builders = [
     "android_blink_rel",  # Same reason 'tryserver.blink' is excluded below.
-    "linux-layout-tests-edit-ng",  # Unclear why this one is standalone.
     # The GPU optional-CQ bots likely have some special coverage/testing
     # requirements. But being standalone shouldn't be a requirement.
     "android_optional_gpu_tests_rel",

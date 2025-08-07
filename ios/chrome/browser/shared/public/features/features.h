@@ -522,8 +522,25 @@ BASE_DECLARE_FEATURE(kDownloadAutoDeletionFeatureEnabled);
 // Whether the kDownloadAutoDeletion feature is enabled.
 bool IsDownloadAutoDeletionFeatureEnabled();
 
-// Feature flag that allows opening the downloaded PDF files in Chrome.
-BASE_DECLARE_FEATURE(kDownloadedPDFOpening);
+// Download List UI feature constants and types.
+extern const char kDownloadListUITypeParam[];
+
+// Enum defining the available Download List UI types.
+// IMPORTANT: These values must match the parameter strings in about_flags.mm
+enum class DownloadListUIType {
+  kDefaultUI = 0,  // Use the default iOS download list UI
+  kCustomUI = 1,   // Use a custom download list UI implementation
+};
+
+// Returns the currently configured Download List UI type based on feature
+// parameters.
+DownloadListUIType CurrentDownloadListUIType();
+
+// Returns true if the Download List feature is enabled.
+bool IsDownloadListEnabled();
+
+// Feature flag to control the download list UI type.
+BASE_DECLARE_FEATURE(kDownloadList);
 
 // Feature param under `kEnableFeedBackgroundRefresh` to also enable background
 // refresh for the Following feed.
@@ -700,24 +717,6 @@ bool IsSegmentationTipsManagerEnabled();
 // memory improvement measure.
 BASE_DECLARE_FEATURE(kSpotlightNeverRetainIndex);
 
-// Feature that enables improvements for Save to Photos feature.
-BASE_DECLARE_FEATURE(kIOSSaveToPhotosImprovements);
-
-// A set of parameters to indicate which improvement to apply to the Save to
-// Photos feature.
-extern const char kSaveToPhotosContextMenuImprovementParam[];
-extern const char kSaveToPhotosTitleImprovementParam[];
-extern const char kSaveToPhotosAccountDefaultChoiceImprovementParam[];
-
-// Returns true if the Save to Photos action improvement is enabled.
-bool IsSaveToPhotosActionImprovementEnabled();
-
-// Returns true if the Save to Photos title improvement is enabled.
-bool IsSaveToPhotosTitleImprovementEnabled();
-
-// Returns true if the Save to Photos account picker improvement is enabled.
-bool IsSaveToPhotosAccountPickerImprovementEnabled();
-
 // Feature flag to enable app background refresh.
 // Use IsAppBackgroundRefreshEnabled() instead of this constant directly.
 BASE_DECLARE_FEATURE(kEnableAppBackgroundRefresh);
@@ -849,6 +848,9 @@ extern const char kIOSExpandedTipsOrderParam[];
 // Returns whether `kIOSExpandTips` is enabled.
 bool IsIOSExpandedTipsEnabled();
 
+// Feature flag for the one-time default browser notification.
+BASE_DECLARE_FEATURE(kIOSOneTimeDefaultBrowserNotification);
+
 // Feature flag to show an alert to the user when only provisiona notifications
 // are allowed.
 BASE_DECLARE_FEATURE(kProvisionalNotificationAlert);
@@ -896,15 +898,10 @@ enum class FullscreenTransitionSpeed {
 
 FullscreenTransitionSpeed FullscreenTransitionSpeedParam();
 
-bool IsFullscreenTransitionSet();
+bool IsFullscreenTransitionSpeedSet();
 
-bool IsFullscreenTransitionOffsetSet();
-
-extern const char kMediumFullscreenTransitionOffsetParam[];
-
-// Feature flag to changes the distance of unique scrolling before triggering
-// the fullscreen transition or the speed of the transition.
-BASE_DECLARE_FEATURE(kFullscreenTransition);
+// Feature flag to changes the speed of the transition to fullscreen.
+BASE_DECLARE_FEATURE(kFullscreenTransitionSpeed);
 
 // Feature flag for switching the toolbar UI to an observer-based architecture.
 BASE_DECLARE_FEATURE(kRefactorToolbarsSize);
@@ -1022,12 +1019,6 @@ BASE_DECLARE_FEATURE(kContainedTabGroup);
 // Whether the feature associated with contained tab group is enabled.
 bool IsContainedTabGroupEnabled();
 
-// Feature flag to have more color for the tab groups.
-BASE_DECLARE_FEATURE(kColorfulTabGroup);
-
-// Whether the feature associated with colorful tab group is enabled.
-bool IsColorfulTabGroupEnabled();
-
 // Feature flag to highlight the app's features during the FRE.
 BASE_DECLARE_FEATURE(kBestOfAppFRE);
 
@@ -1067,5 +1058,10 @@ BASE_DECLARE_FEATURE(kDiamondPrototype);
 
 // Whether the diamond prototype is enabled.
 bool IsDiamondPrototypeEnabled();
+
+// Feature flag for the Default Browser off-cycle promo.
+BASE_DECLARE_FEATURE(kIOSDefaultBrowserOffCyclePromo);
+
+bool IsDefaultBrowserOffCyclePromoEnabled();
 
 #endif  // IOS_CHROME_BROWSER_SHARED_PUBLIC_FEATURES_FEATURES_H_

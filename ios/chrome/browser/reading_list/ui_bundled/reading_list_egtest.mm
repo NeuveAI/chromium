@@ -503,7 +503,14 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 
 // Tests that navigating back to an offline page is still displaying the error
 // page and don't mess the navigation stack.
-- (void)testNavigateBackToDistilledPage {
+// TODO(crbug.com/435147625): Reenable this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testNavigateBackToDistilledPage testNavigateBackToDistilledPage
+#else
+#define MAYBE_testNavigateBackToDistilledPage \
+  FLAKY_testNavigateBackToDistilledPage
+#endif
+- (void)MAYBE_testNavigateBackToDistilledPage {
   [ReadingListAppInterface forceConnectionToWifi];
   GURL distillablePageURL(self.testServer->GetURL(kDistillableURL));
   GURL nonDistillablePageURL(self.testServer->GetURL(kNonDistillableURL));
@@ -554,7 +561,15 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 // Tests that sharing a web page to the Reading List results in a snackbar
 // appearing, and that the Reading List entry is present in the Reading List.
 // Loads offline version via context menu.
-- (void)testSavingToReadingListAndLoadDistilled {
+// TODO(crbug.com/435147625): Reenable this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testSavingToReadingListAndLoadDistilled \
+  testSavingToReadingListAndLoadDistilled
+#else
+#define MAYBE_testSavingToReadingListAndLoadDistilled \
+  FLAKY_testSavingToReadingListAndLoadDistilled
+#endif
+- (void)MAYBE_testSavingToReadingListAndLoadDistilled {
   [ReadingListAppInterface forceConnectionToWifi];
   GURL distillablePageURL(self.testServer->GetURL(kDistillableURL));
   GURL nonDistillablePageURL(self.testServer->GetURL(kNonDistillableURL));
@@ -786,6 +801,12 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 // Tests that only the "Cancel", "Delete All Read" and "Mark All…" buttons are
 // showing when not editing.
 - (void)testVisibleButtonsEditingModeEmptySelection {
+// TODO(crbug.com/429610821): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (base::ios::IsRunningOnIOS26OrLater()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
   AddEntriesAndEnterEdit();
 
   AssertToolbarButtonNotVisibleWithID(kReadingListToolbarDeleteButtonID);
@@ -923,6 +944,13 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 
 // Tests the deletion of all read entries.
 - (void)testDeleteAllReadEntries {
+  // TODO(crbug.com/429610821): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (iOS26_OR_ABOVE()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
+
   AddEntriesAndEnterEdit();
 
   TapToolbarButtonWithID(kReadingListToolbarDeleteAllReadButtonID);
@@ -941,6 +969,13 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 
 // Marks all unread entries as read.
 - (void)testMarkAllRead {
+// TODO(crbug.com/429610821): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (iOS26_OR_ABOVE()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
+
   AddEntriesAndEnterEdit();
 
   AssertToolbarMarkButtonText(IDS_IOS_READING_LIST_MARK_ALL_BUTTON);
@@ -961,6 +996,13 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 
 // Marks all read entries as unread.
 - (void)testMarkAllUnread {
+  // TODO(crbug.com/429610821): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (iOS26_OR_ABOVE()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
+
   AddEntriesAndEnterEdit();
 
   AssertToolbarMarkButtonText(IDS_IOS_READING_LIST_MARK_ALL_BUTTON);
@@ -982,6 +1024,13 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 // Marks all read entries as unread, when there is a lot of entries. This is to
 // prevent crbug.com/1013708 and crbug.com/1246283 from regressing.
 - (void)testMarkAllUnreadLotOfEntry {
+  // TODO(crbug.com/429610821): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (iOS26_OR_ABOVE()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
+
   AddLotOfEntriesAndEnterEdit();
 
   AssertToolbarMarkButtonText(IDS_IOS_READING_LIST_MARK_ALL_BUTTON);
@@ -996,6 +1045,13 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 
 // Selects an unread entry and mark it as read.
 - (void)testMarkEntriesRead {
+  // TODO(crbug.com/429610821): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (iOS26_OR_ABOVE()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
+
   AddEntriesAndEnterEdit();
   TapEntry(kUnreadTitle);
 
@@ -1013,6 +1069,13 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 
 // Selects an read entry and mark it as unread.
 - (void)testMarkEntriesUnread {
+  // TODO(crbug.com/429610821): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (iOS26_OR_ABOVE()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
+
   AddEntriesAndEnterEdit();
   TapEntry(kReadTitle);
 
@@ -1073,6 +1136,13 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 // Tests that you can delete multiple read items in the Reading List without
 // creating a crash (crbug.com/701956).
 - (void)testDeleteMultipleItems {
+// TODO(crbug.com/429610821): Re-enable the test on iOS26.
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (iOS26_OR_ABOVE()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
+#endif
+
   // Add entries.
   for (int i = 0; i < 11; i++) {
     NSURL* url =
@@ -1141,13 +1211,15 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 }
 
 // Tests the Copy Link context menu action for a reading list entry.
-// TODO(crbug.com/378900884): Flaky on ios simulator.
-#if TARGET_OS_SIMULATOR
-#define MAYBE_testContextMenuCopyLink DISABLED_testContextMenuCopyLink
-#else
-#define MAYBE_testContextMenuCopyLink testContextMenuCopyLink
+- (void)testContextMenuCopyLink {
+#if TARGET_IPHONE_SIMULATOR
+  // TODO(crbug.com/433982582): Flaky on an iPhone simulator.
+  if ([ChromeEarlGrey isIPhoneIdiom]) {
+    if (!@available(iOS 18, *)) {
+      EARL_GREY_TEST_DISABLED(@"Flakes on iPhone.");
+    }
+  }
 #endif
-- (void)MAYBE_testContextMenuCopyLink {
   AddEntriesAndOpenReadingList();
   LongPressEntry(kReadTitle);
 
@@ -1157,6 +1229,14 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 
 // Tests the Open in New Tab context menu action for a reading list entry.
 - (void)testContextMenuOpenInNewTab {
+#if TARGET_IPHONE_SIMULATOR
+  // TODO(crbug.com/433982582): Flaky on an iPhone simulator.
+  if ([ChromeEarlGrey isIPhoneIdiom]) {
+    if (!@available(iOS 18, *)) {
+      EARL_GREY_TEST_DISABLED(@"Flakes on iPhone.");
+    }
+  }
+#endif
   GURL distillablePageURL(self.testServer->GetURL(kDistillableURL));
   [self addURLToReadingList:distillablePageURL];
   LongPressEntry(kDistillableTitle);
@@ -1173,7 +1253,9 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 #if TARGET_IPHONE_SIMULATOR
   // TODO(crbug.com/433982582): Flaky on an iPhone simulator.
   if ([ChromeEarlGrey isIPhoneIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Flakes on iPhone.");
+    if (!@available(iOS 18, *)) {
+      EARL_GREY_TEST_DISABLED(@"Flakes on iPhone.");
+    }
   }
 #endif
   GURL distillablePageURL(self.testServer->GetURL(kDistillableURL));
@@ -1187,14 +1269,15 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 }
 
 // Tests the Mark as Read/Unread context menu action for a reading list entry.
-// TODO(crbug.com/378900884): Flaky on ios simulator.
-#if TARGET_OS_SIMULATOR
-#define MAYBE_testContextMenuMarkAsReadAndBack \
-  DISABLED_testContextMenuMarkAsReadAndBack
-#else
-#define MAYBE_testContextMenuMarkAsReadAndBack testContextMenuMarkAsReadAndBack
+- (void)testContextMenuMarkAsReadAndBack {
+#if TARGET_IPHONE_SIMULATOR
+  // TODO(crbug.com/433982582): Flaky on an iPhone simulator.
+  if ([ChromeEarlGrey isIPhoneIdiom]) {
+    if (!@available(iOS 18, *)) {
+      EARL_GREY_TEST_DISABLED(@"Flakes on iPhone.");
+    }
+  }
 #endif
-- (void)MAYBE_testContextMenuMarkAsReadAndBack {
   AddEntriesAndOpenReadingList();
 
   AssertAllEntriesVisible();
@@ -1239,7 +1322,9 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 #if TARGET_IPHONE_SIMULATOR
   // TODO(crbug.com/433982582): Flaky on an iPhone simulator.
   if ([ChromeEarlGrey isIPhoneIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Flakes on iPhone.");
+    if (!@available(iOS 18, *)) {
+      EARL_GREY_TEST_DISABLED(@"Flakes on iPhone.");
+    }
   }
 #endif
   GURL distillablePageURL(self.testServer->GetURL(kDistillableURL));
@@ -1255,7 +1340,9 @@ void AssertIsShowingDistillablePage(bool online, const GURL& distillable_url) {
 #if TARGET_IPHONE_SIMULATOR
   // TODO(crbug.com/433982582): Flaky on an iPhone simulator.
   if ([ChromeEarlGrey isIPhoneIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Flakes on iPhone.");
+    if (!@available(iOS 18, *)) {
+      EARL_GREY_TEST_DISABLED(@"Flakes on iPhone.");
+    }
   }
 #endif
   GURL distillablePageURL(self.testServer->GetURL(kDistillableURL));

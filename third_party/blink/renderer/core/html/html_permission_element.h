@@ -22,6 +22,7 @@
 #include "third_party/blink/renderer/core/html/html_permission_icon_element.h"
 #include "third_party/blink/renderer/core/intersection_observer/intersection_observer.h"
 #include "third_party/blink/renderer/core/scroll/scroll_snapshot_client.h"
+#include "third_party/blink/renderer/platform/geometry/length_size.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_receiver.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_receiver_set.h"
@@ -46,7 +47,8 @@ class CORE_EXPORT HTMLPermissionElement
  public:
   static bool isTypeSupported(const AtomicString& type);
 
-  explicit HTMLPermissionElement(Document&);
+  explicit HTMLPermissionElement(Document&,
+                                 std::optional<QualifiedName> = std::nullopt);
 
   ~HTMLPermissionElement() override;
 
@@ -364,8 +366,7 @@ class CORE_EXPORT HTMLPermissionElement
   // ScrollSnapshotClient. It could make sense to bring this in line with other
   // features that deal with snapshotting this state, such as scroll-driven
   // animations, scroll-state container queries, and anchor positioning.
-  void UpdateSnapshot() override;
-  bool ValidateSnapshot() override;
+  bool UpdateSnapshot() override;
   bool ShouldScheduleNextService() override { return false; }
 
   // Update and notify CSS pseudo-class changed, which indicates PEPC is
@@ -373,6 +374,11 @@ class CORE_EXPORT HTMLPermissionElement
   // being occluded.
   // Return true if the state has been changed.
   bool NotifyClickingDisablePseudoStateChanged();
+
+  // Wrapper to make this a void function for PostTask().
+  void NotifyClickingDisablePseudoStateChangedTask() {
+    NotifyClickingDisablePseudoStateChanged();
+  }
 
   // Verify whether the element has been registered in browser process.
   bool is_registered_in_browser_process() const {
@@ -457,6 +463,12 @@ class CORE_EXPORT HTMLPermissionElement
                                       std::optional<float> lower_bound,
                                       std::optional<float> upper_bound,
                                       bool should_multiply_by_content_size);
+
+  // A method which bounds the specified radius on the width and height sides
+  // using the provided percentage bounds.
+  LengthSize AdjustedPercentBoundedRadius(const LengthSize& length_size,
+                                          float width_percent_bound,
+                                          float height_percent_bound);
 
   // LocalFrameView::LifecycleNotificationObserver
   void DidFinishLifecycleUpdate(const LocalFrameView&) override;

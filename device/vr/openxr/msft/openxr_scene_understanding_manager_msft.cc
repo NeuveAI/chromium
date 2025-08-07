@@ -25,12 +25,21 @@ OpenXRSceneUnderstandingManagerMSFT::OpenXRSceneUnderstandingManagerMSFT(
     const OpenXrExtensionHelper& extension_helper,
     XrSession session,
     XrSpace mojo_space)
-    : extension_helper_(extension_helper),
-      mojo_space_(mojo_space) {
-  plane_manager_ =
-      std::make_unique<OpenXrPlaneManagerMsft>(extension_helper, session);
-  hit_test_manager_ =
-      std::make_unique<OpenXrHitTestManagerMsft>(plane_manager_.get());
+    : mojo_space_(mojo_space) {
+  const auto* extension_enum = extension_helper.ExtensionEnumeration();
+  if (extension_enum->ExtensionSupported(
+          XR_MSFT_SPATIAL_ANCHOR_EXTENSION_NAME)) {
+    anchor_manager_ = std::make_unique<OpenXrAnchorManagerMsft>(
+        extension_helper, session, mojo_space_);
+  }
+
+  if (extension_enum->ExtensionSupported(
+          XR_MSFT_SCENE_UNDERSTANDING_EXTENSION_NAME)) {
+    plane_manager_ =
+        std::make_unique<OpenXrPlaneManagerMsft>(extension_helper, session);
+    hit_test_manager_ = std::make_unique<OpenXrHitTestManagerMsft>(
+        plane_manager_.get(), mojo_space_);
+  }
 }
 
 OpenXRSceneUnderstandingManagerMSFT::~OpenXRSceneUnderstandingManagerMSFT() =
@@ -40,15 +49,12 @@ OpenXrPlaneManager* OpenXRSceneUnderstandingManagerMSFT::GetPlaneManager() {
   return plane_manager_.get();
 }
 
-OpenXrHitTestManager* OpenXRSceneUnderstandingManagerMSFT::GetHitTestManager() {
-  return hit_test_manager_.get();
+OpenXrAnchorManager* OpenXRSceneUnderstandingManagerMSFT::GetAnchorManager() {
+  return anchor_manager_.get();
 }
 
-void OpenXRSceneUnderstandingManagerMSFT::OnFrameUpdate(
-    XrTime predicted_display_time) {
-  if (plane_manager_) {
-    plane_manager_->OnFrameUpdate(predicted_display_time, mojo_space_);
-  }
+OpenXrHitTestManager* OpenXRSceneUnderstandingManagerMSFT::GetHitTestManager() {
+  return hit_test_manager_.get();
 }
 
 OpenXrSceneUnderstandingManagerMsftFactory::
@@ -59,18 +65,27 @@ OpenXrSceneUnderstandingManagerMsftFactory::
 const base::flat_set<std::string_view>&
 OpenXrSceneUnderstandingManagerMsftFactory::GetRequestedExtensions() const {
   static base::NoDestructor<base::flat_set<std::string_view>> kExtensions(
-      {XR_MSFT_SCENE_UNDERSTANDING_EXTENSION_NAME});
+      {XR_MSFT_SCENE_UNDERSTANDING_EXTENSION_NAME,
+       XR_MSFT_SPATIAL_ANCHOR_EXTENSION_NAME});
   return *kExtensions;
 }
 
 std::set<device::mojom::XRSessionFeature>
 OpenXrSceneUnderstandingManagerMsftFactory::GetSupportedFeatures(
     const OpenXrExtensionEnumeration* extension_enum) const {
-  if (!IsEnabled(extension_enum)) {
-    return {};
+  std::set<device::mojom::XRSessionFeature> features;
+
+  if (extension_enum->ExtensionSupported(
+          XR_MSFT_SCENE_UNDERSTANDING_EXTENSION_NAME)) {
+    features.insert(device::mojom::XRSessionFeature::HIT_TEST);
   }
 
-  return {device::mojom::XRSessionFeature::HIT_TEST};
+  if (extension_enum->ExtensionSupported(
+          XR_MSFT_SPATIAL_ANCHOR_EXTENSION_NAME)) {
+    features.insert(device::mojom::XRSessionFeature::ANCHORS);
+  }
+
+  return features;
 }
 
 std::unique_ptr<OpenXRSceneUnderstandingManager>

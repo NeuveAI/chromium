@@ -34,6 +34,7 @@
 <translation id="1982637982196732906">इनॅक्टिव्ह विभागामध्ये हलवा</translation>
 <translation id="2050597508048557928">{TABS_COUNT,plural, =1{निवडलेला <ph name="TABS_COUNT_ONE" /> टॅब बुकमार्क करा}other{निवडलेले <ph name="TABS_COUNT_MANY" /> टॅब बुकमार्क करा}}</translation>
 <translation id="2055057176188061528">टॅब गट निवडा किंवा नवीन टॅब गट तयार करा</translation>
+<translation id="2074527029802029717">टॅब अनपिन करा</translation>
 <translation id="2118649612461486615">स्टोअरची माहिती</translation>
 <translation id="2123073051266141035">{INCOGNITO_TABS_COUNT,plural, =1{तुमचे बंद केलेले टॅब आणि गट हे अलीकडील टॅब या विभागामधून व टॅब गट या विभागामधून पुन्हा उघडले जाऊ शकतात. तुमचा गुप्त टॅब उपलब्ध नसेल.}other{तुमचे बंद केलेले टॅब आणि गट हे अलीकडील टॅब या विभागामधून व टॅब गट या विभागामधून पुन्हा उघडले जाऊ शकतात. तुमचे # गुप्त टॅब उपलब्ध नसतील.}}</translation>
 <translation id="2162620598375156287">आता <ph name="SOURCE_WEBSITE" /> वर <ph name="CURRENT_PRICE" /> मध्ये आहे</translation>
@@ -44,7 +45,6 @@
 <translation id="2359808026110333948">सुरू ठेवा</translation>
 <translation id="2371084566192454134">टॅब आणि टॅब गट</translation>
 <translation id="2375257132547014176">{TABS_COUNT,plural, =1{<ph name="TABS_COUNT_ONE" /> टॅबसह <ph name="TITLE_OF_GROUP" /> हा टॅब गट कोलॅप्स करा}other{<ph name="TABS_COUNT_MANY" /> टॅबसह <ph name="TITLE_OF_GROUP" /> हा टॅब गट कोलॅप्स करा}}</translation>
-<translation id="2479148705183875116">सेटिंग्ज वर जा</translation>
 <translation id="2498435670446402865">टॅब गटाचे नाव बदला</translation>
 <translation id="2536366509642644298">"<ph name="TAB_GROUP_NAME_1" />" आणि "<ph name="TAB_GROUP_NAME_2" />" "हे टॅब गट आता उपलब्ध नाहीत</translation>
 <translation id="2539705006853443997">{TABS_COUNT,plural, =1{<ph name="TABS_COUNT_ONE" /> टॅब कोलॅप्स करा.}other{<ph name="TABS_COUNT_MANY" /> टॅबचा गट असलेले टॅब कोलॅप्स करा.}}</translation>
@@ -61,6 +61,7 @@
 <translation id="2801787514987684416">स्टोअरची माहिती पाहायची आहे का?</translation>
 <translation id="2883875523421277445">{NUMBER_OF_TABS_CLOSED,plural, =1{<ph name="ONE_CLOSED" /> टॅब बंद केला}other{<ph name="MANY_CLOSED" /> टॅब बंद केले}}</translation>
 <translation id="2894757982205307093">गटामधील नवीन टॅब</translation>
+<translation id="2918484639460781603">सेटिंग्ज वर जा</translation>
 <translation id="2928243913527329289">Google | या स्टोअरबद्दल</translation>
 <translation id="3008554597174452548">उत्पादनाचा माग ठेवणे थांबवा</translation>
 <translation id="3026391124054406831">तुमचे टॅब व्यवस्थापित करण्यासाठी गट तयार करा.</translation>

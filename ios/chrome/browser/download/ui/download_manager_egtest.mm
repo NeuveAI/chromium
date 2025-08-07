@@ -240,7 +240,8 @@ using download::WaitForOpenPDFButton;
   // Tests filename label.
   [[EarlGrey
       selectElementWithMatcher:grey_allOf(grey_text(@"download-example"),
-                                          grey_sufficientlyVisible(), nil)]
+                                          grey_minimumVisiblePercent(0.65),
+                                          nil)]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -292,7 +293,8 @@ using download::WaitForOpenPDFButton;
   // Tests filename label.
   [[EarlGrey
       selectElementWithMatcher:grey_allOf(grey_text(@"download-example"),
-                                          grey_sufficientlyVisible(), nil)]
+                                          grey_minimumVisiblePercent(0.65),
+                                          nil)]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -385,7 +387,6 @@ using download::WaitForOpenPDFButton;
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration configuration;
-  configuration.features_enabled.push_back(kDownloadedPDFOpening);
   // TODO(crbug.com/6602213): Fix the test suite for when Auto-deletion is enabled.
   configuration.features_disabled.push_back(
       kDownloadAutoDeletionFeatureEnabled);

@@ -322,12 +322,15 @@ PermissionStatus PermissionControllerImpl::GetSubscriptionCurrentValue(
 
 PermissionControllerImpl::SubscriptionsStatusMap
 PermissionControllerImpl::GetSubscriptionsStatuses(
-    const std::optional<GURL>& origin) {
+    const std::optional<GURL>& requesting_origin,
+    const std::optional<GURL>& embedding_origin) {
   SubscriptionsStatusMap statuses;
   for (SubscriptionsMap::iterator iter(&subscriptions_); !iter.IsAtEnd();
        iter.Advance()) {
     PermissionStatusSubscription* subscription = iter.GetCurrentValue();
-    if (origin.has_value() && subscription->requesting_origin != *origin) {
+    if (requesting_origin.has_value() && embedding_origin.has_value() &&
+        subscription->requesting_origin != *requesting_origin &&
+        subscription->embedding_origin != *embedding_origin) {
       continue;
     }
     statuses[iter.GetCurrentKey()] = GetSubscriptionCurrentValue(*subscription);
@@ -361,17 +364,21 @@ void PermissionControllerImpl::NotifyChangedSubscriptions(
 
 PermissionControllerImpl::OverrideStatus
 PermissionControllerImpl::GrantOverridesForDevTools(
-    const std::optional<url::Origin>& origin,
+    base::optional_ref<const url::Origin> requesting_origin,
+    base::optional_ref<const url::Origin> embedding_origin,
     const std::vector<PermissionType>& permissions) {
-  return GrantPermissionOverrides(origin, permissions);
+  return GrantPermissionOverrides(requesting_origin, embedding_origin,
+                                  permissions);
 }
 
 PermissionControllerImpl::OverrideStatus
 PermissionControllerImpl::SetOverrideForDevTools(
-    const std::optional<url::Origin>& origin,
+    base::optional_ref<const url::Origin> requesting_origin,
+    base::optional_ref<const url::Origin> embedding_origin,
     PermissionType permission,
     const PermissionStatus& status) {
-  return SetPermissionOverride(origin, permission, status);
+  return SetPermissionOverride(requesting_origin, embedding_origin, permission,
+                               status);
 }
 
 void PermissionControllerImpl::ResetOverridesForDevTools() {
@@ -380,21 +387,32 @@ void PermissionControllerImpl::ResetOverridesForDevTools() {
 
 PermissionControllerImpl::OverrideStatus
 PermissionControllerImpl::SetPermissionOverride(
-    const std::optional<url::Origin>& origin,
+    base::optional_ref<const url::Origin> requesting_origin,
+    base::optional_ref<const url::Origin> embedding_origin,
     PermissionType permission,
     const PermissionStatus& status) {
+  CHECK_EQ(requesting_origin.has_value(), embedding_origin.has_value());
+
   PermissionControllerDelegate* delegate =
       browser_context_->GetPermissionControllerDelegate();
-  // TODO(crbug.com/427175363): Once SetPermissionOverride accepts a requesting
-  // and embedding origin, we will pass those rather than just 'origin' to
-  // IsPermissionOverridable.
-  if (delegate &&
-      !delegate->IsPermissionOverridable(permission, origin, origin)) {
+  if (delegate && !delegate->IsPermissionOverridable(
+                      permission, requesting_origin, embedding_origin)) {
     return OverrideStatus::kOverrideNotSet;
   }
-  const auto old_statuses = GetSubscriptionsStatuses(
-      origin ? std::make_optional(origin->GetURL()) : std::nullopt);
-  permission_overrides_.Set(origin, origin, permission, status);
+
+  const std::optional<GURL> requesting_origin_url =
+      requesting_origin.has_value()
+          ? std::make_optional(requesting_origin->GetURL())
+          : std::nullopt;
+  const std::optional<GURL> embedding_origin_url =
+      embedding_origin.has_value()
+          ? std::make_optional(embedding_origin->GetURL())
+          : std::nullopt;
+  const auto old_statuses =
+      GetSubscriptionsStatuses(requesting_origin_url, embedding_origin_url);
+
+  permission_overrides_.Set(requesting_origin, embedding_origin, permission,
+                            status);
   NotifyChangedSubscriptions(old_statuses);
 
   return OverrideStatus::kOverrideSet;
@@ -402,24 +420,35 @@ PermissionControllerImpl::SetPermissionOverride(
 
 PermissionControllerImpl::OverrideStatus
 PermissionControllerImpl::GrantPermissionOverrides(
-    const std::optional<url::Origin>& origin,
+    base::optional_ref<const url::Origin> requesting_origin,
+    base::optional_ref<const url::Origin> embedding_origin,
     const std::vector<PermissionType>& permissions) {
+  CHECK_EQ(requesting_origin.has_value(), embedding_origin.has_value());
+
   PermissionControllerDelegate* delegate =
       browser_context_->GetPermissionControllerDelegate();
   if (delegate) {
     for (const auto permission : permissions) {
-      // TODO(crbug.com/427175363): Once GrantPermissionOverrides accepts a
-      // requesting and embedding origin, we will pass those rather than just
-      // 'origin' to IsPermissionOverridable.
-      if (!delegate->IsPermissionOverridable(permission, origin, origin)) {
+      if (!delegate->IsPermissionOverridable(permission, requesting_origin,
+                                             embedding_origin)) {
         return OverrideStatus::kOverrideNotSet;
       }
     }
   }
 
-  const auto old_statuses = GetSubscriptionsStatuses(
-      origin ? std::make_optional(origin->GetURL()) : std::nullopt);
-  permission_overrides_.GrantPermissions(origin, origin, permissions);
+  const std::optional<GURL> requesting_origin_url =
+      requesting_origin.has_value()
+          ? std::make_optional(requesting_origin->GetURL())
+          : std::nullopt;
+  const std::optional<GURL> embedding_origin_url =
+      embedding_origin.has_value()
+          ? std::make_optional(embedding_origin->GetURL())
+          : std::nullopt;
+  const auto old_statuses =
+      GetSubscriptionsStatuses(requesting_origin_url, embedding_origin_url);
+
+  permission_overrides_.GrantPermissions(requesting_origin, embedding_origin,
+                                         permissions);
   // If any statuses changed because they lose overrides or the new overrides
   // modify their previous state (overridden or not), subscribers must be
   // notified manually.

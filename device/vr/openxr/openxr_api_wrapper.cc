@@ -145,7 +145,6 @@ OpenXrApiWrapper::~OpenXrApiWrapper() {
 
 void OpenXrApiWrapper::Reset() {
   SetXrSessionState(XR_SESSION_STATE_UNKNOWN);
-  anchor_manager_.reset();
   depth_sensor_.reset();
   light_estimator_.reset();
   scene_understanding_manager_.reset();
@@ -316,7 +315,8 @@ XrResult OpenXrApiWrapper::InitializeViewConfig(
     OpenXrViewConfiguration& view_config) {
   std::vector<XrViewConfigurationView> view_properties;
   RETURN_IF_XR_FAILED(GetPropertiesForViewConfig(type, view_properties));
-  view_config.Initialize(type, std::move(view_properties));
+  view_config.Initialize(type, std::move(view_properties),
+                         graphics_binding_->GetMaxTextureSize());
 
   return XR_SUCCESS;
 }
@@ -425,7 +425,9 @@ OpenXrApiWrapper::PickEnvironmentBlendModeForSession(
 }
 
 OpenXrAnchorManager* OpenXrApiWrapper::GetAnchorManager() {
-  return anchor_manager_.get();
+  return scene_understanding_manager_
+             ? scene_understanding_manager_->GetAnchorManager()
+             : nullptr;
 }
 
 OpenXrHitTestManager* OpenXrApiWrapper::GetHitTestManager() {
@@ -436,11 +438,6 @@ OpenXrHitTestManager* OpenXrApiWrapper::GetHitTestManager() {
 
 OpenXrLightEstimator* OpenXrApiWrapper::GetLightEstimator() {
   return light_estimator_.get();
-}
-
-OpenXRSceneUnderstandingManager*
-OpenXrApiWrapper::GetSceneUnderstandingManager() {
-  return scene_understanding_manager_.get();
 }
 
 OpenXrDepthSensor* OpenXrApiWrapper::GetDepthSensor() {
@@ -526,9 +523,12 @@ XrResult OpenXrApiWrapper::EnableSupportedFeatures(
         break;
 
       case mojom::XRSessionFeature::HIT_TEST:
-        scene_understanding_manager_ =
-            extension_helper.CreateSceneUnderstandingManager(session_,
-                                                             local_space_);
+        if (scene_understanding_manager_ == nullptr) {
+          scene_understanding_manager_ =
+              extension_helper.CreateSceneUnderstandingManager(
+                  session_, local_space_, session_options_->required_features,
+                  session_options_->optional_features);
+        }
         is_enabled =
             scene_understanding_manager_ != nullptr &&
             scene_understanding_manager_->GetHitTestManager() != nullptr;
@@ -541,9 +541,16 @@ XrResult OpenXrApiWrapper::EnableSupportedFeatures(
         break;
 
       case mojom::XRSessionFeature::ANCHORS:
-        anchor_manager_ =
-            extension_helper.CreateAnchorManager(session_, local_space_);
-        is_enabled = anchor_manager_ != nullptr;
+        // Anchors are managed by the scene understanding manager.
+        if (scene_understanding_manager_ == nullptr) {
+          scene_understanding_manager_ =
+              extension_helper.CreateSceneUnderstandingManager(
+                  session_, local_space_, session_options_->required_features,
+                  session_options_->optional_features);
+        }
+        is_enabled =
+            scene_understanding_manager_ != nullptr &&
+            scene_understanding_manager_->GetAnchorManager() != nullptr;
         break;
 
       case mojom::XRSessionFeature::DEPTH:
@@ -840,7 +847,7 @@ void OpenXrApiWrapper::OnContextProviderLost() {
   if (context_provider_ && graphics_binding_) {
     // Mark the shared mailboxes as invalid since the underlying GPU process
     // associated with them has gone down.
-    for (SwapChainInfo& info : graphics_binding_->GetSwapChainImages()) {
+    for (OpenXrSwapchainInfo& info : graphics_binding_->GetSwapChainImages()) {
       info.Clear();
     }
     context_provider_ = nullptr;
@@ -1077,7 +1084,8 @@ XrResult OpenXrApiWrapper::UpdateSecondaryViewConfigStates(
         std::vector<XrViewConfigurationView> view_properties;
         RETURN_IF_XR_FAILED(GetPropertiesForViewConfig(
             state.viewConfigurationType, view_properties));
-        view_config.SetProperties(std::move(view_properties));
+        view_config.SetProperties(std::move(view_properties),
+                                  graphics_binding_->GetMaxTextureSize());
       }
     }
   }
@@ -1311,6 +1319,15 @@ std::vector<mojom::XRViewPtr> OpenXrApiWrapper::GetDefaultViews() const {
   }
 
   return views;
+}
+
+float OpenXrApiWrapper::RecommendedViewportScale() const {
+  float recommended_scale = 1.0f;
+  for (const auto& property : primary_view_config_.Properties()) {
+    recommended_scale =
+        std::min(recommended_scale, property.RecommendedViewportScale());
+  }
+  return recommended_scale;
 }
 
 mojom::VRPosePtr OpenXrApiWrapper::GetViewerPose() const {

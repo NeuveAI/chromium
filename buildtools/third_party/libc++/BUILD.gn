@@ -58,6 +58,60 @@ config("winver") {
   ]
 }
 
+config("builtin_modulemap") {
+  cflags = [ clang_arg_prefix + "-fbuiltin-module-map" ]
+}
+
+config("libcxx_modulemap") {
+  cflags = [ "-fmodule-map-file=" + rebase_path(
+                 "${root_build_dir}/gen/third_party/libc++/src/include/module.modulemap",
+                 root_build_dir) ]
+}
+
+if (use_clang_modules) {
+  config("sysroot_modulemaps") {
+    cflags = []
+    foreach(modulemap, sysroot_modulemaps) {
+      cflags +=
+          [ "-fmodule-map-file=" + rebase_path(modulemap, root_build_dir) ]
+    }
+  }
+}
+
+if (use_clang_modules && current_toolchain == default_toolchain && is_ios) {
+  # sysroot_modulemaps can be inside the build directory. This no-op action
+  # declares the modulemap files as outputs to satisfy GN's dependency
+  # tracking when other targets use them as inputs.
+  action("copy_sysroot_modulemaps") {
+    script = "//build/noop.py"
+    outputs = sysroot_modulemaps
+  }
+}
+
+if (current_toolchain == default_toolchain) {
+  # The Clang modules build requires libc++ headers, __assertion_handler, and
+  # __config_site to be in the same directory.
+  #
+  # To avoid redundant work, the copy targets are declared only in the default
+  # toolchain. This prevents unnecessary copies in multi-toolchain builds and
+  # allows Siso to use its precomputed tree for the default toolchain's `gen`
+  # directory.
+  copy("copy_libcxx_headers") {
+    sources = libcxx_headers
+    outputs = [ "{{source_gen_dir}}/{{source_file_part}}" ]
+  }
+
+  copy("copy_custom_headers") {
+    sources = [
+      "__assertion_handler",
+      "__config_site",
+    ]
+    outputs = [
+      "${root_gen_dir}/third_party/libc++/src/include/{{source_file_part}}",
+    ]
+  }
+}
+
 if (use_clang_modules) {
   if (is_linux || is_chromeos) {
     textual_module("sysroot_ctype") {
@@ -229,7 +283,7 @@ if (use_clang_modules) {
         ":sysroot",
       ]
     }
-  } else if (is_mac) {
+  } else if (is_apple) {
     DarwinBasic_module("MachO") {
       public_deps = [
         ":_Builtin_stdbool",
@@ -630,23 +684,6 @@ if (use_clang_modules) {
     ]
   }
 
-  # We need to have libc++ headers, __assertion_handler and __config_site in the
-  # same directory for clang modules build.
-  copy("copy_libcxx_headers") {
-    sources = libcxx_headers
-    outputs = [ "{{source_gen_dir}}/{{source_file_part}}" ]
-  }
-
-  copy("copy_custom_headers") {
-    sources = [
-      "__assertion_handler",
-      "__config_site",
-    ]
-    outputs = [
-      "${root_gen_dir}/third_party/libc++/src/include/{{source_file_part}}",
-    ]
-  }
-
   libcxx_module("std") {
     public_deps = [
       ":_Builtin_limits",
@@ -665,7 +702,7 @@ if (use_clang_modules) {
       ":sysroot_locale",
       ":sysroot_pthread",
     ]
-    if (is_mac) {
+    if (is_apple) {
       public_deps += [
         # <locale> includes <nl_types.h> inside an __APPLE__ macro guard which
         # requires nl_types module.
@@ -801,6 +838,7 @@ if (use_clang_modules) {
       ":all_std",
       ":all_sysroot",
     ]
+    public_configs = [ "//build/config/compiler:libcxx_module" ]
   }
 }
 
@@ -951,8 +989,8 @@ target(libcxx_target_type, "libc++") {
     use_libcxx_modules = false
 
     deps += [
-      ":copy_custom_headers",
-      ":copy_libcxx_headers",
+      ":copy_custom_headers($default_toolchain)",
+      ":copy_libcxx_headers($default_toolchain)",
     ]
   }
   if ((is_android || is_apple) && libcxx_is_shared) {

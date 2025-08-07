@@ -603,9 +603,9 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
       gfx::NativeWindow context,
       const gfx::Rect& bounds = gfx::Rect());
 
-  // Closes all Widgets that aren't identified as "secondary widgets". Called
-  // during application shutdown when the last non-secondary widget is closed.
-  static void CloseAllSecondaryWidgets();
+  // Closes all platform Widgets. Called during application shutdown to ensure
+  // no platform Widgets remain.
+  static void CloseAllWidgets();
 
   // Retrieves the Widget implementation associated with the given
   // NativeView or Window, or NULL if the supplied handle has no associated
@@ -627,6 +627,11 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
   // Returns all Widgets owned by |native_view| (including child widgets, but
   // not including itself).
   static Widgets GetAllOwnedWidgets(gfx::NativeView native_view);
+
+  // Iterates over all owned widgets, running `on_widget` for each. This is
+  // robust against widgets being destroyed during iteration.
+  static void ForEachOwnedWidget(gfx::NativeView native_view,
+                                 base::FunctionRef<void(Widget*)> on_widget);
 
   // https://crbug.com/391414831: This is only used by some views
   // implementation details for content::WebContents glue, and for ChromeOS.

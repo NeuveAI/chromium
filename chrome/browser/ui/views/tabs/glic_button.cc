@@ -14,8 +14,8 @@
 #include "chrome/browser/background/glic/glic_launcher_configuration.h"
 #include "chrome/browser/glic/fre/glic_fre_controller.h"
 #include "chrome/browser/glic/glic_enums.h"
-#include "chrome/browser/glic/glic_keyed_service.h"
 #include "chrome/browser/glic/glic_pref_names.h"
+#include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/widget/glic_window_controller.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -66,12 +66,7 @@ GlicButton::GlicButton(TabStripController* tab_strip_controller,
   SetTooltipText(tooltip);
   GetViewAccessibility().SetName(tooltip);
 
-  SetForegroundFrameActiveColorId(kColorNewTabButtonForegroundFrameActive);
-
-  SetForegroundFrameInactiveColorId(kColorNewTabButtonForegroundFrameInactive);
-  SetBackgroundFrameActiveColorId(kColorNewTabButtonCRBackgroundFrameActive);
-  SetBackgroundFrameInactiveColorId(
-      kColorNewTabButtonCRBackgroundFrameInactive);
+  SetDefaultColors();
 
   UpdateColors();
 
@@ -231,6 +226,20 @@ void GlicButton::AnnounceNudgeShown() {
       IDS_GLIC_CONTEXTUAL_CUEING_ANNOUNCEMENT,
       GlicLauncherConfiguration::GetGlobalHotkey().GetShortcutText());
   GetViewAccessibility().AnnounceAlert(announcement);
+}
+
+void GlicButton::HighlightGlicButton() {
+  SetBackgroundFrameActiveColorId(kColorTabBackgroundInactiveHoverFrameActive);
+  SetBackgroundFrameInactiveColorId(
+      kColorTabBackgroundInactiveHoverFrameInactive);
+}
+
+void GlicButton::SetDefaultColors() {
+  SetForegroundFrameActiveColorId(kColorNewTabButtonForegroundFrameActive);
+  SetForegroundFrameInactiveColorId(kColorNewTabButtonForegroundFrameInactive);
+  SetBackgroundFrameActiveColorId(kColorNewTabButtonCRBackgroundFrameActive);
+  SetBackgroundFrameInactiveColorId(
+      kColorNewTabButtonCRBackgroundFrameInactive);
 }
 
 BEGIN_METADATA(GlicButton)

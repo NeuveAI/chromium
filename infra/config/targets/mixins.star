@@ -417,6 +417,14 @@ targets.mixin(
 )
 
 targets.mixin(
+    name = "android_desktop_wpt_args",
+    generate_pyl_entry = False,
+    args = [
+        "--additional-driver-flag=--force-android-desktop",
+    ],
+)
+
+targets.mixin(
     name = "arm64",
     # All references have been moved to starlark
     generate_pyl_entry = False,
@@ -659,6 +667,16 @@ targets.mixin(
             "device_os_flavor": "google",
             "device_type": "walleye",
             "os": "Android",
+            "pool": "chromium.tests",
+        },
+    ),
+)
+
+targets.mixin(
+    name = "chromium_tests_pool",
+    generate_pyl_entry = False,
+    swarming = targets.swarming(
+        dimensions = {
             "pool": "chromium.tests",
         },
     ),
@@ -1430,28 +1448,6 @@ targets.mixin(
 )
 
 targets.mixin(
-    name = "linux-jammy-or-focal",
-    generate_pyl_entry = False,
-    swarming = targets.swarming(
-        dimensions = {
-            "os": "Ubuntu-22.04|Ubuntu-20.04",
-        },
-    ),
-)
-
-# TODO(crbug.com/40201775): Remove the xenial mixin once the MSAN bots have
-# migrated to focal.
-targets.mixin(
-    name = "linux-xenial",
-    generate_pyl_entry = False,
-    swarming = targets.swarming(
-        dimensions = {
-            "os": "Ubuntu-16.04",
-        },
-    ),
-)
-
-targets.mixin(
     name = "linux-noble",
     generate_pyl_entry = False,
     swarming = targets.swarming(
@@ -1528,7 +1524,7 @@ targets.mixin(
     swarming = targets.swarming(
         dimensions = {
             "gpu": "8086:4680-23.2.1",
-            "os": "Ubuntu-22.04.4",
+            "os": "Ubuntu-22.04",
             "display_attached": "1",
             "pool": "chromium.tests.gpu",
         },
@@ -2659,12 +2655,12 @@ targets.mixin(
     generate_pyl_entry = False,
     args = [
         "--xcode-build-version",
-        "17a5285i",
+        "17a5295f",
     ],
     swarming = targets.swarming(
         named_caches = [
             swarming.cache(
-                name = "xcode_ios_17a5285i",
+                name = "xcode_ios_17a5295f",
                 path = "Xcode.app",
             ),
         ],

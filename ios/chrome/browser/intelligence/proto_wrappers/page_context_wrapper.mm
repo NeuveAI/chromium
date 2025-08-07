@@ -19,9 +19,12 @@
 #import "base/strings/string_util.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
+#import "base/time/time.h"
+#import "base/timer/timer.h"
 #import "base/token.h"
 #import "components/optimization_guide/core/page_content_proto_serializer.h"
 #import "components/optimization_guide/proto/features/common_quality_data.pb.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_wrapper_metrics.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_tab_helper.h"
 #import "ios/public/provider/chrome/browser/bwg/bwg_api.h"
@@ -33,7 +36,11 @@
 
 namespace {
 
-// The key for whether the PageContext should be detached. The value is a bool.
+// The default Page Context execution timeout.
+base::TimeDelta kDefaultPageContextTimeout = base::Seconds(1);
+
+// The key for whether the PageContext should be detached. The value is a
+// bool.
 constexpr const char kShouldDetachPageContext[] = "shouldDetachPageContext";
 
 // The key for the current node's innerText in the JavaScript object. The value
@@ -52,6 +59,18 @@ constexpr const char kSourceURLDictKey[] = "sourceURL";
 // string.
 constexpr const char kFrameTitleDictKey[] = "title";
 
+// The key for the links of the frame in the JavaScript object. The value is an
+// array of objects.
+constexpr const char kFrameLinksDictKey[] = "links";
+
+// The key for a link's HREF/URL field in the JavaScript object. The value is a
+// string.
+constexpr const char kLinkHREFDictKey[] = "href";
+
+// The key for a link's innerText in the JavaScript object. The value is a
+// string.
+constexpr const char kLinkTextDictKey[] = "linkText";
+
 // The JavaScript to be executed on each WebState's WebFrames, which retrieves
 // the innerText of the document body, and recursively traverses through
 // same-origin nested iframes to retrieve their innerTexts as well, constructing
@@ -65,7 +84,8 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
 (() => {
     // Checks whether the PageContext should be detached.
     const shouldDetachPageContext = () => {
-        $1
+      // PageContext detachment logic injected below.
+      $1
     };
 
     // If the PageContext should be detached, early return.
@@ -112,17 +132,42 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
                 nonceAttributeValue) : null;
         });
 
-        return {
+        const result = {
             currentNodeInnerText: node.innerText,
             children: childNodeInnerTexts.filter(item => item !== null),
             sourceURL: frameURL,
             title: frameTitle,
         };
+
+        // Anchor tag retrieval logic injected below.
+        $2
+
+        return result;
     };
 
-    return constructSameOriginInnerTextTree(document.body, window.location.href, document.title, "$2");
+    return constructSameOriginInnerTextTree(document.body, window.location.href, document.title, "$3");
 })();
   )DELIM";
+
+// The JavaScript to be executed in each WebFrame which gets all of a frame's
+// anchor tags and adds them to an array with their corresponding URL and
+// textContent (which includes all text, including text that is not visually
+// rendered). Injected into the main script.
+constexpr const char16_t* kAnchorTagsJavaScript = uR"DELIM(
+// Add all the frame's anchor tags to a links array with their HREF/URL and
+// textContent.
+const linksArray = [];
+const anchorElements = node.querySelectorAll('a[href]');
+anchorElements.forEach((anchor) => {
+    linksArray.push({
+        href: anchor.href,
+        linkText: anchor.textContent
+    });
+});
+
+result.links = linksArray;
+  )DELIM";
+
 }  // namespace
 
 // TODO(crbug.com/424258248): Add a timeout for the execution of the async tasks
@@ -133,6 +178,9 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
   // The amount of async tasks this specific instance of the PageContext wrapper
   // needs to complete before executing the `completionCallback`.
   NSInteger _asyncTasksToComplete;
+
+  // The timer which keeps track of the overall execution timeout.
+  base::OneShotTimer _timeoutTimer;
 
   // The root node of the PageContext's AnnotatedPageContent (APC) tree. This
   // tree is constructed on the fly as values are returned from JavaScript.
@@ -173,12 +221,23 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
 }
 
 - (void)dealloc {
+  _timeoutTimer.Stop();
   [self stopTextHighlighting];
 }
 
 - (void)populatePageContextFieldsAsync {
+  [self populatePageContextFieldsAsyncWithTimeout:kDefaultPageContextTimeout];
+}
+
+- (void)populatePageContextFieldsAsyncWithTimeout:(base::TimeDelta)timeout {
   CHECK_GE(_asyncTasksToComplete, 0);
   _pageContextMetrics = [[PageContextWrapperMetrics alloc] init];
+  __weak PageContextWrapper* weakSelf = self;
+
+  // Start the timer.
+  _timeoutTimer.Start(FROM_HERE, timeout, base::BindOnce(^{
+                        [weakSelf onTimeout];
+                      }));
 
   if (_asyncTasksToComplete == 0) {
     [self asyncWorkCompletedForPageContext];
@@ -189,7 +248,6 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
   // executing the overall completion callback. The BarrierClosure will wait
   // until the `pageContextBarrier` callback is itself run
   // `_asyncTasksToComplete` times.
-  __weak PageContextWrapper* weakSelf = self;
   base::RepeatingClosure pageContextBarrier =
       base::BarrierClosure(_asyncTasksToComplete, base::BindOnce(^{
                              [weakSelf asyncWorkCompletedForPageContext];
@@ -368,24 +426,37 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
   // random token as nonce to differentiate between runs/executions.
   base::Token nonce = base::Token::CreateRandom();
   std::u16string nonceString = base::UTF8ToUTF16(nonce.ToString());
+  std::u16string maybeAnchorTagsJavaScript =
+      IsPageContextAnchorTagsEnabled() ? kAnchorTagsJavaScript : u"";
   std::u16string script = base::ReplaceStringPlaceholders(
       kInnerTextTreeJavaScript,
       base::span<const std::u16string>(
-          {ios::provider::GetPageContextShouldDetachScript(), nonceString}),
+          {ios::provider::GetPageContextShouldDetachScript(),
+           maybeAnchorTagsJavaScript, nonceString}),
       nullptr);
 
-  // Execute the JavaScript on the main WebFrame first and pass in the callback
-  // (which executes the barrier when run)
-  mainFrame->ExecuteJavaScript(
-      script,
-      base::BindOnce(callback, weakSelf, annotatedPageContentBarrier,
-                     /*isMainFrame=*/YES, mainFrame->GetSecurityOrigin()));
+  // If the page is not protected, execute the JavaScript on the main WebFrame
+  // first and pass in the callback (which executes the barrier when run).
+  if (ios::provider::IsProtectedUrl(mainFrame->GetUrl().spec())) {
+    _forceDetachPageContext = YES;
+    annotatedPageContentBarrier.Run();
+  } else {
+    mainFrame->ExecuteJavaScript(
+        script,
+        base::BindOnce(callback, weakSelf, annotatedPageContentBarrier,
+                       /*isMainFrame=*/YES, mainFrame->GetSecurityOrigin()));
+  }
 
   // Execute the JavaScript on each other WebFrame and pass in the callback
   // (which executes the barrier when run).
   for (web::WebFrame* webFrame : webFrames) {
-    // Skip the main frame since it was already processed above.
-    if (!webFrame || webFrame->IsMainFrame()) {
+    if (ios::provider::IsProtectedUrl(webFrame->GetUrl().spec())) {
+      _forceDetachPageContext = YES;
+    }
+
+    // Skip if it's the main frame since it was already processed above, or if
+    // Page Context should already be force detached.
+    if (!webFrame || webFrame->IsMainFrame() || _forceDetachPageContext) {
       annotatedPageContentBarrier.Run();
       continue;
     }
@@ -400,6 +471,12 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
 // All async tasks are complete, execute the overall completion callback.
 // Relinquish ownership to the callback handler.
 - (void)asyncWorkCompletedForPageContext {
+  _timeoutTimer.Stop();
+
+  if (!_completionCallback) {
+    return;
+  }
+
   [self stopTextHighlighting];
 
   PageContextWrapperCallbackResponse response;
@@ -590,6 +667,13 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
   [self populateTextInfoNodeWithValue:value
                                origin:origin
                            parentNode:_rootAPCNode->mutable_root_node()];
+
+  // Set its children anchor nodes.
+  if (IsPageContextAnchorTagsEnabled()) {
+    [self
+        populateAnchorNodeChildrenWithValue:value
+                                 parentNode:_rootAPCNode->mutable_root_node()];
+  }
 }
 
 //  Populate a FrameData node with the correct values.
@@ -680,6 +764,11 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
                                origin:origin
                            parentNode:childRootNode];
 
+  // Create the children anchor nodes.
+  if (IsPageContextAnchorTagsEnabled()) {
+    [self populateAnchorNodeChildrenWithValue:value parentNode:childRootNode];
+  }
+
   // Recursively populate the ContentNode subtree for any children iframes.
   const base::Value::List* childrenFrames =
       value->GetDict().FindList(kChildrenFramesDictKey);
@@ -692,6 +781,69 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
       }
     }
   }
+}
+
+// Populate all anchor tags as AnchorData nodes which are direct children of
+// `parentNode`.
+- (void)populateAnchorNodeChildrenWithValue:(const base::Value*)value
+                                 parentNode:
+                                     (optimization_guide::proto::ContentNode*)
+                                         parentNode {
+  if (!value || !value->is_dict() || !parentNode) {
+    return;
+  }
+
+  const base::Value::List* links =
+      value->GetDict().FindList(kFrameLinksDictKey);
+  if (!links || links->empty()) {
+    return;
+  }
+
+  for (const auto& linkValue : *links) {
+    [self populateAnchorNodeWithValue:&linkValue parentNode:parentNode];
+  }
+}
+
+// Creates an AnchorData node (with the corresponding URL) with one child
+// TextInfo node (with the corresponding innerText). Set the AnchorData node as
+// direct child of `parentNode`.
+- (void)populateAnchorNodeWithValue:(const base::Value*)linkData
+                         parentNode:(optimization_guide::proto::ContentNode*)
+                                        parentNode {
+  if (!linkData || !linkData->is_dict() || !parentNode) {
+    return;
+  }
+
+  const std::string* href = linkData->GetDict().FindString(kLinkHREFDictKey);
+  if (!href || href->empty()) {
+    return;
+  }
+
+  // Create the anchor node.
+  optimization_guide::proto::ContentNode* anchorNode =
+      parentNode->add_children_nodes();
+  anchorNode->mutable_content_attributes()->set_attribute_type(
+      optimization_guide::proto::CONTENT_ATTRIBUTE_ANCHOR);
+
+  // Set the anchor data (the HREF).
+  anchorNode->mutable_content_attributes()->mutable_anchor_data()->set_url(
+      *href);
+
+  // Create a child text node for the anchor's innerText.
+  const std::string* linkText =
+      linkData->GetDict().FindString(kLinkTextDictKey);
+  if (!linkText || linkText->empty() ||
+      base::TrimWhitespaceASCII(*linkText, base::TRIM_ALL).empty()) {
+    return;
+  }
+
+  // Set the child text node's text value.
+  optimization_guide::proto::ContentNode* textNode =
+      anchorNode->add_children_nodes();
+  textNode->mutable_content_attributes()->set_attribute_type(
+      optimization_guide::proto::CONTENT_ATTRIBUTE_TEXT);
+  textNode->mutable_content_attributes()->mutable_text_data()->set_text_content(
+      *linkText);
 }
 
 // Stop the highlighting of text.
@@ -711,6 +863,25 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
       web::FindInPageJavaScriptFeature::GetInstance();
 
   find_in_page_feature->Stop(mainFrame);
+}
+
+// Called when the overall execution times out. Cancels the timer and executes
+// the completion callback with `kTimeout`.
+- (void)onTimeout {
+  if (!_completionCallback) {
+    return;
+  }
+
+  [self stopTextHighlighting];
+
+  DLOG(WARNING) << "PageContextWrapper execution timed out.";
+
+  [_pageContextMetrics
+      executionFinishedForTask:PageContextTask::kOverall
+          withCompletionStatus:PageContextCompletionStatus::kTimeout];
+
+  std::move(_completionCallback)
+      .Run(base::unexpected(PageContextWrapperError::kTimeout));
 }
 
 @end

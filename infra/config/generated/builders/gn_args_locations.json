@@ -89,7 +89,7 @@
     "android-16-x64-fyi-rel": "ci/android-16-x64-fyi-rel/gn-args.json",
     "android-annotator-rel": "ci/android-annotator-rel/gn-args.json",
     "android-cronet-asan-x86-rel": "ci/android-cronet-asan-x86-rel/gn-args.json",
-    "android-pie-x86-fyi-rel": "ci/android-pie-x86-fyi-rel/gn-args.json"
+    "android-structured-test-ids-16-x64-rel-fyi": "ci/android-structured-test-ids-16-x64-rel-fyi/gn-args.json"
   },
   "chromium.angle": {
     "android-angle-chromium-arm64-builder": "ci/android-angle-chromium-arm64-builder/gn-args.json",
@@ -223,7 +223,6 @@
     "Dawn Android arm DEPS Builder": "ci/Dawn Android arm DEPS Builder/gn-args.json",
     "Dawn Android arm64 Builder": "ci/Dawn Android arm64 Builder/gn-args.json",
     "Dawn Android arm64 DEPS Builder": "ci/Dawn Android arm64 DEPS Builder/gn-args.json",
-    "Dawn ChromeOS Skylab Release (volteer)": "ci/Dawn ChromeOS Skylab Release (volteer)/gn-args.json",
     "Dawn Chromium Presubmit": "ci/Dawn Chromium Presubmit/gn-args.json",
     "Dawn Linux TSAN Release": "ci/Dawn Linux TSAN Release/gn-args.json",
     "Dawn Linux x64 Builder": "ci/Dawn Linux x64 Builder/gn-args.json",
@@ -303,7 +302,15 @@
     "UBSan Release": "ci/UBSan Release/gn-args.json",
     "UBSan vptr Release": "ci/UBSan vptr Release/gn-args.json",
     "Win ASan Release": "ci/Win ASan Release/gn-args.json",
-    "Win ASan Release Media": "ci/Win ASan Release Media/gn-args.json"
+    "Win ASan Release Media": "ci/Win ASan Release Media/gn-args.json",
+    "chromeos-x64-libfuzzer-asan-rel-tests": "ci/chromeos-x64-libfuzzer-asan-rel-tests/gn-args.json",
+    "linux-x64-libfuzzer-asan-dbg-tests": "ci/linux-x64-libfuzzer-asan-dbg-tests/gn-args.json",
+    "linux-x64-libfuzzer-asan-rel-tests": "ci/linux-x64-libfuzzer-asan-rel-tests/gn-args.json",
+    "linux-x64-libfuzzer-msan-rel-tests": "ci/linux-x64-libfuzzer-msan-rel-tests/gn-args.json",
+    "linux-x64-libfuzzer-ubsan-rel-tests": "ci/linux-x64-libfuzzer-ubsan-rel-tests/gn-args.json",
+    "linux-x86-libfuzzer-asan-rel-tests": "ci/linux-x86-libfuzzer-asan-rel-tests/gn-args.json",
+    "mac-arm64-libfuzzer-asan-rel-tests": "ci/mac-arm64-libfuzzer-asan-rel-tests/gn-args.json",
+    "win-x64-libfuzzer-asan-rel-tests": "ci/win-x64-libfuzzer-asan-rel-tests/gn-args.json"
   },
   "chromium.fyi": {
     "Linux Viz": "ci/Linux Viz/gn-args.json",
@@ -364,7 +371,6 @@
   },
   "chromium.gpu.fyi": {
     "ChromeOS FYI Release (amd64-generic)": "ci/ChromeOS FYI Release (amd64-generic)/gn-args.json",
-    "ChromeOS FYI Release Skylab (volteer)": "ci/ChromeOS FYI Release Skylab (volteer)/gn-args.json",
     "GPU FYI Android arm Builder": "ci/GPU FYI Android arm Builder/gn-args.json",
     "GPU FYI Android arm64 Builder": "ci/GPU FYI Android arm64 Builder/gn-args.json",
     "GPU FYI Linux Builder": "ci/GPU FYI Linux Builder/gn-args.json",
@@ -605,6 +611,7 @@
     "android-fieldtrial-rel": "try/android-fieldtrial-rel/gn-args.json",
     "android-mte-arm64-rel": "try/android-mte-arm64-rel/gn-args.json",
     "android-perfetto-rel": "try/android-perfetto-rel/gn-args.json",
+    "android-structured-test-ids-16-x64-rel-fyi": "try/android-structured-test-ids-16-x64-rel-fyi/gn-args.json",
     "android-webview-10-x86-rel-tests": "try/android-webview-10-x86-rel-tests/gn-args.json",
     "android-webview-12-x64-dbg": "try/android-webview-12-x64-dbg/gn-args.json",
     "android-webview-13-x64-dbg": "try/android-webview-13-x64-dbg/gn-args.json",
@@ -656,7 +663,6 @@
     "chromeos-libfuzzer-asan-rel": "try/chromeos-libfuzzer-asan-rel/gn-args.json",
     "chromeos-octopus-rel": "try/chromeos-octopus-rel/gn-args.json",
     "gpu-fyi-try-chromeos-amd64-generic": "try/gpu-fyi-try-chromeos-amd64-generic/gn-args.json",
-    "gpu-fyi-try-chromeos-skylab-volteer": "try/gpu-fyi-try-chromeos-skylab-volteer/gn-args.json",
     "linux-cfm-rel": "try/linux-cfm-rel/gn-args.json",
     "linux-chromeos-annotator-rel": "try/linux-chromeos-annotator-rel/gn-args.json",
     "linux-chromeos-compile-dbg": "try/linux-chromeos-compile-dbg/gn-args.json",
@@ -685,7 +691,6 @@
     "dawn-linux-x64-deps-rel": "try/dawn-linux-x64-deps-rel/gn-args.json",
     "dawn-mac-arm64-deps-rel": "try/dawn-mac-arm64-deps-rel/gn-args.json",
     "dawn-mac-x64-deps-rel": "try/dawn-mac-x64-deps-rel/gn-args.json",
-    "dawn-try-chromeos-volteer-rel": "try/dawn-try-chromeos-volteer-rel/gn-args.json",
     "dawn-try-linux-tsan-rel": "try/dawn-try-linux-tsan-rel/gn-args.json",
     "dawn-try-linux-x64-intel-uhd770-rel": "try/dawn-try-linux-x64-intel-uhd770-rel/gn-args.json",
     "dawn-try-mac-amd-exp": "try/dawn-try-mac-amd-exp/gn-args.json",
@@ -735,6 +740,7 @@
     "fuchsia-x64-perf-cast-receiver-rel": "try/fuchsia-x64-perf-cast-receiver-rel/gn-args.json"
   },
   "tryserver.chromium.fuzz": {
+    "chromeos-x64-libfuzzer-asan-rel-tests": "try/chromeos-x64-libfuzzer-asan-rel-tests/gn-args.json",
     "linux-asan-dbg": "try/linux-asan-dbg/gn-args.json",
     "linux-asan-media-rel": "try/linux-asan-media-rel/gn-args.json",
     "linux-asan-media-v8-arm-rel": "try/linux-asan-media-v8-arm-rel/gn-args.json",
@@ -752,11 +758,18 @@
     "linux-tsan-rel": "try/linux-tsan-rel/gn-args.json",
     "linux-ubsan-rel": "try/linux-ubsan-rel/gn-args.json",
     "linux-ubsan-vptr-rel": "try/linux-ubsan-vptr-rel/gn-args.json",
+    "linux-x64-libfuzzer-asan-dbg-tests": "try/linux-x64-libfuzzer-asan-dbg-tests/gn-args.json",
+    "linux-x64-libfuzzer-asan-rel-tests": "try/linux-x64-libfuzzer-asan-rel-tests/gn-args.json",
+    "linux-x64-libfuzzer-msan-rel-tests": "try/linux-x64-libfuzzer-msan-rel-tests/gn-args.json",
+    "linux-x64-libfuzzer-ubsan-rel-tests": "try/linux-x64-libfuzzer-ubsan-rel-tests/gn-args.json",
+    "linux-x86-libfuzzer-asan-rel-tests": "try/linux-x86-libfuzzer-asan-rel-tests/gn-args.json",
     "mac-arm64-asan-rel": "try/mac-arm64-asan-rel/gn-args.json",
+    "mac-arm64-libfuzzer-asan-rel-tests": "try/mac-arm64-libfuzzer-asan-rel-tests/gn-args.json",
     "mac-asan-media-rel": "try/mac-asan-media-rel/gn-args.json",
     "mac-asan-rel": "try/mac-asan-rel/gn-args.json",
     "win-asan-media-rel": "try/win-asan-media-rel/gn-args.json",
-    "win-asan-rel": "try/win-asan-rel/gn-args.json"
+    "win-asan-rel": "try/win-asan-rel/gn-args.json",
+    "win-x64-libfuzzer-asan-rel-tests": "try/win-x64-libfuzzer-asan-rel-tests/gn-args.json"
   },
   "tryserver.chromium.linux": {
     "chromeos-js-code-coverage": "try/chromeos-js-code-coverage/gn-args.json",
@@ -800,7 +813,6 @@
     "linux-headless-shell-rel": "try/linux-headless-shell-rel/gn-args.json",
     "linux-js-code-coverage": "try/linux-js-code-coverage/gn-args.json",
     "linux-js-coverage-rel": "try/linux-js-coverage-rel/gn-args.json",
-    "linux-layout-tests-edit-ng": "try/linux-layout-tests-edit-ng/gn-args.json",
     "linux-libfuzzer-asan-rel": "try/linux-libfuzzer-asan-rel/gn-args.json",
     "linux-modules-compile-fyi-rel": "try/linux-modules-compile-fyi-rel/gn-args.json",
     "linux-multiscreen-fyi-rel": "try/linux-multiscreen-fyi-rel/gn-args.json",

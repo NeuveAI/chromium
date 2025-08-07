@@ -30,7 +30,6 @@
 #include "chrome/browser/usb/usb_chooser_context_factory.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
-#include "chrome/test/base/scoped_testing_local_state.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -141,9 +140,7 @@ class MockPageInfoUI : public PageInfoUI {
 
 class PageInfoTest : public ChromeRenderViewHostTestHarness {
  public:
-  PageInfoTest() : testing_local_state_(TestingBrowserProcess::GetGlobal()) {
-    SetURL("http://www.example.com");
-  }
+  PageInfoTest() { SetURL("http://www.example.com"); }
 
   ~PageInfoTest() override = default;
 
@@ -315,7 +312,6 @@ class PageInfoTest : public ChromeRenderViewHostTestHarness {
   security_state::VisibleSecurityState visible_security_state_;
 
  private:
-  ScopedTestingLocalState testing_local_state_;
   std::unique_ptr<PageInfo> page_info_;
   std::unique_ptr<MockPageInfoUI> mock_ui_;
 
@@ -2011,10 +2007,12 @@ class UnifiedAutoplaySoundSettingsPageInfoTest
         content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
     ChromePageInfoUiDelegate delegate(web_contents.get(),
                                       GURL("http://www.example.com"));
-    return PageInfoUI::PermissionActionToUIString(
-        &delegate, ContentSettingsType::SOUND, CONTENT_SETTING_DEFAULT,
-        default_setting_, SettingSource::kUser,
-        /*is_one_time=*/false);
+    PageInfo::PermissionInfo info;
+    info.type = ContentSettingsType::SOUND;
+    info.default_setting = default_setting_;
+    info.source = SettingSource::kUser;
+    info.is_one_time = false;
+    return PageInfoUI::PermissionStateToUIString(&delegate, info);
   }
 
   std::u16string GetSoundSettingString(ContentSetting setting) {
@@ -2022,10 +2020,13 @@ class UnifiedAutoplaySoundSettingsPageInfoTest
         content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
     ChromePageInfoUiDelegate delegate(web_contents.get(),
                                       GURL("http://www.example.com"));
-    return PageInfoUI::PermissionActionToUIString(
-        &delegate, ContentSettingsType::SOUND, setting, default_setting_,
-        SettingSource::kUser,
-        /*is_one_time=*/false);
+    PageInfo::PermissionInfo info;
+    info.type = ContentSettingsType::SOUND;
+    info.setting = setting;
+    info.default_setting = default_setting_;
+    info.source = SettingSource::kUser;
+    info.is_one_time = false;
+    return PageInfoUI::PermissionStateToUIString(&delegate, info);
   }
 
  private:
@@ -2044,11 +2045,10 @@ TEST_F(UnifiedAutoplaySoundSettingsPageInfoTest, DefaultAllow_PrefOn) {
       l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_AUTOMATIC_BY_DEFAULT),
       GetDefaultSoundSettingString());
 
-  EXPECT_EQ(
-      l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_USER),
-      GetSoundSettingString(CONTENT_SETTING_ALLOW));
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_ALLOWED),
+            GetSoundSettingString(CONTENT_SETTING_ALLOW));
 
-  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_MUTED_BY_USER),
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_MUTED),
             GetSoundSettingString(CONTENT_SETTING_BLOCK));
 }
 
@@ -2060,14 +2060,13 @@ TEST_F(UnifiedAutoplaySoundSettingsPageInfoTest, DefaultAllow_PrefOff) {
   SetAutoplayPrefValue(false);
 
   EXPECT_EQ(
-      l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_DEFAULT),
+      l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_ALLOWED_BY_DEFAULT),
       GetDefaultSoundSettingString());
 
-  EXPECT_EQ(
-      l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_USER),
-      GetSoundSettingString(CONTENT_SETTING_ALLOW));
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_ALLOWED),
+            GetSoundSettingString(CONTENT_SETTING_ALLOW));
 
-  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_MUTED_BY_USER),
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_MUTED),
             GetSoundSettingString(CONTENT_SETTING_BLOCK));
 }
 
@@ -2082,11 +2081,10 @@ TEST_F(UnifiedAutoplaySoundSettingsPageInfoTest, DefaultBlock_PrefOn) {
       l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_MUTED_BY_DEFAULT),
       GetDefaultSoundSettingString());
 
-  EXPECT_EQ(
-      l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_USER),
-      GetSoundSettingString(CONTENT_SETTING_ALLOW));
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_ALLOWED),
+            GetSoundSettingString(CONTENT_SETTING_ALLOW));
 
-  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_MUTED_BY_USER),
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_MUTED),
             GetSoundSettingString(CONTENT_SETTING_BLOCK));
 }
 
@@ -2101,11 +2099,10 @@ TEST_F(UnifiedAutoplaySoundSettingsPageInfoTest, DefaultBlock_PrefOff) {
       l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_MUTED_BY_DEFAULT),
       GetDefaultSoundSettingString());
 
-  EXPECT_EQ(
-      l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_USER),
-      GetSoundSettingString(CONTENT_SETTING_ALLOW));
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_ALLOWED),
+            GetSoundSettingString(CONTENT_SETTING_ALLOW));
 
-  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_MUTED_BY_USER),
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_MUTED),
             GetSoundSettingString(CONTENT_SETTING_BLOCK));
 }
 
@@ -2116,12 +2113,15 @@ TEST_F(UnifiedAutoplaySoundSettingsPageInfoTest, NotSoundSetting_Noop) {
       content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
   ChromePageInfoUiDelegate delegate(web_contents.get(),
                                     GURL("http://www.example.com"));
+  PageInfo::PermissionInfo info;
+  info.type = ContentSettingsType::ADS;
+  info.default_setting = CONTENT_SETTING_ALLOW;
+  info.source = SettingSource::kUser;
+  info.is_one_time = false;
+
   EXPECT_EQ(
-      l10n_util::GetStringUTF16(IDS_PAGE_INFO_BUTTON_TEXT_ALLOWED_BY_DEFAULT),
-      PageInfoUI::PermissionActionToUIString(
-          &delegate, ContentSettingsType::ADS, CONTENT_SETTING_DEFAULT,
-          CONTENT_SETTING_ALLOW, SettingSource::kUser,
-          /*is_one_time=*/false));
+      l10n_util::GetStringUTF16(IDS_PAGE_INFO_STATE_TEXT_ALLOWED_BY_DEFAULT),
+      PageInfoUI::PermissionStateToUIString(&delegate, info));
 }
 
 #endif  // !BUILDFLAG(IS_ANDROID)

@@ -1778,14 +1778,13 @@ void OpenPasswordManagerWidgetPromoInstructions() {
            usingSearchAction:grey_scrollInDirection(kGREYDirectionDown, kJump)
         onElementWithMatcher:PasswordDetailsTableViewMatcher()]
         assertWithMatcher:grey_notNil()];
+    [[EarlGrey selectElementWithMatcher:NavigationBarBackButton()]
+        performAction:grey_tap()];
+    [[EarlGrey selectElementWithMatcher:NavigationBarBackButton()]
+        performAction:grey_tap()];
+    [[EarlGrey selectElementWithMatcher:SettingsDoneButton()]
+        performAction:grey_tap()];
   }
-
-  [[EarlGrey selectElementWithMatcher:NavigationBarBackButton()]
-      performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:NavigationBarBackButton()]
-      performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:SettingsDoneButton()]
-      performAction:grey_tap()];
 }
 
 // Checks that if all passwords are deleted in the list view, the enabled Add
@@ -3271,9 +3270,9 @@ void OpenPasswordManagerWidgetPromoInstructions() {
       performAction:grey_tap()];
 }
 
-// Tests that the save passwords in account section is hidden when not opted-in
-// for account storage.
-- (void)testSavePasswordsInAccountHiddenWhenNotOptedInToAccountStorage {
+// Tests that the save passwords in account section is hidden when account
+// storage disabled.
+- (void)testSavePasswordsInAccountHiddenWhenAccountStorageDisabled {
   SavePasswordFormToProfileStore();
 
   [PasswordSettingsAppInterface mockReauthenticationModuleExpectedResult:
@@ -3285,7 +3284,7 @@ void OpenPasswordManagerWidgetPromoInstructions() {
   OpenSettingsSubmenu();
   [ChromeEarlGreyUI waitForAppToIdle];
 
-  // Opt out of account storage.
+  // Disable account storage.
   [SigninEarlGreyAppInterface
       setSelectedType:(syncer::UserSelectableType::kPasswords)
               enabled:NO];

@@ -73,6 +73,7 @@
 #include "components/password_manager/core/browser/browser_save_password_progress_logger.h"
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/form_saver_impl.h"
+#include "components/password_manager/core/browser/leak_detection_dialog_utils.h"
 #include "components/password_manager/core/browser/move_password_to_account_store_helper.h"
 #include "components/password_manager/core/browser/password_bubble_experiment.h"
 #include "components/password_manager/core/browser/password_form_manager_for_ui.h"
@@ -289,6 +290,13 @@ void ManagePasswordsUIController::OnUpdatePasswordSubmitted(
   DestroyPopups();
   save_fallback_timer_.Stop();
   passwords_data_.OnUpdatePassword(std::move(form_manager));
+
+  // Trigger `passwords_data_` updates so the state is correct after password
+  // change, but do not display any bubbles.
+  if (IsPasswordChangeOngoing()) {
+    return;
+  }
+
   bubble_status_ = BubbleStatus::SHOULD_POP_UP;
   UpdateBubbleAndIconVisibility();
 }
@@ -503,7 +511,8 @@ void ManagePasswordsUIController::OnCredentialLeak(
     ClearPopUpFlagForBubble();
   }
 
-  if (password_manager::IsPasswordChangeSupported(details.leak_type)) {
+  if (password_manager::IsPasswordChangeSupported(details.leak_type) &&
+      !password_manager::IsPasswordSavedAsBackup(details.leak_type)) {
     auto* password_change_service = GetPasswordChangeService(web_contents());
     CHECK(password_change_service);
 
@@ -957,37 +966,35 @@ void ManagePasswordsUIController::OnPasswordsRevealed() {
   passwords_data_.form_manager()->OnPasswordsRevealed();
 }
 
-void ManagePasswordsUIController::MaybeHandlePasswordRecoveryFinished(
+void ManagePasswordsUIController::HandlePasswordRecoveryFinished(
     const std::u16string& username,
-    const std::u16string& password) const {
+    const std::u16string& password,
+    const std::u16string& password_backup) const {
   auto pending_credentials = GetPendingPassword();
   if (pending_credentials.password_value != password ||
       pending_credentials.username_value != username) {
     return;
   }
 
-  const password_manager::PasswordForm* changed_password_credentials =
-      password_manager_util::FindLoginWithChangedPassword(
-          *passwords_data_.form_manager());
-  if (changed_password_credentials &&
-      changed_password_credentials->GetPasswordBackup() == password) {
-    base::UmaHistogramEnumeration(
-        "PasswordManager.PasswordChangeRecoveryFlow",
-        password_manager::PasswordChangeRecoveryFlowState::
-            kPrimaryPasswordUpdated);
-    ukm::builders::PasswordManager_ChangeRecovery(
-        web_contents()->GetPrimaryMainFrame()->GetPageUkmSourceId())
-        .SetPasswordChangeRecoveryFlow(
-            static_cast<int>(password_manager::PasswordChangeRecoveryFlowState::
-                                 kPrimaryPasswordUpdated))
-        .Record(ukm::UkmRecorder::Get());
+  if (password_backup == password) {
+    password_manager::metrics_util::LogPrimaryPasswordUpdatedWithBackup(
+        web_contents()->GetPrimaryMainFrame()->GetPageUkmSourceId());
     MaybeTriggerPasswordChangeDelayedSurvey(web_contents()->GetWeakPtr());
   }
 }
 
 void ManagePasswordsUIController::SavePassword(const std::u16string& username,
                                                const std::u16string& password) {
-  MaybeHandlePasswordRecoveryFinished(username, password);
+  if (const password_manager::PasswordForm* changed_password_form_with_backup =
+          password_manager_util::FindChangedPasswordLoginWithBackup(
+              *passwords_data_.form_manager())) {
+    // If the new password to be saved should override a backup password,
+    // this function sets an empty backup to the submitted form.
+    passwords_data_.form_manager()->OnRemovePasswordBackupNote();
+    HandlePasswordRecoveryFinished(
+        username, password,
+        changed_password_form_with_backup->GetPasswordBackup().value());
+  }
   UpdatePasswordFormUsernameAndPassword(username, password,
                                         passwords_data_.form_manager());
 
@@ -1269,42 +1276,59 @@ void ManagePasswordsUIController::UpdateBubbleAndIconVisibility() {
     tabs::TabInterface* const tab_interface = browser->GetActiveTabInterface();
     auto* const tab_features = tab_interface->GetTabFeatures();
     CHECK(tab_features);
+    // Retrieve the controller responsible for managing the page action's
+    // visibility and state.
     auto* const controller =
         tab_features->manage_passwords_page_action_controller();
-
-    password_manager::ui::State state = GetState();
-    const bool is_blocklisted = IsExplicitlyBlocklisted();
-
-    if (dialog_controller_ &&
-        state == password_manager::ui::CREDENTIAL_REQUEST_STATE) {
-      state = password_manager::ui::INACTIVE_STATE;
-    }
-
-    if (state != last_page_action_state_ ||
-        is_blocklisted != last_page_action_is_blocklisted_) {
-      PasswordBubbleViewBase::CloseCurrentBubble();
-    }
-    last_page_action_state_ = state;
-    last_page_action_is_blocklisted_ = is_blocklisted;
-
+    // Get the action item associated with the passwords UI.
     actions::ActionItem* passwords_action_item =
         actions::ActionManager::Get().FindAction(
             kActionShowPasswordsBubbleOrPage,
             browser->browser_actions()->root_action_item());
-
-    controller->UpdateVisibility(state, is_blocklisted, *this,
-                                 *passwords_action_item);
-    if (IsAutomaticallyOpeningBubble() ||
-        bubble_status_ == BubbleStatus::SHOULD_POP_UP_WITH_FOCUS) {
-      // This will detach any existing bubble so OnBubbleHidden() isn't called.
-      weak_ptr_factory_.InvalidateWeakPtrs();
-      ShowBubbleWithoutUserInteraction();
-      // If the bubble appeared then the status is updated in OnBubbleShown().
-      ClearPopUpFlagForBubble();
-    }
+    UpdatePasswordIconAndBubbleState(controller, passwords_action_item);
   } else {
     browser->window()->UpdatePageActionIcon(
         PageActionIconType::kManagePasswords);
+  }
+}
+
+void ManagePasswordsUIController::UpdatePasswordIconAndBubbleState(
+    ManagePasswordsPageActionController* controller,
+    actions::ActionItem* passwords_action_item) {
+  password_manager::ui::State state = GetState();
+  const bool is_blocklisted = IsExplicitlyBlocklisted();
+  // If the UI state or blocklist status has changed since the last update,
+  // close the current bubble to ensure that the UI reflects the new state.
+  if (state != last_page_action_state_ ||
+      is_blocklisted != last_page_action_is_blocklisted_) {
+    PasswordBubbleViewBase::CloseCurrentBubble();
+  }
+  // Update the last known state and blocklist status.
+  last_page_action_state_ = state;
+  last_page_action_is_blocklisted_ = is_blocklisted;
+  // Determine whether the bubble should be shown automatically based on
+  // current conditions.
+  const bool show_bubble =
+      IsAutomaticallyOpeningBubble() ||
+      bubble_status_ == BubbleStatus::SHOULD_POP_UP_WITH_FOCUS;
+  // If the bubble is not to be shown, and there's a dialog controller active
+  // and the state is Credential Request, force the state to inactive to
+  // prevent icon from being active.
+  if (!show_bubble && dialog_controller_ &&
+      state == password_manager::ui::CREDENTIAL_REQUEST_STATE) {
+    state = password_manager::ui::INACTIVE_STATE;
+  }
+  // Update the visibility of the page action based on the current state,
+  // blocklist status, and the passwords action item.
+  controller->UpdateVisibility(state, is_blocklisted, *this,
+                               *passwords_action_item);
+
+  if (show_bubble) {
+    // This will detach any existing bubble so OnBubbleHidden() isn't called.
+    weak_ptr_factory_.InvalidateWeakPtrs();
+    ShowBubbleWithoutUserInteraction();
+    // If the bubble appeared then the status is updated in OnBubbleShown().
+    ClearPopUpFlagForBubble();
   }
 }
 

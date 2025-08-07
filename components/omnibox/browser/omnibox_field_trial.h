@@ -714,12 +714,19 @@ inline constexpr base::FeatureParam<bool> kAndroidDiagInputConnection{
 inline constexpr base::FeatureParam<bool> kMobileParityRetrieveBuiltinFavicon{
     &omnibox::kOmniboxMobileParityUpdateV2, "retrieve_builtin_favicon", false};
 
-inline constexpr base::FeatureParam<bool> kMobileParityRetrieveTrueFavicon{
-    &omnibox::kOmniboxMobileParityUpdate, "retrieve_true_favicon", false};
 
 inline constexpr base::FeatureParam<bool> kMobileParityEnableFeedForGoogleOnly{
     &omnibox::kOmniboxMobileParityUpdate, "enable_feed_for_google_only", true};
 // <-- Mobile Parity update
+
+// Aim shortcut for typed state ->
+
+constexpr base::FeatureParam<int> kMinimumTypedCharactersToInvokeAimShortcut(
+    &omnibox::kOmniboxAimShortcutTypedState,
+    "MinimumTypedCharactersToInvokeAimShortcut",
+    1);
+
+// <- Aim shortcut for typed state
 
 // New params should be inserted above this comment. They should be ordered
 // consistently with `omnibox_features.h`. They should be formatted as:

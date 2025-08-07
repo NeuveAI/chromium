@@ -238,6 +238,7 @@
 #include "third_party/blink/public/web/web_view.h"
 #include "third_party/blink/public/web/web_widget.h"
 #include "third_party/blink/public/web/web_window_features.h"
+#include "third_party/perfetto/include/perfetto/tracing/track.h"
 #include "ui/accessibility/ax_tree_update.h"
 #include "ui/events/base_event_utils.h"
 #include "url/origin.h"
@@ -1160,13 +1161,12 @@ void LogCommitHistograms(base::TimeTicks commit_sent,
                 "MainFrame"
               : "Navigation.RendererRunLoopStartToFirstCommitNavigation2."
                 "Subframe";
-      const auto trace_id = TRACE_ID_WITH_SCOPE(
-          name, TRACE_ID_LOCAL(RenderThreadImpl::current()));
-      TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP1(
-          "navigation", name, trace_id, run_loop_start_time, "url",
-          new_page_url);
-      TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0("navigation", name,
-                                                     trace_id, now);
+      const auto trace_id = perfetto::NamedTrack(
+          perfetto::StaticString(name),
+          reinterpret_cast<uintptr_t>(RenderThreadImpl::current()));
+      TRACE_EVENT_BEGIN("navigation", perfetto::StaticString(name), trace_id,
+                        run_loop_start_time, "url", new_page_url);
+      TRACE_EVENT_END("navigation", trace_id, now);
       base::UmaHistogramLongTimes(name, now - run_loop_start_time);
     }
   }
@@ -4923,10 +4923,17 @@ RenderFrameImpl::MakeDidCommitProvisionalLoadParams(
     params->url = GURL(kBlockedURL);
   }
 
+  // When `blink::features::kVisitedLinksOnErrorNavigation` is enabled, visits
+  // to reachable URLs that have a 404 status code qualify for history updates.
+  // Otherwise, we shouldn't update history for 404s.
+  bool does_status_code_qualify_for_history =
+      base::FeatureList::IsEnabled(
+          blink::features::kVisitedLinksOnErrorNavigation) ||
+      response.HttpStatusCode() != 404;
   // TODO(crbug.com/40161149): Reconsider how we calculate
   // should_update_history.
-  params->should_update_history =
-      !document_loader->HasUnreachableURL() && response.HttpStatusCode() != 404;
+  params->should_update_history = !document_loader->HasUnreachableURL() &&
+                                  does_status_code_qualify_for_history;
 
   if (previous_page_state.has_value()) {
     params->previous_page_state = previous_page_state;
@@ -5201,7 +5208,8 @@ void RenderFrameImpl::DidCommitNavigationInternal(
   RendererNavigationMetricsManager::Instance().ProcessNavigationCommit(
       navigation_state->commit_params().navigation_metrics_token,
       navigation_state->common_params().url,
-      navigation_state->common_params().actual_navigation_start);
+      navigation_state->common_params().actual_navigation_start,
+      navigation_state->commit_params().commit_sent, IsMainFrame());
   // Add any new code above the ProcessNavigationCommit call.
 }
 
@@ -5996,13 +6004,9 @@ void RenderFrameImpl::SyncSelectionIfRequired(blink::SyncCondition force_sync) {
         offset = 0;
       size_t length =
           selection.EndOffset() - offset + kExtraCharsBeforeAndAfterSelection;
-      if (base::FeatureList::IsEnabled(blink::features::kFastSelectionSync)) {
-        WebString value = controller->TextInputInfo().value;
-        text = value.IsNull() ? value.Utf16()
-                              : value.Substring(offset, length).Utf16();
-      } else {
-        text = frame_->RangeAsText(WebRange(offset, length)).Utf16();
-      }
+      WebString value = controller->TextInputInfo().value;
+      text = value.IsNull() ? value.Utf16()
+                            : value.Substring(offset, length).Utf16();
     } else {
       offset = selection.StartOffset();
       text = frame_->SelectionAsText().Utf16();

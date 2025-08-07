@@ -20,8 +20,8 @@
 #include "base/unguessable_token.h"
 #include "base/version_info/channel.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "chrome/browser/ui/webui/new_tab_page/composebox/composebox.mojom.h"
-#include "chrome/browser/ui/webui/new_tab_page/composebox/composebox_fieldtrial.h"
+#include "chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.h"
+#include "chrome/browser/ui/webui/searchbox/searchbox_test_utils.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/omnibox/composebox/composebox_query.mojom.h"
@@ -39,6 +39,9 @@
 #include "services/network/test/test_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/webui/resources/cr_components/composebox/composebox.mojom.h"
+
+using composebox::SessionState;
 
 namespace {
 constexpr int kImageCompressionQuality = 30;
@@ -48,6 +51,8 @@ constexpr int kImageMaxWidth = 1000;
 constexpr char kClientUploadDurationQueryParameter[] = "cud";
 constexpr char kQuerySubmissionTimeQueryParameter[] = "qsubts";
 constexpr char kQueryText[] = "query";
+constexpr char kComposeboxFileDeleted[] =
+    "NewTabPage.Composebox.Session.File.DeletedCount";
 
 class MockPage : public composebox::mojom::Page {
  public:
@@ -100,6 +105,9 @@ class MockQueryController : public TestComposeboxQueryController {
        std::optional<composebox::ImageEncodingOptions> image_options));
   MOCK_METHOD(bool, DeleteFile, (const base::UnguessableToken&));
   MOCK_METHOD(void, ClearFiles, ());
+  MOCK_METHOD(FileInfo*,
+              GetFileInfo,
+              (const base::UnguessableToken& file_token));
 
   void NotifySessionStartedBase() {
     TestComposeboxQueryController::NotifySessionStarted();
@@ -167,9 +175,12 @@ class ComposeboxHandlerTest : public ChromeRenderViewHostTestHarness {
     metrics_recorder_ = metrics_recorder_ptr.get();
     handler_ = std::make_unique<ComposeboxHandler>(
         mojo::PendingReceiver<composebox::mojom::PageHandler>(),
-        mock_page_.BindAndGetRemote(), std::move(query_controller_ptr),
-        std::move(metrics_recorder_ptr), web_contents());
+        mock_page_.BindAndGetRemote(),
+        mojo::PendingReceiver<searchbox::mojom::PageHandler>(),
+        std::move(query_controller_ptr), std::move(metrics_recorder_ptr),
+        profile(), web_contents(), /*metrics_reporter=*/nullptr);
 
+    handler_->SetPage(mock_searchbox_page_.BindAndGetRemote());
     // Set all the feature params here to keep the test consistent if future
     // default values are changed.
     scoped_config_.Get().enabled = true;
@@ -230,13 +241,13 @@ class ComposeboxHandlerTest : public ChromeRenderViewHostTestHarness {
     result_url = net::AppendOrReplaceQueryParameter(
         result_url, kQuerySubmissionTimeQueryParameter, std::nullopt);
     result_url = net::AppendOrReplaceQueryParameter(
-        result_url, kClientUploadDurationQueryParameter,
-        std::nullopt);
+        result_url, kClientUploadDurationQueryParameter, std::nullopt);
     return result_url;
   }
 
  protected:
   testing::NiceMock<MockPage> mock_page_;
+  testing::NiceMock<MockSearchboxPage> mock_searchbox_page_;
 
  private:
   ntp_composebox::ScopedFeatureConfigForTesting scoped_config_;
@@ -374,6 +385,12 @@ TEST_F(ComposeboxHandlerTest, AddFile_Image) {
 }
 
 TEST_F(ComposeboxHandlerTest, DeleteFile_Success) {
+  std::string file_type = ".Image";
+  std::string file_status = ".NotUploaded";
+  std::unique_ptr<ComposeboxQueryController::FileInfo> file_info =
+      std::make_unique<ComposeboxQueryController::FileInfo>();
+  file_info->file_name = "test.png";
+  file_info->mime_type_ = lens::MimeType::kImage;
   base::UnguessableToken delete_file_token = base::UnguessableToken::Create();
   base::UnguessableToken token_arg;
   EXPECT_CALL(query_controller(), DeleteFile)
@@ -382,9 +399,18 @@ TEST_F(ComposeboxHandlerTest, DeleteFile_Success) {
             token_arg = token;
             return true;
           }));
+
+  EXPECT_CALL(query_controller(), GetFileInfo)
+      .WillOnce(
+          testing::Invoke([&file_info](const base::UnguessableToken& token) {
+            return file_info.get();
+          }));
+
   handler().DeleteFile(delete_file_token);
 
   EXPECT_EQ(delete_file_token, token_arg);
+  histogram_tester().ExpectTotalCount(
+      kComposeboxFileDeleted + file_type + file_status, 1);
 }
 
 TEST_F(ComposeboxHandlerTest, DeleteFile_FailureThrowsMessage) {

@@ -100,17 +100,11 @@ ACCOUNT_CAPABILITY(kIsSubjectToEnterprisePoliciesCapabilityName,
 ACCOUNT_CAPABILITY(kIsSubjectToParentalControlsCapabilityName,
                    IS_SUBJECT_TO_PARENTAL_CONTROLS_CAPABILITY_NAME,
                    "accountcapabilities/guydolldmfya")
-
-ACCOUNT_CAPABILITY(kShouldBeAddressedInFeminineGrammaticalGender,
-                   SHOULD_BE_ADDRESSED_IN_FEMININE_GRAMMATICAL_GENDER,
-                   "accountcapabilities/ge3dsnbnmnqxa")
-
-ACCOUNT_CAPABILITY(kShouldBeAddressedInMasculineGrammaticalGender,
-                   SHOULD_BE_ADDRESSED_IN_MASCULINE_GRAMMATICAL_GENDER,
-                   "accountcapabilities/ge3dsnjnmnqxa")
-
-ACCOUNT_CAPABILITY(kShouldBeAddressedInNeuterGrammaticalGender,
-                   SHOULD_BE_ADDRESSED_IN_NEUTER_GRAMMATICAL_GENDER,
-                   "accountcapabilities/ge3dsnrnmnqxa")
-
 // keep-sorted end
+
+// TODO(crbug.com/435151047): Remove this once the capability is fully rolled
+// out.
+ACCOUNT_CAPABILITY_TEMPORARY_NOT_IOS(
+    kIsSubjectToAccountLevelEnterprisePoliciesCapabilityName,
+    IS_SUBJECT_TO_ACCOUNT_LEVEL_ENTERPRISE_POLICIES_CAPABILITY_NAME,
+    "accountcapabilities/ge4tgnznmnqxa")

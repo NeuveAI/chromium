@@ -258,8 +258,8 @@ int32_t MotionEventGeneric::GetSourceDeviceId(size_t pointer_index) const {
 
 // static
 std::unique_ptr<MotionEventGeneric> MotionEventGeneric::CloneEvent(
-    const MotionEvent& event) {
-  bool with_history = true;
+    const MotionEvent& event,
+    bool with_history) {
   return base::WrapUnique(new MotionEventGeneric(event, with_history));
 }
 

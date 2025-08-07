@@ -16,7 +16,7 @@
 
 struct CoreAccountInfo;
 class Profile;
-class ProfilePickerSignedInFlowController;
+class ProfilePickerPostSignInAdapter;
 class ForceSigninUIError;
 
 class ProfilePickerFlowController : public ProfileManagementFlowControllerImpl {
@@ -30,15 +30,13 @@ class ProfilePickerFlowController : public ProfileManagementFlowControllerImpl {
 
   void Init() override;
 
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
-  void SwitchToDiceSignIn(ProfilePicker::ProfileInfo profile_info,
-                          StepSwitchFinishedCallback switch_finished_callback);
+  void SwitchToSignIn(ProfilePicker::ProfileInfo profile_info,
+                      StepSwitchFinishedCallback switch_finished_callback);
 
   void SwitchToReauth(
       Profile* profile,
       StepSwitchFinishedCallback switch_finished_callback,
       base::OnceCallback<void(const ForceSigninUIError&)> on_error_callback);
-#endif
 
   void CancelPostSignInFlow() override;
 
@@ -62,7 +60,6 @@ class ProfilePickerFlowController : public ProfileManagementFlowControllerImpl {
       PostHostClearedCallback post_host_cleared_callback) override;
 
  private:
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
   void OnReauthCompleted(
       Profile* profile,
       base::OnceCallback<void(const ForceSigninUIError&)> on_error_callback,
@@ -73,10 +70,8 @@ class ProfilePickerFlowController : public ProfileManagementFlowControllerImpl {
       base::OnceCallback<void(const ForceSigninUIError&)> on_error_callback,
       const ForceSigninUIError& error,
       bool switch_step_success);
-#endif
 
-  std::unique_ptr<ProfilePickerSignedInFlowController>
-  CreateSignedInFlowController(
+  std::unique_ptr<ProfilePickerPostSignInAdapter> CreatePostSignInAdapter(
       Profile* signed_in_profile,
       const CoreAccountInfo& account_info,
       std::unique_ptr<content::WebContents> contents) override;
@@ -101,8 +96,7 @@ class ProfilePickerFlowController : public ProfileManagementFlowControllerImpl {
   // This is used for `ProfilePicker::GetSwitchProfilePath()`. The information
   // should ideally be provided to the handler of the profile switch page once
   // its controller is created instead of relying on static calls.
-  base::WeakPtr<ProfilePickerSignedInFlowController>
-      weak_signed_in_flow_controller_;
+  base::WeakPtr<ProfilePickerPostSignInAdapter> weak_post_sign_in_adapter_;
 
   base::WeakPtr<Profile> created_profile_;
 

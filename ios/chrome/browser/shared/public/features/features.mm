@@ -517,9 +517,20 @@ bool IsDownloadAutoDeletionFeatureEnabled() {
   return base::FeatureList::IsEnabled(kDownloadAutoDeletionFeatureEnabled);
 }
 
-BASE_FEATURE(kDownloadedPDFOpening,
-             "DownloadedPDFOpening",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+const char kDownloadListUITypeParam[] = "DownloadListUIType";
+
+bool IsDownloadListEnabled() {
+  return base::FeatureList::IsEnabled(kDownloadList);
+}
+
+DownloadListUIType CurrentDownloadListUIType() {
+  CHECK(IsDownloadListEnabled());
+  return static_cast<DownloadListUIType>(base::GetFieldTrialParamByFeatureAsInt(
+      kDownloadList, kDownloadListUITypeParam, /*default_value=*/
+      (int)DownloadListUIType::kDefaultUI));
+}
+
+BASE_FEATURE(kDownloadList, "DownloadList", base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Key for NSUserDefaults containing a bool indicating whether the next run
 // should enable feed background refresh capability. This is used because
@@ -811,38 +822,6 @@ BASE_FEATURE(kSpotlightNeverRetainIndex,
              "SpotlightNeverRetainIndex",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kIOSSaveToPhotosImprovements,
-             "SaveToPhotosImprovements",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-const char kSaveToPhotosContextMenuImprovementParam[] =
-    "save-to-photos-context-menu-improvement";
-const char kSaveToPhotosTitleImprovementParam[] =
-    "save-to-photos-title-improvement";
-const char kSaveToPhotosAccountDefaultChoiceImprovementParam[] =
-    "save-to-photos-account-default-choice-improvement";
-
-bool IsSaveToPhotosActionImprovementEnabled() {
-  return base::FeatureList::IsEnabled(kIOSSaveToPhotosImprovements) &&
-         base::GetFieldTrialParamByFeatureAsBool(
-             kIOSSaveToPhotosImprovements,
-             kSaveToPhotosContextMenuImprovementParam, true);
-}
-
-bool IsSaveToPhotosTitleImprovementEnabled() {
-  return base::FeatureList::IsEnabled(kIOSSaveToPhotosImprovements) &&
-         base::GetFieldTrialParamByFeatureAsBool(
-             kIOSSaveToPhotosImprovements, kSaveToPhotosTitleImprovementParam,
-             true);
-}
-
-bool IsSaveToPhotosAccountPickerImprovementEnabled() {
-  return base::FeatureList::IsEnabled(kIOSSaveToPhotosImprovements) &&
-         base::GetFieldTrialParamByFeatureAsBool(
-             kIOSSaveToPhotosImprovements,
-             kSaveToPhotosAccountDefaultChoiceImprovementParam, true);
-}
-
 bool ShouldDeprecateFeedHeader() {
   return base::FeatureList::IsEnabled(kDeprecateFeedHeader);
 }
@@ -995,9 +974,13 @@ bool IsProvisionalNotificationAlertEnabled() {
   return base::FeatureList::IsEnabled(kProvisionalNotificationAlert);
 }
 
+BASE_FEATURE(kIOSOneTimeDefaultBrowserNotification,
+             "IOSOneTimeDefaultBrowserNotification",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE(kDefaultBrowserBannerPromo,
              "DefaultBrowserBannerPromo",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 constexpr base::FeatureParam<int> kDefaultBrowserBannerPromoImpressionLimit{
     &kDefaultBrowserBannerPromo, "DefaultBrowserBannerPromoImpressionLimit", 5};
@@ -1031,26 +1014,19 @@ const char kFullscreenTransitionDefaultSpeed[] =
     "MediumFullscreenTransitionSpeed";
 const char kFullscreenTransitionFaster[] = "FastFullscreenTransitionSpeed";
 const char kFullscreenTransitionSpeedParam[] = "FullscreenTransitionSpeed";
-const char kMediumFullscreenTransitionOffsetParam[] =
-    "MediumFullscreenTransitionOffset";
 
-bool IsFullscreenTransitionSet() {
-  return base::FeatureList::IsEnabled(kFullscreenTransition);
+bool IsFullscreenTransitionSpeedSet() {
+  return base::FeatureList::IsEnabled(kFullscreenTransitionSpeed);
 }
 
 FullscreenTransitionSpeed FullscreenTransitionSpeedParam() {
   return static_cast<FullscreenTransitionSpeed>(
       base::GetFieldTrialParamByFeatureAsInt(
-          kFullscreenTransition, kFullscreenTransitionSpeedParam, 1));
+          kFullscreenTransitionSpeed, kFullscreenTransitionSpeedParam, 1));
 }
 
-bool IsFullscreenTransitionOffsetSet() {
-  return base::GetFieldTrialParamByFeatureAsBool(
-      kFullscreenTransition, kMediumFullscreenTransitionOffsetParam, false);
-}
-
-BASE_FEATURE(kFullscreenTransition,
-             "FullscreenTransition",
+BASE_FEATURE(kFullscreenTransitionSpeed,
+             "FullscreenTransitionSpeed",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kRefactorToolbarsSize,
@@ -1229,14 +1205,6 @@ bool IsContainedTabGroupEnabled() {
   return base::FeatureList::IsEnabled(kContainedTabGroup);
 }
 
-BASE_FEATURE(kColorfulTabGroup,
-             "ColorfulTabGroup",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-bool IsColorfulTabGroupEnabled() {
-  return base::FeatureList::IsEnabled(kColorfulTabGroup);
-}
-
 BASE_FEATURE(kBestOfAppFRE, "BestOfAppFRE", base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsBestOfAppFREEnabled() {
@@ -1295,4 +1263,17 @@ bool IsDiamondPrototypeEnabled() {
     return false;
   }
   return base::FeatureList::IsEnabled(kDiamondPrototype);
+}
+
+BASE_FEATURE(kIOSDefaultBrowserOffCyclePromo,
+             "IOSDefaultBrowserOffCyclePromo",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsDefaultBrowserOffCyclePromoEnabled() {
+#if defined(__IPHONE_18_3) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_18_3
+  if (@available(iOS 18.3, *)) {
+    return base::FeatureList::IsEnabled(kIOSDefaultBrowserOffCyclePromo);
+  }
+#endif
+  return false;
 }

@@ -43,8 +43,8 @@
 #include "remoting/host/linux/dbus_interfaces/org_gnome_Mutter_ScreenCast.h"
 #include "remoting/host/linux/ei_sender_session.h"
 #include "remoting/host/linux/gnome_action_executor.h"
+#include "remoting/host/linux/gnome_desktop_display_info_monitor.h"
 #include "remoting/host/linux/gnome_desktop_resizer.h"
-#include "remoting/host/linux/gnome_display_info_loader.h"
 #include "remoting/host/linux/gnome_input_injector.h"
 #include "remoting/host/linux/gnome_keyboard_layout_monitor.h"
 #include "remoting/host/linux/gnome_local_input_monitor.h"
@@ -112,7 +112,16 @@ std::unique_ptr<AudioCapturer> GnomeInteractionStrategy::CreateAudioCapturer() {
 
 std::unique_ptr<InputInjector> GnomeInteractionStrategy::CreateInputInjector() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return std::make_unique<GnomeInputInjector>(weak_ptr_factory_.GetWeakPtr());
+
+  // The EI session is guaranteed to exist, because this InteractionStrategy
+  // (and DesktopEnvironment) are only returned to the caller (ClientSession)
+  // after the EI session is initialized.
+  DCHECK(ei_session_);
+
+  // Passing exclusive ownership to the input-injector allows it to use the EI
+  // session on a different thread.
+  return std::make_unique<GnomeInputInjector>(std::move(ei_session_),
+                                              capture_stream_.mapping_id());
 }
 
 std::unique_ptr<DesktopResizer>
@@ -149,12 +158,8 @@ std::unique_ptr<DesktopDisplayInfoMonitor>
 GnomeInteractionStrategy::CreateDisplayInfoMonitor() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  // TODO: crbug.com/432217140 - Pass in `ui_task_runner_` instead, when
-  // supporting multiple displays. The GNOME DisplayConfig API will be needed
-  // to fetch the layout, and it makes sense to run that on the UI thread.
-  return std::make_unique<DesktopDisplayInfoMonitor>(
-      base::SequencedTaskRunner::GetCurrentDefault(),
-      std::make_unique<GnomeDisplayInfoLoader>(weak_ptr_factory_.GetWeakPtr()));
+  return std::make_unique<GnomeDesktopDisplayInfoMonitor>(
+      display_config_client_.GetWeakPtr());
 }
 
 std::unique_ptr<LocalInputMonitor>
@@ -203,12 +208,14 @@ void GnomeInteractionStrategy::OnInitError(std::string_view error_message,
 
 void GnomeInteractionStrategy::Init(
     base::OnceCallback<void(base::expected<void, std::string>)> callback) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   HOST_LOG << "Starting Mutter remote desktop session";
   DCHECK(!init_callback_);
   init_callback_ = std::move(callback);
   GDBusConnectionRef::CreateForSessionBus(
       CheckResultAndContinue(&GnomeInteractionStrategy::OnConnectionCreated,
                              "Failed to connect to D-Bus session bus"));
+  display_config_client_.Init();
 }
 
 void GnomeInteractionStrategy::OnConnectionCreated(
@@ -395,59 +402,11 @@ void GnomeInteractionStrategy::OnPipeWireStreamAdded(
 
   capture_stream_.SetPipeWireStream(get<0>(args), kInitialResolution,
                                     mapping_id, webrtc::kInvalidPipeWireFd);
+  // Start capturing now, which creates the virtual monitor and allows the
+  // video capturer to be created.
+  capture_stream_.StartVideoCapture();
 
   std::move(init_callback_).Run(base::ok());
-}
-
-void GnomeInteractionStrategy::InjectKeyEvent(const protocol::KeyEvent& event) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!event.has_usb_keycode() || !event.has_pressed()) {
-    LOG(WARNING) << "Key event with no key info";
-    return;
-  }
-  ei_session_->InjectKeyEvent(event.usb_keycode(), event.pressed());
-}
-
-void GnomeInteractionStrategy::InjectMouseEvent(
-    const protocol::MouseEvent& event) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  bool event_sent = false;
-  if (event.has_fractional_coordinate() &&
-      event.fractional_coordinate().has_x() &&
-      event.fractional_coordinate().has_y()) {
-    ei_session_->InjectAbsolutePointerMove(capture_stream_.mapping_id(),
-                                           event.fractional_coordinate().x(),
-                                           event.fractional_coordinate().y());
-    event_sent = true;
-
-  } else if (event.has_delta_x() || event.has_delta_y()) {
-    ei_session_->InjectRelativePointerMove(
-        event.has_delta_x() ? event.delta_x() : 0,
-        event.has_delta_y() ? event.delta_y() : 0);
-    event_sent = true;
-  }
-
-  if (event.has_button() && event.has_button_down()) {
-    ei_session_->InjectButton(event.button(), event.button_down());
-    event_sent = true;
-  }
-
-  if (event.has_wheel_delta_x() || event.has_wheel_delta_y()) {
-    ei_session_->InjectScrollDelta(
-        event.has_wheel_delta_x() ? event.wheel_delta_x() : 0,
-        event.has_wheel_delta_y() ? event.wheel_delta_y() : 0);
-    event_sent = true;
-  } else if (event.has_wheel_ticks_x() || event.has_wheel_ticks_y()) {
-    ei_session_->InjectScrollDiscrete(
-        event.has_wheel_ticks_x() ? event.wheel_ticks_x() : 0,
-        event.has_wheel_ticks_y() ? event.wheel_ticks_y() : 0);
-    event_sent = true;
-  }
-
-  if (event_sent) {
-  } else {
-    LOG(WARNING) << "Mouse event with no relevant fields";
-  }
 }
 
 GnomeInteractionStrategyFactory::GnomeInteractionStrategyFactory(
@@ -466,7 +425,8 @@ void GnomeInteractionStrategyFactory::Create(
       [](std::unique_ptr<GnomeInteractionStrategy> session,
          CreateCallback callback, base::expected<void, std::string> result) {
         if (!result.has_value()) {
-          LOG(ERROR) << result.error();
+          LOG(ERROR) << "Failed to initialize Gnome Remote Desktop session: "
+                     << result.error();
           std::move(callback).Run(nullptr);
           return;
         }
@@ -474,20 +434,6 @@ void GnomeInteractionStrategyFactory::Create(
         std::move(callback).Run(std::move(session));
       },
       std::move(session), std::move(callback)));
-}
-
-void GnomeInteractionStrategyFactory::OnSessionInit(
-    std::unique_ptr<GnomeInteractionStrategy> session,
-    CreateCallback callback,
-    base::expected<void, std::string> result) {
-  if (!result.has_value()) {
-    LOG(ERROR) << "Failed to initialize Gnome Remote Desktop session: "
-               << result.error();
-    std::move(callback).Run(nullptr);
-    return;
-  }
-
-  std::move(callback).Run(std::move(session));
 }
 
 }  // namespace remoting

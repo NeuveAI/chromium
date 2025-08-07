@@ -6,7 +6,9 @@
 #define CHROME_BROWSER_ASH_BROWSER_DELEGATE_BROWSER_DELEGATE_H_
 
 #include "chrome/browser/ash/browser_delegate/browser_type.h"
+#include "components/account_id/account_id.h"
 #include "components/sessions/core/session_id.h"
+#include "components/webapps/common/web_app_id.h"
 #include "ui/gfx/geometry/rect.h"
 
 class Browser;
@@ -42,6 +44,10 @@ class BrowserDelegate {
   // Returns the browser's unique ID for the current session.
   virtual SessionID GetSessionID() const = 0;
 
+  // Returns the account id associated with the browser. In production, this id
+  // should always be valid (see AccountId::is_valid).
+  virtual const AccountId& GetAccountId() const = 0;
+
   // Returns whether the browser is off the record, i.e. incognito or in a guest
   // session.
   virtual bool IsOffTheRecord() const = 0;
@@ -60,9 +66,20 @@ class BrowserDelegate {
   // be nullptr even if index is in bounds, just like GetActiveWebContents().
   virtual content::WebContents* GetWebContentsAt(size_t index) const = 0;
 
+  // Returns the inspected web contents if this is a kDevTools type browser.
+  // Returns nullptr otherwise.
+  // Can also be nullptr while the browser is initialized/shutdown.
+  virtual content::WebContents* GetInspectedWebContents() const = 0;
+
   // Returns the native window. Can be nullptr, e.g. when the browser is being
   // closed.
   virtual aura::Window* GetNativeWindow() const = 0;
+
+  // Returns the browser application id, if applicable.
+  virtual std::optional<webapps::AppId> GetAppId() const = 0;
+
+  // Returns whether the browser is a web app window/pop-up.
+  virtual bool IsWebApp() const = 0;
 
   // Returns whether the browser is in the process of being closed and deleted.
   virtual bool IsClosing() const = 0;

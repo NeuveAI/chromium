@@ -46,10 +46,10 @@ BASE_FEATURE(kAutofillEnableBuyNowPayLater,
              "AutofillEnableBuyNowPayLater",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// When enabled, buy now pay later (BNPL) for externally linked Klarna in
-// Autofill will be offered.
-BASE_FEATURE(kAutofillEnableBuyNowPayLaterForExternallyLinkedKlarna,
-             "AutofillEnableBuyNowPayLaterForExternallyLinkedKlarna",
+// When enabled, additional steps are required to autofill buy now pay later
+// (BNPL) issuers that are externally linked.
+BASE_FEATURE(kAutofillEnableBuyNowPayLaterForExternallyLinked,
+             "AutofillEnableBuyNowPayLaterForExternallyLinked",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 // When enabled, buy now pay later (BNPL) for Klarna in Autofill will be
@@ -168,6 +168,12 @@ BASE_FEATURE(kAutofillEnableVirtualCardJavaPaymentsDataManager,
              "AutofillEnableVirtualCardJavaPaymentsDataManager",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
+// When enabled, Buy now pay later issuer allow lists will be loaded after
+// payment data syncing instead of credit card form parsing.
+BASE_FEATURE(kAutofillEnableLoadBnplAllowlistAfterSyncing,
+             "AutofillEnableLoadBnplAllowlistAfterSyncing",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 // When enabled, a form event will log to all of the parsed forms of the same
 // type on a webpage. This means credit card form events will log to all credit
 // card form types and address form events will log to all address form types."
@@ -230,12 +236,6 @@ BASE_FEATURE(kAutofillEnableSaveAndFill,
 BASE_FEATURE(kAutofillEnableSeparatePixPreferenceItem,
              "AutofillEnableSeparatePixPreferenceItem",
              base::FEATURE_DISABLED_BY_DEFAULT);
-
-// When enabled, save card securely message be displayed on upload card
-// UI message.
-BASE_FEATURE(kAutofillEnableShowSaveCardSecurelyMessage,
-             "AutofillEnableShowSaveCardSecurelyMessage",
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // When enabled, Pix bank accounts are synced from Chrome Sync backend and
 // stored in the local db.

@@ -8,7 +8,6 @@
 
 #include "device/vr/openxr/openxr_extension_helper.h"
 #include "device/vr/openxr/openxr_util.h"
-#include "third_party/openxr/dev/xr_android.h"
 #include "third_party/openxr/src/include/openxr/openxr.h"
 
 namespace {}  // namespace
@@ -32,11 +31,6 @@ OpenXrPlaneManagerAndroid::~OpenXrPlaneManagerAndroid() {
     extension_helper_->ExtensionMethods().xrDestroyTrackableTrackerANDROID(
         plane_tracker_);
   }
-}
-
-void OpenXrPlaneManagerAndroid::OnFrameUpdate(XrTime predicted_display_time,
-                                              XrSpace mojo_space) {
-  predicted_display_time_ = predicted_display_time;
 }
 
 }  // namespace device

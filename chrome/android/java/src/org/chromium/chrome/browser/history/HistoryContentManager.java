@@ -6,6 +6,8 @@ package org.chromium.chrome.browser.history;
 
 import static android.content.Intent.ACTION_VIEW;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.ComponentName;
@@ -19,8 +21,6 @@ import android.provider.Browser;
 import android.view.ContextThemeWrapper;
 import android.view.View;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -31,6 +31,8 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityUtils;
 import org.chromium.chrome.browser.IntentHandler;
@@ -70,6 +72,7 @@ import java.util.List;
 import java.util.Objects;
 
 /** Displays and manages the content view / list UI for browsing history. */
+@NullMarked
 public class HistoryContentManager implements SignInStateObserver, PrefObserver {
     /** Interface for a class that wants to receive updates from this Manager. */
     public interface Observer {
@@ -115,8 +118,8 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
     // PageTransition value to use for all URL requests triggered by the history page.
     static final int PAGE_TRANSITION_TYPE = PageTransition.AUTO_BOOKMARK;
 
-    private static HistoryProvider sProviderForTests;
-    private static Boolean sIsScrollToLoadDisabledForTests;
+    private static @Nullable HistoryProvider sProviderForTests;
+    private static @Nullable Boolean sIsScrollToLoadDisabledForTests;
 
     private final Activity mActivity;
     private final Observer mObserver;
@@ -126,12 +129,12 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
     private final boolean mIsScrollToLoadDisabled;
     private final boolean mShouldShowClearDataIfAvailable;
     private final HistoryUmaRecorder mUmaRecorder;
-    private final String mHostName;
-    private final Runnable mHideSoftKeyboard;
+    private final @Nullable String mHostName;
+    private final @Nullable Runnable mHideSoftKeyboard;
     private final boolean mShowAppFilter;
     private final List<AppInfo> mAppInfoList = new ArrayList<>();
-    private final Supplier<BottomSheetController> mBottomSheetController;
-    private final Supplier<Tab> mTabSupplier;
+    private final Supplier<@Nullable BottomSheetController> mBottomSheetController;
+    private final @Nullable Supplier<@Nullable Tab> mTabSupplier;
     private final AppInfoCache mAppInfoCache;
     private final @Nullable Runnable mOpenHistoryItemCallback;
     // TODO(crbug.com/388201374): Remove the nullability once the feature is launched.
@@ -143,11 +146,12 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
     private boolean mShouldShowPrivacyDisclaimers;
     private final boolean mLaunchedForApp;
     private final PrefChangeRegistrar mPrefChangeRegistrar;
-    private final String mAppId;
-    private AppFilterCoordinator mAppFilterSheet;
-    private AppInfo mCurrentApp;
+    private final @Nullable String mAppId;
+    private @Nullable AppFilterCoordinator mAppFilterSheet;
+    private @Nullable AppInfo mCurrentApp;
     private long mAppQueryStartMs;
-    private final AsyncTabLauncher mAsyncTabLauncher;
+    private final AsyncTabLauncher mRegularAsyncTabLauncher;
+    private final AsyncTabLauncher mIncognitoAsyncTabLauncher;
 
     /**
      * Creates a new HistoryContentManager.
@@ -173,28 +177,31 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
      * @param launchedForApp Whether history UI is launched for app-specific history.
      * @param openHistoryItemCallback Optional callback to be invoked when a history item is opened
      *     in the same activity (not called when opened from a separate activity).
-     * @param asyncTabLauncher Class to launch tabs asynchronously when a hitory item is opened in a
-     *     new tab.
+     * @param regularAsyncTabLauncher Class to launch tabs asynchronously when a history item is
+     *     opened in a new tab.
+     * @param incognitoAsyncTabLauncher Class to launch incognito tabs asynchronously when a history
+     *     item is opened in a .new tab.
      */
     public HistoryContentManager(
-            @NonNull Activity activity,
-            @NonNull Observer observer,
+            Activity activity,
+            Observer observer,
             boolean isSeparateActivity,
             Profile profile,
             boolean shouldShowPrivacyDisclaimers,
             boolean shouldShowClearDataIfAvailable,
             @Nullable String hostName,
             @Nullable SelectionDelegate<HistoryItem> selectionDelegate,
-            @Nullable Supplier<BottomSheetController> bottomSheetController,
-            @Nullable Supplier<Tab> tabSupplier,
+            Supplier<@Nullable BottomSheetController> bottomSheetController,
+            @Nullable Supplier<@Nullable Tab> tabSupplier,
             @Nullable Runnable hideSoftKeyboard,
             HistoryUmaRecorder umaRecorder,
             HistoryProvider historyProvider,
-            String appId,
+            @Nullable String appId,
             boolean launchedForApp,
             boolean showAppFilter,
             @Nullable Runnable openHistoryItemCallback,
-            @NonNull AsyncTabLauncher asyncTabLauncher) {
+            AsyncTabLauncher regularAsyncTabLauncher,
+            AsyncTabLauncher incognitoAsyncTabLauncher) {
         mActivity = activity;
         mObserver = observer;
         mIsSeparateActivity = isSeparateActivity;
@@ -213,7 +220,8 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
         mAppId = appId;
         mLaunchedForApp = launchedForApp;
         mOpenHistoryItemCallback = openHistoryItemCallback;
-        mAsyncTabLauncher = asyncTabLauncher;
+        mRegularAsyncTabLauncher = regularAsyncTabLauncher;
+        mIncognitoAsyncTabLauncher = incognitoAsyncTabLauncher;
         mSelectionDelegate =
                 selectionDelegate != null
                         ? selectionDelegate
@@ -293,7 +301,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
                         // Load more items if the scroll position is close to the bottom of the
                         // list.
                         boolean loadedMore = false;
-                        if (layoutManager.findLastVisibleItemPosition()
+                        if (assumeNonNull(layoutManager).findLastVisibleItemPosition()
                                 > (mHistoryAdapter.getItemCount() - 25)) {
                             mHistoryAdapter.loadMoreItems();
                             loadedMore = true;
@@ -307,7 +315,8 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
         mHistoryAdapter.generateFooterItems();
 
         // Listen to changes in sign in state.
-        IdentityServicesProvider.get().getSigninManager(profile).addSignInStateObserver(this);
+        assumeNonNull(IdentityServicesProvider.get().getSigninManager(profile))
+                .addSignInStateObserver(this);
 
         // Create PrefChangeRegistrar to receive notifications on preference changes.
         mPrefChangeRegistrar = PrefServiceUtil.createFor(profile);
@@ -379,11 +388,13 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
     }
 
     /** Called when the activity/native page is destroyed. */
+    @SuppressWarnings("NullAway")
     public void onDestroyed() {
         mHistoryAdapter.onDestroyed();
         mLargeIconBridge.destroy();
         mLargeIconBridge = null;
-        IdentityServicesProvider.get().getSigninManager(mProfile).removeSignInStateObserver(this);
+        assumeNonNull(IdentityServicesProvider.get().getSigninManager(mProfile))
+                .removeSignInStateObserver(this);
         mPrefChangeRegistrar.destroy();
         if (mHistorySyncPromoCoordinator != null) {
             mHistorySyncPromoCoordinator.destroy();
@@ -532,7 +543,8 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
      *     the current tab.
      * @param runCallback Whether to run the callback (if non-null).
      */
-    public void openUrl(GURL url, Boolean isIncognito, boolean createNewTab, boolean runCallback) {
+    public void openUrl(
+            GURL url, @Nullable Boolean isIncognito, boolean createNewTab, boolean runCallback) {
         if (mIsSeparateActivity) {
             // Only history entries are loaded into the existing tab.
             if (launchedForApp() && !createNewTab) {
@@ -551,10 +563,14 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
         assert mTabSupplier != null;
         Tab tab = mTabSupplier.get();
 
+        var launcher =
+                Boolean.TRUE.equals(isIncognito)
+                        ? mIncognitoAsyncTabLauncher
+                        : mRegularAsyncTabLauncher;
         // When the history manager is embedded in the hub, there may not be a tab available. In
         // this case, fallback to creating a new one.
         if (tab == null || createNewTab) {
-            mAsyncTabLauncher.launchNewTab(
+            launcher.launchNewTab(
                     new LoadUrlParams(url, PAGE_TRANSITION_TYPE), TabLaunchType.FROM_LINK, tab);
         } else {
             tab.loadUrl(new LoadUrlParams(url, PAGE_TRANSITION_TYPE));
@@ -564,7 +580,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
         }
     }
 
-    Intent getOpenUrlIntent(GURL url, Boolean isIncognito, boolean createNewTab) {
+    Intent getOpenUrlIntent(GURL url, @Nullable Boolean isIncognito, boolean createNewTab) {
         // Construct basic intent.
         Intent viewIntent = createOpenUrlIntent(url, mActivity);
 
@@ -644,7 +660,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
     /**
      * @return The {@link LargeIconBridge} used to fetch large favicons.
      */
-    public LargeIconBridge getLargeIconBridge() {
+    public @Nullable LargeIconBridge getLargeIconBridge() {
         return mLargeIconBridge;
     }
 
@@ -662,8 +678,9 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
     void onAppFilterClicked() {
         // Search mode starts with the soft keyboard open. Hide it first for the sheet
         // to appear at the bottom as expected.
-        mHideSoftKeyboard.run();
+        assumeNonNull(mHideSoftKeyboard).run();
         if (mAppFilterSheet == null) {
+            assert mBottomSheetController.get() != null;
             mAppFilterSheet =
                     new AppFilterCoordinator(
                             mActivity,
@@ -740,8 +757,8 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
     }
 
     static class AppInfoCache {
-        private static final AppInfo EMPTY_INFO = new AppInfo(null, null, null);
-        private HashMap<String, AppInfo> mAppInfoMap;
+        private static final AppInfo EMPTY_INFO = new AppInfo(null, null, "");
+        private @Nullable HashMap<String, AppInfo> mAppInfoMap;
         private PackageManager mPackageManager;
 
         public AppInfoCache(PackageManager packageManager) {
@@ -749,7 +766,6 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
         }
 
         public AppInfo get(String appId) {
-            assert appId != null;
             if (mAppInfoMap == null) mAppInfoMap = new HashMap<>();
             AppInfo appInfo = mAppInfoMap.get(appId);
             if (appInfo == null) {
@@ -801,7 +817,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
         mAppFilterSheet = appFilterSheet;
     }
 
-    AppInfo getAppInfoForTesting() {
+    @Nullable AppInfo getAppInfoForTesting() {
         return mCurrentApp;
     }
 }

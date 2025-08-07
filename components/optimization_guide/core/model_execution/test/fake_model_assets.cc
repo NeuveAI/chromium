@@ -24,11 +24,23 @@ namespace optimization_guide {
 
 FakeBaseModelAsset::FakeBaseModelAsset()
     : FakeBaseModelAsset(FakeBaseModelAsset::Content{}) {}
-FakeBaseModelAsset::FakeBaseModelAsset(Content&& content)
-    : version_(content.version),
-      supported_performance_hint_(content.supported_performance_hint) {
+FakeBaseModelAsset::FakeBaseModelAsset(Content&& content) {
   CHECK(temp_dir_.CreateUniqueTempDir());
+  // Support all performance hints by default.
+  supported_performance_hints_ =
+      base::Value::List()
+          .Append(proto::ON_DEVICE_MODEL_PERFORMANCE_HINT_HIGHEST_QUALITY)
+          .Append(proto::ON_DEVICE_MODEL_PERFORMANCE_HINT_FASTEST_INFERENCE)
+          .Append(proto::ON_DEVICE_MODEL_PERFORMANCE_HINT_CPU);
   Write(std::move(content));
+}
+FakeBaseModelAsset::FakeBaseModelAsset(
+    const std::vector<proto::OnDeviceModelPerformanceHint>& hints) {
+  CHECK(temp_dir_.CreateUniqueTempDir());
+  for (const auto& hint : hints) {
+    supported_performance_hints_.Append(hint);
+  }
+  Write({});
 }
 FakeBaseModelAsset::FakeBaseModelAsset(
     proto::OnDeviceModelValidationConfig&& validation_config)
@@ -44,6 +56,14 @@ void FakeBaseModelAsset::Write(Content&& content) {
     CHECK(base::WriteFile(temp_dir_.GetPath().Append(kExperimentalCacheFile),
                           base::NumberToString(content.cache_weight)));
   }
+  if (content.encoder_cache_weight) {
+    CHECK(base::WriteFile(temp_dir_.GetPath().Append(kEncoderCacheFile),
+                          base::NumberToString(content.encoder_cache_weight)));
+  }
+  if (content.adapter_cache_weight) {
+    CHECK(base::WriteFile(temp_dir_.GetPath().Append(kAdapterCacheFile),
+                          base::NumberToString(content.adapter_cache_weight)));
+  }
   CHECK(base::WriteFile(
       temp_dir_.GetPath().Append(kOnDeviceModelExecutionConfigFile),
       content.config.SerializeAsString()));
@@ -51,12 +71,11 @@ void FakeBaseModelAsset::Write(Content&& content) {
 
 base::Value::Dict FakeBaseModelAsset::Manifest() const {
   return base::Value::Dict().Set(
-      "BaseModelSpec",
-      base::Value::Dict()
-          .Set("version", "0.0.1")
-          .Set("name", "Test")
-          .Set("supported_performance_hints",
-               base::Value::List().Append(supported_performance_hint_)));
+      "BaseModelSpec", base::Value::Dict()
+                           .Set("version", "0.0.1")
+                           .Set("name", "Test")
+                           .Set("supported_performance_hints",
+                                supported_performance_hints_.Clone()));
 }
 
 void FakeBaseModelAsset::SetReadyIn(

@@ -321,7 +321,13 @@ public class Fido2CredentialRequestRobolectricTest {
                         /* ignoreGpm= */ eq(true));
         verify(mBrowserBridgeMock)
                 .onCredentialsDetailsListReceived(
-                        eq(mFrameHost), eq(Collections.emptyList()), eq(false), any(), any());
+                        eq(mFrameHost),
+                        eq(Collections.emptyList()),
+                        eq(AssertionMediationType.MODAL),
+                        any(),
+                        any(),
+                        any(),
+                        any());
         assertThat(mFido2ApiCallHelper.mGetAssertionCalled).isFalse();
     }
 
@@ -535,7 +541,14 @@ public class Fido2CredentialRequestRobolectricTest {
                         /* barrier= */ any(),
                         /* ignoreGpm= */ eq(true));
         verify(mBrowserBridgeMock, times(1))
-                .onCredentialsDetailsListReceived(any(), any(), eq(true), any(), any());
+                .onCredentialsDetailsListReceived(
+                        any(),
+                        any(),
+                        eq(AssertionMediationType.CONDITIONAL),
+                        any(),
+                        any(),
+                        any(),
+                        any());
         verify(mBrowserBridgeMock, never()).onCredManUiClosed(any(), anyBoolean());
     }
 
@@ -561,11 +574,11 @@ public class Fido2CredentialRequestRobolectricTest {
 
         handleGetCredentialRequest();
 
-        mRequest.cancelConditionalGetAssertion();
+        mRequest.cancelGetAssertion();
 
         // CredManHelper class is responsible to return the status.
         assertThat(mCallback.getStatus()).isEqualTo(null);
-        verify(mCredManHelperMock).cancelConditionalGetAssertion();
+        verify(mCredManHelperMock).cancelGetAssertion();
         verify(mBrowserBridgeMock, never()).cleanupRequest(any());
         verify(mBrowserBridgeMock, never()).onCredManUiClosed(any(), anyBoolean());
     }
@@ -587,10 +600,10 @@ public class Fido2CredentialRequestRobolectricTest {
 
         runFido2ApiSuccessfulCallback();
 
-        mRequest.cancelConditionalGetAssertion();
+        mRequest.cancelGetAssertion();
 
         verify(mBarrierMock).onFido2ApiCancelled();
-        verify(mCredManHelperMock).cancelConditionalGetAssertion();
+        verify(mCredManHelperMock).cancelGetAssertion();
         verify(mBrowserBridgeMock).cleanupRequest(any());
         verify(mBrowserBridgeMock, never()).onCredManUiClosed(any(), anyBoolean());
     }
@@ -621,7 +634,7 @@ public class Fido2CredentialRequestRobolectricTest {
         assertThat(rpIdValidationCallback[0]).isNotNull();
         // Aborting the request shouldn't do anything yet because it's waiting
         // for RP ID validation.
-        mRequest.cancelConditionalGetAssertion();
+        mRequest.cancelGetAssertion();
         assertThat(mCallback.getStatus()).isEqualTo(null);
         // When the RP ID validation completes, the overall request should then
         // be canceled. Any RP ID validation error should be ignored in favour

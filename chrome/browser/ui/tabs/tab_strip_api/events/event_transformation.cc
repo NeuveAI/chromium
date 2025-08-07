@@ -15,17 +15,18 @@
 
 namespace tabs_api::events {
 
-mojom::OnTabsCreatedEventPtr ToEvent(const TabStripModelChange::Insert& insert,
-                                     TabStripModel* tab_strip_model) {
+mojom::OnTabsCreatedEventPtr ToEvent(
+    const TabStripModelChange::Insert& insert,
+    const tabs_api::TabStripModelAdapter* adapter) {
   auto event = mojom::OnTabsCreatedEvent::New();
   for (auto& content : insert.contents) {
     auto tab_created = tabs_api::mojom::TabCreatedContainer::New();
     auto pos = tabs_api::Position(content.index);
     tab_created->position = std::move(pos);
-    auto renderer_data =
-        TabRendererData::FromTabInModel(tab_strip_model, content.index);
+    auto renderer_data = adapter->GetTabRendererData(content.index);
+    const ui::ColorProvider& provider = adapter->GetColorProvider();
     auto mojo_tab = tabs_api::converters::BuildMojoTab(content.tab->GetHandle(),
-                                                       renderer_data);
+                                                       renderer_data, provider);
 
     tab_created->tab = std::move(mojo_tab);
     event->tabs.emplace_back(std::move(tab_created));
@@ -70,7 +71,9 @@ mojom::OnTabDataChangedEventPtr ToEvent(
   if (index < tabs.size()) {
     auto& handle = tabs.at(index);
     auto renderer_data = adapter->GetTabRendererData(index);
-    event->tab = tabs_api::converters::BuildMojoTab(handle, renderer_data);
+    const ui::ColorProvider& color_provider = adapter->GetColorProvider();
+    event->tab = tabs_api::converters::BuildMojoTab(handle, renderer_data,
+                                                    color_provider);
   }
 
   return event;
@@ -82,10 +85,8 @@ mojom::OnTabGroupCreatedEventPtr ToTabGroupCreatedEvent(
   TabGroup* tab_group = tab_group_change.model->group_model()->GetTabGroup(
       tab_group_change.group);
   auto event = mojom::OnTabGroupCreatedEvent::New();
-  event->group_id = tabs_api::NodeId(
-      tabs_api::NodeId::Type::kCollection,
-      base::NumberToString(tab_group->GetCollectionHandle().raw_value()));
-  event->visual_data = *tab_group->visual_data();
+  event->tab_collection = tabs_api::converters::BuildMojoTabCollection(
+      tab_group->GetCollectionHandle());
   // TODO(crbug.com/412935315): Set the correct position.
   event->position =
       tabs_api::Position(0, NodeId::FromTabGroupId(tab_group_change.group));
@@ -131,10 +132,8 @@ mojom::OnTabGroupVisualsChangedEventPtr ToTabGroupVisualsChangedEvent(
   TabGroup* tab_group = tab_group_change.model->group_model()->GetTabGroup(
       tab_group_change.group);
   auto event = mojom::OnTabGroupVisualsChangedEvent::New();
-  event->group_id = tabs_api::NodeId(
-      tabs_api::NodeId::Type::kCollection,
-      base::NumberToString(tab_group->GetCollectionHandle().raw_value()));
-  event->visual_data = *tab_group->visual_data();
+  event->tab_collection = tabs_api::converters::BuildMojoTabCollection(
+      tab_group->GetCollectionHandle());
   return event;
 }
 

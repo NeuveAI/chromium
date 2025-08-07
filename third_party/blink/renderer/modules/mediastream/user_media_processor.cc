@@ -22,6 +22,7 @@
 #include "base/types/optional_util.h"
 #include "build/build_config.h"
 #include "media/base/audio_parameters.h"
+#include "media/base/media_switches.h"
 #include "media/capture/video_capture_types.h"
 #include "media/webrtc/constants.h"
 #include "third_party/blink/public/common/features.h"
@@ -1807,25 +1808,18 @@ MediaStreamSource* UserMediaProcessor::InitializeAudioSourceObject(
 
   MediaStreamSource::Capabilities capabilities;
   media::AudioParameters device_parameters = audio_source->device().input;
-
-  capabilities.echo_cancellation = {EchoCancellationMode::kDisabled,
-                                    EchoCancellationMode::kBrowserDecides};
-  if (RuntimeEnabledFeatures::GetUserMediaEchoCancellationModesEnabled() &&
-      device.type == mojom::blink::MediaStreamType::DEVICE_AUDIO_CAPTURE) {
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-    capabilities.echo_cancellation.push_back(EchoCancellationMode::kRemoteOnly);
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-    if (EchoCanceller::IsSystemWideAecAvailable(device_parameters.effects())) {
-      capabilities.echo_cancellation.push_back(EchoCancellationMode::kAll);
-    }
-  }
+  capabilities.echo_cancellation = GetSupportedEchoCancellationModes(
+      device_parameters.effects(), device.type);
   capabilities.auto_gain_control = {true, false};
   capabilities.noise_suppression = {true, false};
   capabilities.voice_isolation = {true, false};
 
   if (RuntimeEnabledFeatures::RestrictOwnAudioEnabled()) {
     if (device.type == mojom::blink::MediaStreamType::DISPLAY_AUDIO_CAPTURE) {
-      capabilities.restrict_own_audio = {true, false};
+      capabilities.restrict_own_audio = {false};
+      if (media::IsRestrictOwnAudioSupported()) {
+        capabilities.restrict_own_audio->push_back(true);
+      }
     }
   }
 

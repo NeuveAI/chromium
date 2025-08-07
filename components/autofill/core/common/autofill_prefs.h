@@ -106,6 +106,10 @@ inline constexpr char kAutofillMetadataUploadEvents[] =
 // prefs was last reset.
 inline constexpr char kAutofillUploadEventsLastResetTimestamp[] =
     "autofill.upload_events_last_reset_timestamp";
+// A string that stores hash of concatenated NAME_FULL and EMAIL_ADDRESS info
+// coming from the Account Name Email profile.
+inline constexpr char kAutofillNameAndEmailProfileSignature[] =
+    "autofill.name_and_email_profile_signature";
 // Integer that is set to the last major version where the Autocomplete
 // retention policy was run.
 inline constexpr char kAutocompleteLastVersionRetentionPolicy[] =
@@ -145,6 +149,8 @@ inline constexpr char kFacilitatedPaymentsEwallet[] =
     "facilitated_payments.ewallet";
 inline constexpr char kFacilitatedPaymentsPix[] = "facilitated_payments.pix";
 inline constexpr char kFacilitatedPaymentsPixAccountLinking[] =
+    "facilitated_payments.pix_account_linking_enabled";
+inline constexpr char kFacilitatedPaymentsPixAccountLinkingDeprecated[] =
     "facilitated_payments.pix_account_linking";
 inline constexpr char kFacilitatedPaymentsA2AEnabled[] =
     "facilitated_payments.a2a_enabled";
@@ -239,6 +245,10 @@ bool IsFacilitatedPaymentsPixEnabled(const PrefService* prefs);
 void SetFacilitatedPaymentsPixAccountLinking(PrefService* prefs, bool value);
 
 bool IsFacilitatedPaymentsPixAccountLinkingEnabled(const PrefService* prefs);
+
+bool IsFacilitatedPaymentsA2AEnabled(const PrefService* prefs);
+
+void SetFacilitatedPaymentsA2ATriggeredOnce(PrefService* prefs, bool value);
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_CHROMEOS)

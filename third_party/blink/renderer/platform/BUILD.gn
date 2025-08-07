@@ -780,6 +780,8 @@ component("platform") {
     "fonts/shaping/shape_result_bloberizer.h",
     "fonts/shaping/shape_result_buffer.cc",
     "fonts/shaping/shape_result_buffer.h",
+    "fonts/shaping/shape_result_cursor.cc",
+    "fonts/shaping/shape_result_cursor.h",
     "fonts/shaping/shape_result_run.h",
     "fonts/shaping/shape_result_spacing.cc",
     "fonts/shaping/shape_result_spacing.h",
@@ -843,8 +845,6 @@ component("platform") {
     "geometry/geometry_as_json.h",
     "geometry/geometry_hash_traits.h",
     "geometry/infinite_int_rect.h",
-    "geometry/layout_point.cc",
-    "geometry/layout_point.h",
     "geometry/layout_unit.cc",
     "geometry/layout_unit.h",
     "geometry/length.cc",
@@ -888,10 +888,13 @@ component("platform") {
     "graphics/blend_mode.h",
     "graphics/box_reflection.cc",
     "graphics/box_reflection.h",
+    "graphics/canvas_2d_color_params.cc",
+    "graphics/canvas_2d_color_params.h",
     "graphics/canvas_deferred_paint_record.cc",
     "graphics/canvas_deferred_paint_record.h",
     "graphics/canvas_hibernation_handler.cc",
     "graphics/canvas_hibernation_handler.h",
+    "graphics/canvas_high_entropy_op_type.h",
     "graphics/canvas_resource.cc",
     "graphics/canvas_resource.h",
     "graphics/canvas_resource_dispatcher.cc",
@@ -2269,7 +2272,6 @@ source_set("blink_platform_unittests_sources") {
     "graphics/gpu/webgpu_native_test_support.cc",
     "graphics/gpu/webgpu_native_test_support.h",
     "graphics/gpu/webgpu_resource_provider_cache_test.cc",
-    "graphics/gpu/webgpu_swap_buffer_provider_test.cc",
     "graphics/graphics_context_test.cc",
     "graphics/paint/cull_rect_test.cc",
     "graphics/paint/display_item_raster_invalidator_test.cc",
@@ -2402,6 +2404,10 @@ source_set("blink_platform_unittests_sources") {
     "widget/input/scroll_predictor_unittest.cc",
     "widget/input/widget_input_handler_manager_unittest.cc",
   ]
+
+  if (use_dawn) {
+    sources += [ "graphics/gpu/webgpu_swap_buffer_provider_test.cc" ]
+  }
 
   if (rtc_use_h265) {
     sources += [ "peerconnection/h265_parameter_sets_tracker_unittest.cc" ]

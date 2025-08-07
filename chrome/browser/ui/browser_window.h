@@ -19,7 +19,6 @@
 #include "chrome/browser/lifetime/browser_close_manager.h"
 #include "chrome/browser/share/share_attempt.h"
 #include "chrome/browser/signin/chrome_signin_helper.h"
-#include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/browser/ui/bookmarks/bookmark_bar.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_bubble_type.h"
@@ -29,6 +28,7 @@
 #include "chrome/browser/ui/webui/tab_search/tab_search.mojom.h"
 #include "chrome/common/buildflags.h"
 #include "components/content_settings/core/common/content_settings_types.h"
+#include "components/translate/core/browser/translate_step.h"
 #include "components/translate/core/common/translate_errors.h"
 #include "ui/base/base_window.h"
 #include "ui/base/interaction/element_identifier.h"
@@ -247,7 +247,7 @@ class BrowserWindow : public ui::BaseWindow {
 
   // Inform the frame that the dev tools window for the selected tab has
   // changed.
-  virtual void UpdateDevTools() = 0;
+  virtual void UpdateDevTools(content::WebContents* inspected_web_contents) = 0;
 
   // Update any loading animations running in the window. |is_visible| is true
   // if the window is visible.
@@ -656,8 +656,10 @@ class BrowserWindow : public ui::BaseWindow {
   virtual BrowserView* AsBrowserView() = 0;
 
  protected:
-  friend class BrowserCloseManager;
-  friend class BrowserView;
+  // Synchronously destroys the Browser.
+  // TODO(crbug.com/413168662): This can be removed once the ownership structure
+  // is updated and Browser owns BrowserWindow.
+  friend class Browser;
   virtual void DestroyBrowser() = 0;
 };
 

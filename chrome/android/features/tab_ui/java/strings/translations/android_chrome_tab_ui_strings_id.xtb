@@ -34,6 +34,7 @@
 <translation id="1982637982196732906">Pindahkan ke bagian tidak aktif</translation>
 <translation id="2050597508048557928">{TABS_COUNT,plural, =1{Bookmark <ph name="TABS_COUNT_ONE" /> tab yang dipilih}other{Bookmark <ph name="TABS_COUNT_MANY" /> tab yang dipilih}}</translation>
 <translation id="2055057176188061528">Pilih grup tab atau buat grup tab baru</translation>
+<translation id="2074527029802029717">Lepas sematan tab</translation>
 <translation id="2118649612461486615">Info toko</translation>
 <translation id="2123073051266141035">{INCOGNITO_TABS_COUNT,plural, =1{Tab dan grup yang ditutup dapat dibuka kembali dari bagian Tab terbaru dan bagian Grup tab. Tab Samaran Anda tidak akan tersedia.}other{Tab dan grup yang ditutup dapat dibuka kembali dari bagian Tab terbaru dan bagian Grup tab. # tab Samaran Anda tidak akan tersedia.}}</translation>
 <translation id="2162620598375156287">Sekarang <ph name="CURRENT_PRICE" /> di <ph name="SOURCE_WEBSITE" /></translation>
@@ -44,7 +45,6 @@
 <translation id="2359808026110333948">Lanjutkan</translation>
 <translation id="2371084566192454134">Tab dan grup tab</translation>
 <translation id="2375257132547014176">{TABS_COUNT,plural, =1{Ciutkan grup tab <ph name="TITLE_OF_GROUP" /> yang berisi <ph name="TABS_COUNT_ONE" /> tab.}other{Ciutkan grup tab <ph name="TITLE_OF_GROUP" /> yang berisi <ph name="TABS_COUNT_MANY" /> tab.}}</translation>
-<translation id="2479148705183875116">Buka Setelan</translation>
 <translation id="2498435670446402865">Ganti nama grup tab</translation>
 <translation id="2536366509642644298">Grup tab "<ph name="TAB_GROUP_NAME_1" />" dan "<ph name="TAB_GROUP_NAME_2" />" tidak lagi tersedia</translation>
 <translation id="2539705006853443997">{TABS_COUNT,plural, =1{Ciutkan <ph name="TABS_COUNT_ONE" /> tab.}other{Ciutkan grup tab yang berisi <ph name="TABS_COUNT_MANY" /> tab.}}</translation>
@@ -61,6 +61,7 @@
 <translation id="2801787514987684416">Lihat info toko?</translation>
 <translation id="2883875523421277445">{NUMBER_OF_TABS_CLOSED,plural, =1{<ph name="ONE_CLOSED" /> tab ditutup}other{<ph name="MANY_CLOSED" /> tab ditutup}}</translation>
 <translation id="2894757982205307093">Tab baru di grup</translation>
+<translation id="2918484639460781603">Buka setelan</translation>
 <translation id="2928243913527329289">Google | Tentang toko ini</translation>
 <translation id="3008554597174452548">Hentikan pemantauan produk</translation>
 <translation id="3026391124054406831">Buat grup untuk mengatur tab Anda.</translation>

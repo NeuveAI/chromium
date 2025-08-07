@@ -87,7 +87,9 @@ class LensOverlayControllerCUJTest : public InteractiveFeaturePromoTest {
                                {{"use-pdfs-as-context", "true"},
                                 {"auto-focus-searchbox", "false"}}}},
         /*disabled_features=*/{
-            lens::features::kLensOverlaySimplifiedSelection});
+            lens::features::kLensOverlaySimplifiedSelection,
+            lens::features::
+                kLensOverlayVisualSelectionUpdatesForOmniboxSuggestions});
   }
 
   void WaitForTemplateURLServiceToLoad() {
@@ -1069,6 +1071,68 @@ class LensOverlayControllerReturnToPageCUJTest
     feature_list_.InitAndEnableFeature(lens::features::kLensOverlayBackToPage);
   }
 };
+
+// This tests the following CUJ:
+//  (1) User navigates to a website.
+//  (2) User opens lens overlay and the side panel opens.
+//  (3) User navigates to a new page in the same tab.
+//  (4) The overlay should close, but the side panel should remain open.
+IN_PROC_BROWSER_TEST_F(LensOverlayControllerReturnToPageCUJTest,
+                       HidesOverlayOnClobberTab) {
+  WaitForTemplateURLServiceToLoad();
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kOverlayId);
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
+
+  const GURL second_url = embedded_test_server()->GetURL(kDocumentWithVideo);
+  auto* const browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+
+  const DeepQuery kPathToRegionSelection{
+      "lens-overlay-app",
+      "lens-selection-overlay",
+      "#regionSelectionLayer",
+  };
+
+  auto off_center_point = base::BindLambdaForTesting([browser_view]() {
+    gfx::Point off_center =
+        browser_view->contents_web_view()->bounds().CenterPoint();
+    off_center.Offset(100, 100);
+    return off_center;
+  });
+
+  RunTestSequence(
+      // Open lens overlay.
+      OpenLensOverlay(),
+
+      // The overlay controller is an independent floating widget associated
+      // with a tab rather than a browser window, so by convention gets its own
+      // element context.
+      InAnyContext(
+          InstrumentNonTabWebView(kOverlayId,
+                                  LensOverlayController::kOverlayId),
+          WaitForWebContentsReady(
+              kOverlayId, GURL(chrome::kChromeUILensOverlayUntrustedURL))),
+
+      // Wait for the webview to finish loading to prevent re-entrancy. Then do
+      // a drag offset from the center.
+      InSameContext(WaitForShow(LensOverlayController::kOverlayId),
+                    WaitForScreenshotRendered(kOverlayId),
+                    EnsurePresent(kOverlayId, kPathToRegionSelection),
+                    MoveMouseTo(LensOverlayController::kOverlayId),
+                    DragMouseTo(off_center_point)),
+
+      // The drag should have opened the side panel with the results frame.
+      WaitForShow(LensOverlayController::kOverlaySidePanelWebViewId),
+
+      // Navigate to another page in the same tab.
+      // The user navigates to a webpage.
+      InAnyContext(InstrumentTab(kActiveTab),
+                   NavigateWebContents(kActiveTab, second_url)),
+
+      // Ensure overlay is not visible but side panel is.
+      WaitForHide(kOverlayId),
+      EnsureNotPresent(kOverlayId),
+      EnsurePresent(LensOverlayController::kOverlaySidePanelWebViewId));
+}
 
 // This tests the following CUJ:
 //  (1) User navigates to a website.

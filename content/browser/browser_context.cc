@@ -36,7 +36,6 @@
 #include "content/browser/child_process_host_impl.h"
 #include "content/browser/child_process_security_policy_impl.h"
 #include "content/browser/in_memory_federated_permission_context.h"
-#include "content/browser/media/browser_feature_provider.h"
 #include "content/browser/preloading/prefetch/prefetch_container.h"
 #include "content/browser/preloading/prefetch/prefetch_service.h"
 #include "content/browser/preloading/prefetch/prefetch_type.h"
@@ -284,11 +283,12 @@ void BrowserContext::DeliverPushMessage(
     int64_t service_worker_registration_id,
     const std::string& message_id,
     std::optional<std::string> payload,
+    bool record_network_requests,
     base::OnceCallback<void(blink::mojom::PushEventStatus)> callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   PushMessagingRouter::DeliverMessage(
       this, origin, service_worker_registration_id, message_id,
-      std::move(payload), std::move(callback));
+      std::move(payload), record_network_requests, std::move(callback));
 }
 
 void BrowserContext::FirePushSubscriptionChangeEvent(
@@ -370,10 +370,6 @@ media::WebrtcVideoPerfHistory* BrowserContext::GetWebrtcVideoPerfHistory() {
   return impl()->GetWebrtcVideoPerfHistory();
 }
 
-media::learning::LearningSession* BrowserContext::GetLearningSession() {
-  return impl()->GetLearningSession();
-}
-
 std::unique_ptr<download::InProgressDownloadManager>
 BrowserContext::RetrieveInProgressDownloadManager() {
   return nullptr;
@@ -444,8 +440,7 @@ BrowserContext::CreateVideoDecodePerfHistory() {
         GetPath().Append(FILE_PATH_LITERAL("VideoDecodeStats")), db_provider);
   }
 
-  return std::make_unique<media::VideoDecodePerfHistory>(
-      std::move(stats_db), BrowserFeatureProvider::GetFactoryCB());
+  return std::make_unique<media::VideoDecodePerfHistory>(std::move(stats_db));
 }
 
 FederatedIdentityApiPermissionContextDelegate*
@@ -473,8 +468,8 @@ BrowserContext::GetOriginTrialsControllerDelegate() {
 }
 
 #if BUILDFLAG(IS_ANDROID)
-std::string BrowserContext::GetExtraHeadersForUrl(const GURL& url) {
-  return std::string();
+net::HttpRequestHeaders BrowserContext::GetExtraHeadersForUrl(const GURL& url) {
+  return net::HttpRequestHeaders();
 }
 #endif  // BUILDFLAG(IS_ANDROID)
 

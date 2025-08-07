@@ -23,10 +23,12 @@ namespace actor::ui {
 class ActorOverlayWindowController;
 }  // namespace actor::ui
 
+class ActorBorderViewController;
 class BookmarkBarController;
 class BookmarksSidePanelCoordinator;
 class BreadcrumbManagerBrowserAgent;
 class Browser;
+class BrowserActions;
 class BrowserContentSettingBubbleModelDelegate;
 class BrowserInstantController;
 class BrowserLiveTabContext;
@@ -38,9 +40,11 @@ class BrowserWindowInterface;
 class ChromeLabsCoordinator;
 class ColorProviderBrowserHelper;
 class CommentsSidePanelCoordinator;
+class ContentsBorderController;
 class CookieControlsBubbleCoordinator;
 class DataSharingBubbleController;
 class DesktopBrowserWindowCapabilities;
+class DevtoolsUIController;
 class ExclusiveAccessManager;
 class FindBarController;
 class HistoryClustersSidePanelCoordinator;
@@ -49,8 +53,10 @@ class IncognitoClearBrowsingDataDialogCoordinator;
 class ImmersiveModeController;
 class LocationBarModel;
 class MemorySaverOptInIPHController;
+class PinnedToolbarActionsController;
 class ProfileMenuCoordinator;
 class ReadingListSidePanelCoordinator;
+class RecentActivityBubbleCoordinator;
 class SidePanelCoordinator;
 class SidePanelUI;
 class SigninViewController;
@@ -65,9 +71,6 @@ class TranslateBubbleController;
 class UpgradeNotificationController;
 
 #if BUILDFLAG(IS_WIN)
-namespace default_browser {
-class PinInfoBarController;
-}  // namespace default_browser
 class WindowsTaskbarIconUpdater;
 #endif
 
@@ -75,6 +78,9 @@ class WindowsTaskbarIconUpdater;
 namespace pdf::infobar {
 class PdfInfoBarController;
 }  // namespace pdf::infobar
+namespace default_browser {
+class PinInfoBarController;
+}  // namespace default_browser
 #endif
 
 #if !BUILDFLAG(IS_CHROMEOS)
@@ -99,16 +105,18 @@ class TabDeclutterController;
 class VerticalTabStripStateController;
 }  // namespace tabs
 
+namespace chrome {
+class BrowserCommandController;
+}  // namespace chrome
+
 namespace commerce {
 class ProductSpecificationsEntryPointController;
 }  // namespace commerce
 
 namespace tabs {
 class GlicNudgeController;
-#if BUILDFLAG(ENABLE_GLIC)
 class GlicActorTaskIconController;
-#endif
-}
+}  // namespace tabs
 
 namespace tab_groups {
 class DeletionDialogController;
@@ -177,6 +185,12 @@ class BrowserWindowFeatures {
   void TearDownPreBrowserWindowDestruction();
 
   // Public accessors for features:
+  BrowserActions* browser_actions() { return browser_actions_.get(); }
+
+  chrome::BrowserCommandController* browser_command_controller() {
+    return browser_command_controller_.get();
+  }
+
   extensions::Mv2DisabledDialogController*
   mv2_disabled_dialog_controller_for_testing() {
     return mv2_disabled_dialog_controller_.get();
@@ -202,13 +216,14 @@ class BrowserWindowFeatures {
     return comments_side_panel_coordinator_.get();
   }
 
+  PinnedToolbarActionsController* pinned_toolbar_actions_controller() {
+    return pinned_toolbar_actions_controller_.get();
+  }
+
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   pdf::infobar::PdfInfoBarController* pdf_infobar_controller() {
     return pdf_infobar_controller_.get();
   }
-#endif
-
-#if BUILDFLAG(IS_WIN)
   default_browser::PinInfoBarController* pin_infobar_controller() {
     return pin_infobar_controller_.get();
   }
@@ -250,11 +265,9 @@ class BrowserWindowFeatures {
     return glic_nudge_controller_.get();
   }
 
-#if BUILDFLAG(ENABLE_GLIC)
   tabs::GlicActorTaskIconController* glic_actor_task_icon_controller() {
     return glic_actor_task_icon_controller_.get();
   }
-#endif
 
   TabStripModel* tab_strip_model() { return tab_strip_model_; }
 
@@ -321,7 +334,6 @@ class BrowserWindowFeatures {
     return tab_group_deletion_dialog_controller_.get();
   }
 
-
   SigninViewController* signin_view_controller() {
     return signin_view_controller_.get();
   }
@@ -350,8 +362,16 @@ class BrowserWindowFeatures {
     return new_tab_footer_controller_.get();
   }
 
+  DevtoolsUIController* devtools_ui_controller() {
+    return devtools_ui_controller_.get();
+  }
+
   split_tabs::SplitTabScrimController* split_tab_scrim_controller() {
     return split_tab_scrim_controller_.get();
+  }
+
+  ContentsBorderController* contents_border_controller() {
+    return contents_border_controller_.get();
   }
 
   ProfileMenuCoordinator* profile_menu_coordinator() {
@@ -421,6 +441,10 @@ class BrowserWindowFeatures {
   // Features that are per-browser window will each have a controller. e.g.
   // std::unique_ptr<FooFeature> foo_feature_;
 
+  std::unique_ptr<BrowserActions> browser_actions_;
+
+  std::unique_ptr<chrome::BrowserCommandController> browser_command_controller_;
+
   std::unique_ptr<BookmarkBarController> bookmark_bar_controller_;
 
   std::unique_ptr<BrowserInstantController> instant_controller_;
@@ -462,11 +486,12 @@ class BrowserWindowFeatures {
   std::unique_ptr<CommentsSidePanelCoordinator>
       comments_side_panel_coordinator_;
 
+  std::unique_ptr<PinnedToolbarActionsController>
+      pinned_toolbar_actions_controller_;
+
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   std::unique_ptr<pdf::infobar::PdfInfoBarController> pdf_infobar_controller_;
-#endif
 
-#if BUILDFLAG(IS_WIN)
   std::unique_ptr<default_browser::PinInfoBarController>
       pin_infobar_controller_;
 #endif
@@ -493,11 +518,14 @@ class BrowserWindowFeatures {
   std::unique_ptr<actor::ui::ActorOverlayWindowController>
       actor_overlay_window_controller_;
 
+  std::unique_ptr<ActorBorderViewController> actor_border_view_controller_;
+
   std::unique_ptr<tabs::GlicNudgeController> glic_nudge_controller_;
 
-#if BUILDFLAG(ENABLE_GLIC)
   std::unique_ptr<tabs::GlicActorTaskIconController>
       glic_actor_task_icon_controller_;
+
+#if BUILDFLAG(ENABLE_GLIC)
   std::unique_ptr<glic::GlicButtonController> glic_button_controller_;
   std::unique_ptr<glic::GlicIphController> glic_iph_controller_;
 #endif
@@ -536,6 +564,8 @@ class BrowserWindowFeatures {
 
   std::unique_ptr<new_tab_footer::NewTabFooterController>
       new_tab_footer_controller_;
+
+  std::unique_ptr<DevtoolsUIController> devtools_ui_controller_;
 
   std::unique_ptr<ReadingListSidePanelCoordinator>
       reading_list_side_panel_coordinator_;
@@ -593,6 +623,11 @@ class BrowserWindowFeatures {
 
   std::unique_ptr<split_tabs::SplitTabScrimController>
       split_tab_scrim_controller_;
+
+  std::unique_ptr<RecentActivityBubbleCoordinator>
+      recent_activity_bubble_coordinator_;
+
+  std::unique_ptr<ContentsBorderController> contents_border_controller_;
 
 #if BUILDFLAG(IS_WIN)
   std::unique_ptr<WindowsTaskbarIconUpdater> windows_taskbar_icon_updater_;

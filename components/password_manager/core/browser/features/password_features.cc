@@ -19,6 +19,14 @@ BASE_FEATURE(kAndroidSmsOtpFilling,
              base::FEATURE_DISABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_ANDROID)
 
+BASE_FEATURE(kApplyClientsideModelPredictionsForPasswordTypes,
+             "ApplyClientsideModelPredictionsForPasswordTypes",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kApplyClientsideModelPredictionsForOtps,
+             "ApplyClientsideModelPredictionsForOtps",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE(kAutoApproveSharedPasswordUpdatesFromSameSender,
              "AutoApproveSharedPasswordUpdatesFromSameSender",
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -95,7 +103,7 @@ BASE_FEATURE(kIOSProactivePasswordGenerationBottomSheet,
 
 BASE_FEATURE(kIOSFillRecoveryPassword,
              "IOSFillRecoveryPassword",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // IS_IOS
 
 BASE_FEATURE(kPasswordFormGroupedAffiliations,

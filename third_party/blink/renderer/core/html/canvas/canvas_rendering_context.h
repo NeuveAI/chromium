@@ -34,7 +34,6 @@
 #include "components/viz/common/resources/shared_image_format_utils.h"
 #include "third_party/blink/public/common/privacy_budget/identifiable_token.h"
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
-#include "third_party/blink/renderer/core/canvas_interventions/canvas_interventions_enums.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/html/canvas/canvas_context_creation_attributes_core.h"
 #include "third_party/blink/renderer/core/html/canvas/canvas_performance_monitor.h"
@@ -181,7 +180,6 @@ class CORE_EXPORT CanvasRenderingContext
 
   virtual scoped_refptr<StaticBitmapImage> GetImage(FlushReason) = 0;
   virtual bool IsComposited() const = 0;
-  virtual bool IsAccelerated() const = 0;
 
   // Called when the entire tab is backgrounded or unbackgrounded.
   // The page's visibility status can be queried at any time via
@@ -218,8 +216,6 @@ class CORE_EXPORT CanvasRenderingContext
   // WebGL-specific methods
   virtual void ClearMarkedCanvasDirty() {}
   virtual scoped_refptr<CanvasResource> PaintRenderingResultsToResource(
-      bool was_dirty,
-      bool has_dispatcher,
       SourceDrawingBuffer source_buffer,
       FlushReason reason) {
     NOTREACHED();
@@ -297,11 +293,11 @@ class CORE_EXPORT CanvasRenderingContext
   virtual const std::optional<cc::PaintRecord>& GetLastRecordingForCanvas2D() {
     return empty_recording_;
   }
+  virtual bool Is2DCanvasAccelerated() const { NOTREACHED(); }
 
   virtual void setFontForTesting(const String&) { NOTREACHED(); }
 
   // WebGL-specific interface
-  virtual bool UsingSwapChain() const { return false; }
   virtual void MarkLayerComposited() { NOTREACHED(); }
   virtual scoped_refptr<StaticBitmapImage>
   GetRGBAUnacceleratedStaticBitmapImage(SourceDrawingBuffer source_buffer) {
@@ -349,12 +345,6 @@ class CORE_EXPORT CanvasRenderingContext
 
   virtual bool IdentifiabilityEncounteredPartiallyDigestedImage() const {
     return false;
-  }
-
-  virtual bool ShouldTriggerIntervention() const { return false; }
-
-  virtual CanvasOperationType GetCanvasTriggerOperations() const {
-    return CanvasOperationType::kNone;
   }
 
   bool did_print_in_current_task() const { return did_print_in_current_task_; }

@@ -112,8 +112,7 @@ class ScrollMarkerGroupData : public GarbageCollected<ScrollMarkerGroupData>,
   void Trace(Visitor* v) const final;
 
   // ScrollSnapshotClient:
-  void UpdateSnapshot() override;
-  bool ValidateSnapshot() override;
+  bool UpdateSnapshot() override;
   bool ShouldScheduleNextService() override;
 
   // When a "targeted" scroll occurs, we should consider the selected scroll
@@ -131,8 +130,6 @@ class ScrollMarkerGroupData : public GarbageCollected<ScrollMarkerGroupData>,
                         LayoutBox* scroller_box,
                         const HeapVector<Member<Element>>& candidates);
   Element* ChooseMarkerRecursively();
-
-  bool UpdateSnapshotInternal();
 
   // TODO(332396355): Add spec link, once it's created.
   HeapVector<Member<Element>> focus_group_;

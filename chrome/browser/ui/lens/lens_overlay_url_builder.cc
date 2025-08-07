@@ -75,6 +75,8 @@ inline constexpr char kInvocationSourcePageSearchContextMenu[] =
     "chrome.cr.ctxp";
 inline constexpr char kInvocationSourceImageSearchContextMenu[] =
     "chrome.cr.ctxi";
+inline constexpr char kInvocationSourceTextSearchContextMenu[] =
+    "chrome.cr.ctxt";
 inline constexpr char kInvocationSourceFindInPage[] = "chrome.cr.find";
 inline constexpr char kInvocationSourceToolbarIcon[] = "chrome.cr.tbic";
 inline constexpr char kInvocationSourceOmniboxIcon[] = "chrome.cr.obic";
@@ -231,6 +233,9 @@ GURL AppendInvocationSourceParamToURL(
     case lens::LensOverlayInvocationSource::kContentAreaContextMenuImage:
       param_value = kInvocationSourceImageSearchContextMenu;
       break;
+    case lens::LensOverlayInvocationSource::kContentAreaContextMenuText:
+      param_value = kInvocationSourceTextSearchContextMenu;
+      break;
     case lens::LensOverlayInvocationSource::kToolbar:
       param_value = kInvocationSourceToolbarIcon;
       break;
@@ -375,13 +380,13 @@ GURL BuildLensSearchURL(
   return url_with_query_params;
 }
 
-const std::string GetTextQueryParameterValue(const GURL& url) {
+const std::string ExtractTextQueryParameterValue(const GURL& url) {
   std::string param_value = "";
   net::GetValueForKeyInQuery(url, kTextQueryParameterKey, &param_value);
   return param_value;
 }
 
-const std::string GetLensModeParameterValue(const GURL& url) {
+const std::string ExtractLensModeParameterValue(const GURL& url) {
   std::string param_value = "";
   net::GetValueForKeyInQuery(url, kLensModeParameterKey, &param_value);
   return param_value;

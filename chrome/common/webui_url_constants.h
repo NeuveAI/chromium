@@ -399,6 +399,8 @@ inline constexpr char kChromeUIUntrustedReadAnythingSidePanelHost[] =
 inline constexpr char kChromeUIUntrustedReadAnythingSidePanelURL[] =
     "chrome-untrusted://read-anything-side-panel.top-chrome/";
 inline constexpr char kChromeUIWebAppInternalsHost[] = "web-app-internals";
+inline constexpr char kChromeUIWebuiBrowserHost[] = "webui-browser";
+inline constexpr char kChromeUIWebuiBrowserURL[] = "chrome://webui-browser/";
 inline constexpr char kChromeUIWebUIJsErrorHost[] = "webuijserror";
 inline constexpr char kChromeUIWebUIJsErrorURL[] = "chrome://webuijserror/";
 inline constexpr char kCookiesSubPagePath[] = "/cookies";
@@ -426,9 +428,6 @@ inline constexpr char kChromeUIAppInstallDialogURL[] =
 inline constexpr char kChromeUIArcOverviewTracingHost[] =
     "arc-overview-tracing";
 inline constexpr char kChromeUIArcPowerControlHost[] = "arc-power-control";
-inline constexpr char kChromeUIAssistantOptInHost[] = "assistant-optin";
-inline constexpr char kChromeUIAssistantOptInURL[] =
-    "chrome://assistant-optin/";
 inline constexpr char kChromeUIAudioHost[] = "audio";
 inline constexpr char kChromeUIAudioURL[] = "chrome://audio/";
 inline constexpr char kChromeUIBluetoothPairingHost[] = "bluetooth-pairing";
@@ -645,7 +644,7 @@ inline constexpr char kAdPrivacySubPage[] = "adPrivacy";
 inline constexpr char kAllSitesSettingsSubpage[] = "content/all";
 inline constexpr char kAppearanceSubPage[] = "appearance";
 inline constexpr char kAutofillSubPage[] = "autofill";
-inline constexpr char kAutofillAiSubPage[] = "autofillAi";
+inline constexpr char kAutofillAiSubPage[] = "enhancedAutofill";
 inline constexpr char kClearBrowserDataSubPage[] = "clearBrowserData";
 inline constexpr char kContentSettingsSubPage[] = "content";
 inline constexpr char kCookieSettingsSubPage[] = "cookies";

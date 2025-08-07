@@ -265,9 +265,6 @@ class Browser : public TabStripModelObserver,
     // platform supports it.
     bool initial_visible_on_all_workspaces_state = false;
 
-    // Whether to enable the tab group feature in the tab strip.
-    bool are_tab_groups_enabled = true;
-
     ui::mojom::WindowShowState initial_show_state =
         ui::mojom::WindowShowState::kDefault;
 
@@ -464,10 +461,11 @@ class Browser : public TabStripModelObserver,
     return tab_strip_model_delegate_.get();
   }
 
-  BrowserActions* browser_actions() const { return browser_actions_.get(); }
+  BrowserActions* browser_actions() { return GetActions(); }
 
+  // TODO(crbug.com/434734349): Remove this method once callsites are migrated.
   chrome::BrowserCommandController* command_controller() {
-    return command_controller_.get();
+    return GetCommandController();
   }
 
   SessionID session_id() const { return session_id_; }
@@ -800,6 +798,7 @@ class Browser : public TabStripModelObserver,
           navigation_handle_callback) override;
   const SessionID& GetSessionID() const override;
   TabStripModel* GetTabStripModel() override;
+  const TabStripModel* GetTabStripModel() const override;
   bool IsTabStripVisible() override;
   bool ShouldHideUIForFullscreen() const override;
   base::CallbackListSubscription RegisterBrowserDidClose(
@@ -845,6 +844,13 @@ class Browser : public TabStripModelObserver,
   void DidBecomeActive();
   void DidBecomeInactive();
 
+  // Synchronously destroys the browser, `this` is no longer valid after the
+  // operation completes.
+  // WARNING: Clients should generally not use this and instead prefer
+  // requesting the browser close via BrowserWindow::Close(), which happens
+  // async and allows graceful teardown of the tab strip and associated data.
+  void SynchronouslyDestroyBrowser();
+
 #if BUILDFLAG(IS_CHROMEOS)
   bool IsLockedForOnTask();
   void SetLockedForOnTask(bool locked);
@@ -862,11 +868,8 @@ class Browser : public TabStripModelObserver,
   friend class ExclusiveAccessTest;
   friend class FullscreenControllerInteractiveTest;
   FRIEND_TEST_ALL_PREFIXES(AppModeTest, EnableAppModeTest);
-  FRIEND_TEST_ALL_PREFIXES(BrowserCommandControllerTest,
-                           IsReservedCommandOrKeyIsApp);
   FRIEND_TEST_ALL_PREFIXES(BrowserCloseTest, LastIncognito);
   FRIEND_TEST_ALL_PREFIXES(BrowserCloseTest, LastRegular);
-  FRIEND_TEST_ALL_PREFIXES(BrowserCommandControllerTest, AppFullScreen);
   FRIEND_TEST_ALL_PREFIXES(BrowserTest, OpenAppWindowLikeNtp);
   FRIEND_TEST_ALL_PREFIXES(BrowserTest, AppIdSwitch);
   FRIEND_TEST_ALL_PREFIXES(ExclusiveAccessBubbleWindowControllerTest,
@@ -928,6 +931,11 @@ class Browser : public TabStripModelObserver,
                           const ui::Event& event) override;
   void ContentsZoomChange(bool zoom_in) override;
   bool TakeFocus(content::WebContents* source, bool reverse) override;
+  bool DidAddMessageToConsole(content::WebContents* source,
+                              blink::mojom::ConsoleMessageLevel log_level,
+                              const std::u16string& message,
+                              int32_t line_no,
+                              const std::u16string& source_id) override;
   void BeforeUnloadFired(content::WebContents* source,
                          bool proceed,
                          bool* proceed_to_fire_unload) override;
@@ -1090,11 +1098,6 @@ class Browser : public TabStripModelObserver,
   // Handle changes to kDevToolsAvailability preference.
   void OnDevToolsAvailabilityChanged();
 
-#if BUILDFLAG(IS_CHROMEOS)
-  // Handle `on_task_locked_` state changes.
-  void OnLockedForOnTaskUpdated();
-#endif
-
   // UI update coalescing and handling ////////////////////////////////////////
 
   // Asks the toolbar (and as such the location bar) to update its state to
@@ -1131,6 +1134,8 @@ class Browser : public TabStripModelObserver,
   // listed first.
   // TODO(beng): remove this.
   std::vector<StatusBubble*> GetStatusBubbles();
+
+  chrome::BrowserCommandController* GetCommandController();
 
   // Session restore functions ////////////////////////////////////////////////
 
@@ -1355,11 +1360,6 @@ class Browser : public TabStripModelObserver,
   // This must be initialized before |command_controller_| to ensure the correct
   // set of commands are enabled.
   const std::unique_ptr<web_app::AppBrowserController> app_controller_;
-
-
-  std::unique_ptr<BrowserActions> browser_actions_;
-
-  std::unique_ptr<chrome::BrowserCommandController> command_controller_;
 
   // True if the browser window has been shown at least once.
   bool window_has_shown_;

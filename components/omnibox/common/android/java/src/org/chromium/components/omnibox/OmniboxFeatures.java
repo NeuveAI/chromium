@@ -8,7 +8,6 @@ import android.content.SharedPreferences;
 import android.text.format.DateUtils;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.VisibleForTesting;
 
 import com.google.android.gms.location.Priority;
 
@@ -103,7 +102,7 @@ public class OmniboxFeatures {
     public static final CachedFlag sAnimateSuggestionsListAppearance =
             newFlag(
                     OmniboxFeatureList.ANIMATE_SUGGESTIONS_LIST_APPEARANCE,
-                    FeatureState.ENABLED_IN_TEST);
+                    FeatureState.ENABLED_IN_PROD);
 
     public static final CachedFlag sTouchDownTriggerForPrefetch =
             newFlag(
@@ -127,16 +126,8 @@ public class OmniboxFeatures {
     public static final CachedFlag sJumpStartOmnibox =
             newFlag(OmniboxFeatureList.JUMP_START_OMNIBOX, FeatureState.ENABLED_IN_TEST);
 
-    /** See {@link #shouldRetainOmniboxOnFocus()}. */
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    public static final CachedFlag sRetainOmniboxOnFocus =
-            newFlag(OmniboxFeatureList.RETAIN_OMNIBOX_ON_FOCUS, FeatureState.ENABLED_IN_TEST);
-
     public static final CachedFlag sPostDelayedTaskFocusTab =
             newFlag(OmniboxFeatureList.POST_DELAYED_TASK_FOCUS_TAB, FeatureState.ENABLED_IN_PROD);
-
-    public static final CachedFlag sOmniboxMobileParityUpdate =
-            newFlag(OmniboxFeatureList.OMNIBOX_MOBILE_PARITY_UPDATE, FeatureState.ENABLED_IN_TEST);
 
     public static final CachedFlag sOmniboxMobileParityUpdateV2 =
             newFlag(
@@ -150,16 +141,10 @@ public class OmniboxFeatures {
             newFlag(OmniboxFeatureList.MULTILINE_EDIT_FIELD, FeatureState.DISABLED);
 
     public static final CachedFlag sAndroidHubSearchTabGroups =
-            newFlag(OmniboxFeatureList.ANDROID_HUB_SEARCH_TAB_GROUPS, FeatureState.DISABLED);
+            newFlag(OmniboxFeatureList.ANDROID_HUB_SEARCH_TAB_GROUPS, FeatureState.ENABLED_IN_TEST);
 
     public static final BooleanCachedFeatureParam sOmniboxParityRetrieveBuiltInEngineIcon =
             newBooleanParam(sOmniboxMobileParityUpdateV2, "retrieve_builtin_favicon", false);
-
-    public static final BooleanCachedFeatureParam sOmniboxParityRetrieveTrueFavicon =
-            newBooleanParam(sOmniboxMobileParityUpdate, "retrieve_true_favicon", false);
-
-    public static final BooleanCachedFeatureParam sOmniboxParityEnableFeedOnlyForGoogle =
-            newBooleanParam(sOmniboxMobileParityUpdate, "enable_feed_for_google_only", true);
 
     public static final BooleanCachedFeatureParam sAnswerActionsShowAboveKeyboard =
             newBooleanParam(sOmniboxAnswerActions, "AnswerActionsShowAboveKeyboard", false);
@@ -398,8 +383,7 @@ public class OmniboxFeatures {
         if (sShouldRetainOmniboxOnFocusForTesting != null) {
             return sShouldRetainOmniboxOnFocusForTesting;
         }
-        return sRetainOmniboxOnFocus.isEnabled()
-                && DeviceFormFactor.isTablet()
+        return DeviceFormFactor.isTablet()
                 && DeviceInput.supportsAlphabeticKeyboard()
                 && DeviceInput.supportsPrecisionPointer();
     }

@@ -41,6 +41,8 @@
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_metrics.h"
 #include "chrome/browser/ui/web_applications/web_app_run_on_os_login_notification.h"
+#include "chrome/browser/user_education/user_education_service.h"
+#include "chrome/browser/user_education/user_education_service_factory.h"
 #include "chrome/browser/web_applications/web_app_callback_app_identity.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_icon_manager.h"
@@ -163,6 +165,14 @@ void ShowNonclosableAppToast(const web_app::WebAppRegistrar& registrar,
 // static
 std::unique_ptr<WebAppUiManager> WebAppUiManager::Create(Profile* profile) {
   return std::make_unique<WebAppUiManagerImpl>(profile);
+}
+
+// static
+void WebAppUiManager::TriggerInstallNotSupportedDialog(
+    content::WebContents* web_contents,
+    Profile* profile,
+    base::OnceClosure callback) {
+  ShowInstallNotSupportedDialog(web_contents, profile, std::move(callback));
 }
 
 WebAppUiManagerImpl::WebAppUiManagerImpl(Profile* profile)
@@ -491,9 +501,9 @@ void WebAppUiManagerImpl::PresentUserUninstallDialog(
   WebAppProvider* provider = WebAppProvider::GetForWebApps(profile_);
   CHECK(provider);
 
-  provider->icon_manager().ReadIcons(
-      app_id, IconPurpose::ANY,
-      provider->registrar_unsafe().GetAppDownloadedIconSizesAny(app_id),
+  provider->icon_manager().ReadTrustedIconsWithFallbackToManifestIcons(
+      app_id, provider->registrar_unsafe().GetAppDownloadedIconSizesAny(app_id),
+      IconPurpose::ANY,
       base::BindOnce(&WebAppUiManagerImpl::OnIconsReadForUninstall,
                      weak_ptr_factory_.GetWeakPtr(), app_id, uninstall_source,
                      parent_window, std::move(parent_window_tracker),
@@ -847,8 +857,8 @@ void WebAppUiManagerImpl::OnIPHPromoResponseForLinkCapturing(
   }
 
   const auto* const feature_promo_controller =
-      BrowserUserEducationInterface::From(browser)->GetFeaturePromoController(
-          base::PassKey<WebAppUiManagerImpl>());
+      UserEducationServiceFactory::GetForBrowserContext(browser->GetProfile())
+          ->GetFeaturePromoController(base::PassKey<WebAppUiManagerImpl>());
   if (!feature_promo_controller) {
     return;
   }

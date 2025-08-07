@@ -120,13 +120,21 @@ void AccountCapabilitiesTestMutator::set_is_opted_in_to_parental_supervision(
 }
 
 void AccountCapabilitiesTestMutator::
+    set_is_subject_to_account_level_enterprise_policies(bool value) {
+#if !BUILDFLAG(IS_IOS)
+  capabilities_->capabilities_map_
+      [kIsSubjectToAccountLevelEnterprisePoliciesCapabilityName] = value;
+#endif  // !BUILDFLAG(IS_IOS)
+}
+
+void AccountCapabilitiesTestMutator::
     set_is_subject_to_chrome_privacy_sandbox_restricted_measurement_notice(
         bool value) {
   capabilities_->capabilities_map_
       [kIsSubjectToChromePrivacySandboxRestrictedMeasurementNotice] = value;
 }
 
-void AccountCapabilitiesTestMutator::set_is_subject_to_enterprise_policies(
+void AccountCapabilitiesTestMutator::set_is_subject_to_enterprise_features(
     bool value) {
   capabilities_
       ->capabilities_map_[kIsSubjectToEnterprisePoliciesCapabilityName] = value;
@@ -139,26 +147,6 @@ void AccountCapabilitiesTestMutator::set_is_subject_to_parental_controls(
 }
 
 // keep-sorted end
-
-void AccountCapabilitiesTestMutator::
-    set_should_be_addressed_in_feminine_grammatical_gender(bool value) {
-  capabilities_
-      ->capabilities_map_[kShouldBeAddressedInFeminineGrammaticalGender] =
-      value;
-}
-
-void AccountCapabilitiesTestMutator::
-    set_should_be_addressed_in_masculine_grammatical_gender(bool value) {
-  capabilities_
-      ->capabilities_map_[kShouldBeAddressedInMasculineGrammaticalGender] =
-      value;
-}
-
-void AccountCapabilitiesTestMutator::
-    set_should_be_addressed_in_neuter_grammatical_gender(bool value) {
-  capabilities_
-      ->capabilities_map_[kShouldBeAddressedInNeuterGrammaticalGender] = value;
-}
 
 void AccountCapabilitiesTestMutator::SetAllSupportedCapabilities(bool value) {
   for (std::string_view name :

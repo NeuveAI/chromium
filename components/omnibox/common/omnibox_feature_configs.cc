@@ -13,19 +13,25 @@
 
 namespace omnibox_feature_configs {
 
-constexpr auto enabled_by_default_desktop_only =
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
-    base::FEATURE_DISABLED_BY_DEFAULT;
-#else
-    base::FEATURE_ENABLED_BY_DEFAULT;
-#endif
+namespace {
+constexpr bool IS_ANDROID = !!BUILDFLAG(IS_ANDROID);
+constexpr bool IS_IOS = !!BUILDFLAG(IS_IOS);
+constexpr bool IS_DESKTOP = !IS_ANDROID && !IS_IOS;
+
+constexpr base::FeatureState DISABLED = base::FEATURE_DISABLED_BY_DEFAULT;
+constexpr base::FeatureState ENABLED = base::FEATURE_ENABLED_BY_DEFAULT;
+
+constexpr base::FeatureState enable_if(bool condition) {
+  return condition ? ENABLED : DISABLED;
+}
+}  // namespace
 
 // TODO(manukh): Enabled by default in m120. Clean up 12/5 when after m121
 //   branch cut.
 // static
 BASE_FEATURE(CalcProvider::kCalcProvider,
              "OmniboxCalcProvider",
-             enabled_by_default_desktop_only);
+             enable_if(IS_DESKTOP));
 CalcProvider::CalcProvider() {
   enabled = base::FeatureList::IsEnabled(kCalcProvider);
   score =
@@ -35,6 +41,25 @@ CalcProvider::CalcProvider() {
           .Get();
   num_non_calc_inputs =
       base::FeatureParam<int>(&kCalcProvider, "CalcProviderNumNonCalcInputs", 3)
+          .Get();
+}
+
+BASE_FEATURE(AiMode::kAiModeEchoMatchTweaks,
+             "kAiModeEchoMatchTweaks",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+AiMode::AiMode() {
+  ai_mode_echo_match_tweaks =
+      base::FeatureList::IsEnabled(kAiModeEchoMatchTweaks);
+  do_not_dedupe_aim_suggestions =
+      base::FeatureParam<bool>(&kAiModeEchoMatchTweaks,
+                               "DoNotDedupeAimSuggestions",
+                               do_not_dedupe_aim_suggestions)
+          .Get();
+
+  do_not_show_historic_aim_suggestions =
+      base::FeatureParam<bool>(&kAiModeEchoMatchTweaks,
+                               "DoNotShowHistoricAimSuggestions",
+                               do_not_show_historic_aim_suggestions)
           .Get();
 }
 
@@ -104,6 +129,10 @@ BASE_FEATURE(ContextualSearch::kShowSuggestionsOnNoApc,
              "ShowSuggestionsOnNoApc",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(ContextualSearch::kOpenLensActionUITweaks,
+             "OpenLensActionUITweaks",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 ContextualSearch::ContextualSearch() {
   // Meta-feature turns on/off other features, but only if it's overridden by
   // the user. If not then each feature is controlled separately.
@@ -155,6 +184,8 @@ ContextualSearch::ContextualSearch() {
   use_apc_paywall_signal = feature_enabled(kUseApcPaywallSignal);
   show_suggestions_on_no_apc =
       base::FeatureList::IsEnabled(kShowSuggestionsOnNoApc);
+  open_lens_action_ui_tweaks =
+      base::FeatureList::IsEnabled(kOpenLensActionUITweaks);
 }
 
 ContextualSearch::ContextualSearch(const ContextualSearch&) = default;
@@ -172,7 +203,7 @@ bool ContextualSearch::IsEnabledWithPrefetch() const {
 
 BASE_FEATURE(MiaZPS::kOmniboxMiaZPS,
              "OmniboxMiaZPS",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 MiaZPS::MiaZPS() {
   enabled = base::FeatureList::IsEnabled(kOmniboxMiaZPS);
@@ -183,7 +214,8 @@ MiaZPS::MiaZPS() {
 
   suppress_psuggest_backfill_with_mia =
       base::FeatureParam<bool>(&kOmniboxMiaZPS,
-                               "SuppressPsuggestBackfillWithMIA", false)
+                               "SuppressPsuggestBackfillWithMIA",
+                               enable_if(IS_ANDROID || IS_IOS))
           .Get();
 }
 

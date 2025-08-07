@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import {type WebClientInitialState} from '../glic.mojom-webui.js';
-import type {ActInFocusedTabParams, ActInFocusedTabResult, ActorTaskState, AnnotatedPageData, ChromeVersion, DraggableArea, ErrorReasonTypes, ErrorWithReason, FocusedTabDataHasFocus, FocusedTabDataHasNoFocus, GetPinCandidatesOptions, HostCapability, Journal, OpenPanelInfo, OpenSettingsOptions, PageMetadata, PanelOpeningData, PanelState, PdfDocumentData, PinCandidate, Screenshot, ScrollToParams, TabContextOptions, TabContextResult, TabData, UserProfileInfo, ViewChangedNotification, ViewChangeRequest, ZeroStateSuggestions, ZeroStateSuggestionsOptions, ZeroStateSuggestionsV2} from '../glic_api/glic_api.js';
+import type {ActorTaskPauseReason, ActorTaskState, ActorTaskStopReason, AnnotatedPageData, ChromeVersion, DraggableArea, ErrorReasonTypes, ErrorWithReason, FocusedTabDataHasFocus, FocusedTabDataHasNoFocus, GetPinCandidatesOptions, HostCapability, Journal, OpenPanelInfo, OpenSettingsOptions, PageMetadata, PanelOpeningData, PanelState, PdfDocumentData, PinCandidate, Screenshot, ScrollToParams, TabContextOptions, TabContextResult, TabData, UserProfileInfo, ViewChangedNotification, ViewChangeRequest, ZeroStateSuggestions, ZeroStateSuggestionsOptions, ZeroStateSuggestionsV2} from '../glic_api/glic_api.js';
 
 /*
 This file defines messages sent over postMessage in-between the Glic WebUI
@@ -115,22 +115,16 @@ export declare interface HostRequestTypes {
       actionsResult: ArrayBuffer,
     },
   };
-  glicBrowserActInFocusedTab: {
-    request: {
-      actInFocusedTabParams: ActInFocusedTabParams,
-    },
-    response: {
-      actInFocusedTabResult: ActInFocusedTabResultPrivate,
-    },
-  };
   glicBrowserStopActorTask: {
     request: {
       taskId: number,
+      stopReason: ActorTaskStopReason,
     },
   };
   glicBrowserPauseActorTask: {
     request: {
       taskId: number,
+      pauseReason: ActorTaskPauseReason,
     },
   };
   glicBrowserResumeActorTask: {
@@ -266,7 +260,6 @@ export declare interface HostRequestTypes {
       mode: number,
     },
   };
-  glicBrowserOnRequestStarted: {};
   glicBrowserOnResponseStarted: {};
   glicBrowserOnResponseStopped: {};
   glicBrowserOnSessionTerminated: {};
@@ -318,9 +311,14 @@ export declare interface HostRequestTypes {
   glicBrowserSubscribeToPinCandidates: {
     request: {
       options: GetPinCandidatesOptions,
+      observationId: number,
     },
   };
-  glicBrowserUnsubscribeFromPinCandidates: {};
+  glicBrowserUnsubscribeFromPinCandidates: {
+    request: {
+      observationId: number,
+    },
+  };
   glicBrowserGetZeroStateSuggestionsForFocusedTab: {
     request: {
       isFirstRun?: boolean,
@@ -438,6 +436,7 @@ export declare interface WebClientRequestTypes {
   glicWebClientPinCandidatesChanged: {
     request: {
       candidates: PinCandidatePrivate[],
+      observationId: number,
     },
   };
   glicWebClientZeroStateSuggestionsChanged: {
@@ -478,7 +477,6 @@ type HostRequestEnumNamesType = {
     GetContextFromTab: 0,
     GetContextForActorFromTab: 0,
     SetMaximumNumberOfPinnedTabs: 0,
-    ActInFocusedTab: 0,
     StopActorTask: 0,
     PauseActorTask: 0,
     ResumeActorTask: 0,
@@ -506,7 +504,6 @@ type HostRequestEnumNamesType = {
     JournalRecordFeedback: 0,
     OnUserInputSubmitted: 0,
     OnResponseRated: 0,
-    OnRequestStarted: 0,
     OnResponseStarted: 0,
     OnResponseStopped: 0,
     OnSessionTerminated: 0,
@@ -656,11 +653,6 @@ export declare interface TabContextResultPrivate extends
   tabData: TabDataPrivate;
   pdfDocumentData?: PdfDocumentDataPrivate;
   annotatedPageData?: AnnotatedPageDataPrivate;
-}
-
-export declare interface ActInFocusedTabResultPrivate extends
-    Omit<ActInFocusedTabResult, 'tabContextResult'> {
-  tabContextResult: TabContextResultPrivate;
 }
 
 export declare interface UserProfileInfoPrivate extends

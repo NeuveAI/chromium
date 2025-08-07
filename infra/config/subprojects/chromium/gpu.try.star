@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-load("@chromium-luci//builders.star", "cpu", "os")
+load("@chromium-luci//builders.star", "builders", "cpu", "os")
 load("@chromium-luci//gn_args.star", "gn_args")
 load("@chromium-luci//try.star", "try_")
 load("//lib/siso.star", "siso")
@@ -155,15 +155,6 @@ gpu_chromeos_builder(
         "ci/ChromeOS FYI Release (amd64-generic)",
     ],
     gn_args = "ci/ChromeOS FYI Release (amd64-generic)",
-)
-
-gpu_chromeos_builder(
-    name = "gpu-fyi-try-chromeos-skylab-volteer",
-    description_html = "Runs standard GPU tests on Skylab-hosted volteer devices",
-    mirrors = [
-        "ci/ChromeOS FYI Release Skylab (volteer)",
-    ],
-    gn_args = "ci/ChromeOS FYI Release Skylab (volteer)",
 )
 
 def gpu_linux_builder(*, name, **kwargs):
@@ -480,7 +471,7 @@ def gpu_win_builder(*, name, **kwargs):
         max_concurrent_builds = 1,
         os = os.WINDOWS_ANY,
         siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CQ,
-        ssd = None,
+        ssd = builders.with_expiration(True, expiration = 5 * time.minute),
         free_space = None,
         **kwargs
     )

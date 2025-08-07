@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "base/check_op.h"
 #include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
@@ -1451,10 +1452,27 @@ void PermissionUmaUtil::RecordDSEEffectiveSetting(
 }
 
 // static
-void PermissionUmaUtil::RecordPermissionPredictionSource(
-    PermissionPredictionSource prediction_source) {
+void PermissionUmaUtil::RecordPermissionPredictionConcurrentRequests(
+    RequestType request_type) {
+  permissions::PermissionPredictionSupportedType prediction_supported_type =
+      request_type == permissions::RequestType::kNotifications
+          ? permissions::PermissionPredictionSupportedType::kNotifications
+          : permissions::PermissionPredictionSupportedType::kGeolocation;
+
   base::UmaHistogramEnumeration(
-      "Permissions.PredictionService.PredictionSource", prediction_source);
+      "Permissions.PredictionService.ConcurrentRequests",
+      prediction_supported_type);
+}
+
+// static
+void PermissionUmaUtil::RecordPermissionPredictionSource(
+    PermissionPredictionSource prediction_source,
+    RequestType request_type) {
+  std::string permission_string = GetPermissionRequestString(
+      PermissionUtil::GetUmaValueForRequestType(request_type));
+  base::UmaHistogramEnumeration(
+      "Permissions.PredictionServiceSource." + permission_string,
+      prediction_source);
 }
 
 // static
@@ -1633,8 +1651,6 @@ std::string PermissionUmaUtil::GetPromptDispositionString(
       return "CustomModalDialog";
     case PermissionPromptDisposition::ELEMENT_ANCHORED_BUBBLE:
       return "ElementAnchoredBubble";
-    case PermissionPromptDisposition::LOCATION_BAR_LEFT_CHIP:
-      return "LocationBarLeftChip";
     case PermissionPromptDisposition::LOCATION_BAR_LEFT_QUIET_CHIP:
       return "LocationBarLeftQuietChip";
     case PermissionPromptDisposition::LOCATION_BAR_LEFT_QUIET_ABUSIVE_CHIP:
@@ -1702,7 +1718,6 @@ bool PermissionUmaUtil::IsPromptDispositionQuiet(
     case PermissionPromptDisposition::ANCHORED_BUBBLE:
     case PermissionPromptDisposition::ELEMENT_ANCHORED_BUBBLE:
     case PermissionPromptDisposition::MODAL_DIALOG:
-    case PermissionPromptDisposition::LOCATION_BAR_LEFT_CHIP:
     case PermissionPromptDisposition::LOCATION_BAR_LEFT_CHIP_AUTO_BUBBLE:
     case PermissionPromptDisposition::NONE_VISIBLE:
     case PermissionPromptDisposition::CUSTOM_MODAL_DIALOG:
@@ -1718,7 +1733,6 @@ bool PermissionUmaUtil::IsPromptDispositionLoud(
     case PermissionPromptDisposition::ANCHORED_BUBBLE:
     case PermissionPromptDisposition::ELEMENT_ANCHORED_BUBBLE:
     case PermissionPromptDisposition::MODAL_DIALOG:
-    case PermissionPromptDisposition::LOCATION_BAR_LEFT_CHIP:
     case PermissionPromptDisposition::LOCATION_BAR_LEFT_CHIP_AUTO_BUBBLE:
       return true;
     case PermissionPromptDisposition::LOCATION_BAR_RIGHT_STATIC_ICON:
@@ -2073,8 +2087,8 @@ void PermissionUmaUtil::RecordActionBrowserAlwaysActive(
 
 // static
 void PermissionUmaUtil::RecordPredictionModelInquireTime(
-    base::TimeTicks model_inquire_start_time,
-    PredictionModelType model_type) {
+    PredictionModelType model_type,
+    base::TimeTicks model_inquire_start_time) {
   std::string histogram_name =
       base::StrCat({"Permissions.", GetPredictionModelString(model_type),
                     ".InquiryDuration"});
@@ -2083,10 +2097,70 @@ void PermissionUmaUtil::RecordPredictionModelInquireTime(
 }
 
 // static
+void PermissionUmaUtil::RecordRenderedTextAcquireSuccessForAivX(
+    PredictionModelType model_type,
+    bool success) {
+  // Only AIv1 and AIv4 models use the rendered text as input.
+  DCHECK(model_type == PredictionModelType::kOnDeviceAiV1Model ||
+         model_type == PredictionModelType::kOnDeviceAiV4Model);
+
+  std::string success_histogram_name =
+      base::StrCat({"Permissions.", GetPredictionModelString(model_type),
+                    ".RenderedTextAcquireSuccess"});
+  base::UmaHistogramBoolean(success_histogram_name, success);
+}
+
+// static
+void PermissionUmaUtil::RecordTryCancelPreviousEmbeddingsModelExecution(
+    PredictionModelType model_type,
+    bool cancel_previous_task) {
+  // Only the AIv4 model requires the passage embedding model.
+  DCHECK_EQ(model_type, PredictionModelType::kOnDeviceAiV4Model);
+
+  std::string success_histogram_name =
+      base::StrCat({"Permissions.", GetPredictionModelString(model_type),
+                    ".TryCancelPreviousEmbeddingsModelExecution"});
+  base::UmaHistogramBoolean(success_histogram_name, cancel_previous_task);
+}
+
+// static
+void PermissionUmaUtil::RecordFinishedPassageEmbeddingsTaskOutdated(
+    PredictionModelType model_type,
+    bool outdated) {
+  // Only the AIv4 model requires the passage embedding model.
+  DCHECK_EQ(model_type, PredictionModelType::kOnDeviceAiV4Model);
+
+  std::string success_histogram_name =
+      base::StrCat({"Permissions.", GetPredictionModelString(model_type),
+                    ".FinishedPassageEmbeddingsTaskOutdated"});
+  base::UmaHistogramBoolean(success_histogram_name, outdated);
+}
+
+// static
+void PermissionUmaUtil::RecordPassageEmbeddingModelExecutionTimeAndStatus(
+    PredictionModelType model_type,
+    base::TimeTicks model_inquire_start_time,
+    passage_embeddings::ComputeEmbeddingsStatus status) {
+  // Only the AIv4 model requires the passage embedding model.
+  DCHECK_EQ(model_type, PredictionModelType::kOnDeviceAiV4Model);
+
+  std::string status_histogram_name =
+      base::StrCat({"Permissions.", GetPredictionModelString(model_type),
+                    ".ComputeEmbeddingsStatus"});
+  base::UmaHistogramEnumeration(status_histogram_name, status);
+
+  std::string time_histogram_name =
+      base::StrCat({"Permissions.", GetPredictionModelString(model_type),
+                    ".ComputeEmbeddingsDuration"});
+  base::UmaHistogramMediumTimes(
+      time_histogram_name, base::TimeTicks::Now() - model_inquire_start_time);
+}
+
+// static
 void PermissionUmaUtil::RecordSnapshotTakenTimeAndSuccessForAivX(
-    bool success,
+    PredictionModelType model_type,
     base::TimeTicks snapshot_inquire_start_time,
-    PredictionModelType model_type) {
+    bool success) {
   // Only AIv3 and AIv4 models use snapshots as input.
   DCHECK(model_type == PredictionModelType::kOnDeviceAiV3Model ||
          model_type == PredictionModelType::kOnDeviceAiV4Model);
@@ -2100,6 +2174,13 @@ void PermissionUmaUtil::RecordSnapshotTakenTimeAndSuccessForAivX(
   base::UmaHistogramMediumTimes(
       duration_histogram_name,
       base::TimeTicks::Now() - snapshot_inquire_start_time);
+}
+
+// static
+void PermissionUmaUtil::RecordLanguageDetectionStatus(
+    LanguageDetectionStatus status) {
+  base::UmaHistogramEnumeration("Permissions.AIv4.LanguageDetectionStatus",
+                                status);
 }
 
 }  // namespace permissions

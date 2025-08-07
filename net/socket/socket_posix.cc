@@ -28,6 +28,10 @@
 #include "net/base/trace_constants.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 
+// TODO(crbug.com/40064248): Remove this once sufficient information is
+// collected.
+#include "base/debug/crash_logging.h"
+
 #if BUILDFLAG(IS_FUCHSIA)
 #include <poll.h>
 #include <sys/ioctl.h>

@@ -3,10 +3,15 @@
 // found in the LICENSE file.
 
 #include "base/command_line.h"
+#include "base/strings/stringprintf.h"
+#include "base/threading/platform_thread.h"
+#include "base/time/time.h"
 #include "chrome/browser/policy/policy_test_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "chrome/test/base/web_feature_histogram_tester.h"
+#include "components/embedder_support/switches.h"
 #include "components/metrics/content/subprocess_metrics_provider.h"
 #include "components/network_session_configurator/common/network_switches.h"
 #include "components/permissions/permission_request_manager.h"
@@ -16,6 +21,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/content_browser_test_utils.h"
+#include "content/public/test/local_network_access_util.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/test_data_directory.h"
@@ -30,6 +36,12 @@ constexpr char kLnaPath[] =
 
 constexpr char kWorkerHtmlPath[] =
     "/private_network_access/fetch-from-worker-as-public-address.html";
+
+constexpr char kSharedWorkerHtmlPath[] =
+    "/private_network_access/fetch-from-shared-worker-as-public-address.html";
+
+constexpr char kServiceWorkerHtmlPath[] =
+    "/private_network_access/fetch-from-service-worker-as-public-address.html";
 
 class LocalNetworkAccessBrowserTest : public policy::PolicyTest {
  public:
@@ -80,14 +92,22 @@ class LocalNetworkAccessBrowserTest : public policy::PolicyTest {
     }
   }
 
+  permissions::PermissionRequestManager* GetPermissionRequestManager() {
+    return permissions::PermissionRequestManager::FromWebContents(
+        browser()->tab_strip_model()->GetActiveWebContents());
+  }
+
+  permissions::MockPermissionPromptFactory* bubble_factory() {
+    return mock_permission_prompt_factory_.get();
+  }
+
  protected:
   void SetUpOnMainThread() override {
+    permissions::PermissionRequestManager* manager =
+        GetPermissionRequestManager();
+    mock_permission_prompt_factory_ =
+        std::make_unique<permissions::MockPermissionPromptFactory>(manager);
     host_resolver()->AddRule("*", "127.0.0.1");
-
-    https_server_.AddDefaultHandlers(GetChromeTestDataDir());
-
-    https_server_.SetSSLConfig(net::EmbeddedTestServer::CERT_OK);
-    ASSERT_TRUE(https_server_.Start());
     EXPECT_TRUE(content::NavigateToURL(web_contents(), GURL("about:blank")));
   }
 
@@ -98,11 +118,25 @@ class LocalNetworkAccessBrowserTest : public policy::PolicyTest {
     // the public address space
     command_line->AppendSwitchASCII(network::switches::kIpAddressSpaceOverrides,
                                     "");
+    // The public key used to verify test trial tokens that are used in
+    // content::DeprecationTrialURLLoaderInterceptor. See
+    // docs/origin_trials_integration.md
+    constexpr char kOriginTrialTestPublicKey[] =
+        "dRCs+TocuKkocNKa0AtZ4awrt9XKH2SQCI6o4FY6BNA=";
+    command_line->AppendSwitchASCII(embedder_support::kOriginTrialPublicKey,
+                                    kOriginTrialTestPublicKey);
+
+    https_server_.AddDefaultHandlers(GetChromeTestDataDir());
+    https_server_.SetSSLConfig(net::EmbeddedTestServer::CERT_OK);
+    ASSERT_TRUE(https_server_.Start());
+    ASSERT_TRUE(embedded_test_server()->Start());
   }
 
   net::EmbeddedTestServer https_server_;
   base::test::ScopedFeatureList features_;
   base::HistogramTester histogram_;
+  std::unique_ptr<permissions::MockPermissionPromptFactory>
+      mock_permission_prompt_factory_;
 };
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, FetchDenyPermission) {
@@ -112,13 +146,8 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, FetchDenyPermission) {
           "a.com",
           "/private_network_access/no-favicon-treat-as-public-address.html")));
 
-  permissions::PermissionRequestManager* manager =
-      permissions::PermissionRequestManager::FromWebContents(web_contents());
-  std::unique_ptr<permissions::MockPermissionPromptFactory> bubble_factory =
-      std::make_unique<permissions::MockPermissionPromptFactory>(manager);
-
   // Enable auto-denial of LNA permission request.
-  bubble_factory->set_response_type(
+  bubble_factory()->set_response_type(
       permissions::PermissionRequestManager::AutoResponseType::DENY_ALL);
 
   // LNA fetch should fail.
@@ -136,13 +165,8 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, FetchAcceptPermission) {
           "a.com",
           "/private_network_access/no-favicon-treat-as-public-address.html")));
 
-  permissions::PermissionRequestManager* manager =
-      permissions::PermissionRequestManager::FromWebContents(web_contents());
-  std::unique_ptr<permissions::MockPermissionPromptFactory> bubble_factory =
-      std::make_unique<permissions::MockPermissionPromptFactory>(manager);
-
   // Enable auto-accept of LNA permission request.
-  bubble_factory->set_response_type(
+  bubble_factory()->set_response_type(
       permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
 
   // LNA fetch should succeed.
@@ -160,13 +184,8 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, IframeDenyPermission) {
           "a.com",
           "/private_network_access/no-favicon-treat-as-public-address.html")));
 
-  permissions::PermissionRequestManager* manager =
-      permissions::PermissionRequestManager::FromWebContents(web_contents());
-  std::unique_ptr<permissions::MockPermissionPromptFactory> bubble_factory =
-      std::make_unique<permissions::MockPermissionPromptFactory>(manager);
-
   // Enable auto-denial of LNA permission request.
-  bubble_factory->set_response_type(
+  bubble_factory()->set_response_type(
       permissions::PermissionRequestManager::AutoResponseType::DENY_ALL);
 
   GURL iframe_url = https_server().GetURL("b.com", kLnaPath);
@@ -192,13 +211,8 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, IframeAcceptPermission) {
           "a.com",
           "/private_network_access/no-favicon-treat-as-public-address.html")));
 
-  permissions::PermissionRequestManager* manager =
-      permissions::PermissionRequestManager::FromWebContents(web_contents());
-  std::unique_ptr<permissions::MockPermissionPromptFactory> bubble_factory =
-      std::make_unique<permissions::MockPermissionPromptFactory>(manager);
-
   // Enable auto-accept of LNA permission request.
-  bubble_factory->set_response_type(
+  bubble_factory()->set_response_type(
       permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
 
   GURL iframe_url = https_server().GetURL("b.com", kLnaPath);
@@ -213,21 +227,17 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, IframeAcceptPermission) {
               content::EvalJsResult::IsOk());
   ASSERT_TRUE(nav_manager.WaitForNavigationFinished());
 
-  // Check that the child iframe failed to fetch.
+  // Check that the child iframe was successfully fetched.
   EXPECT_TRUE(nav_manager.was_successful());
 }
 
-IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, WorkerDenyPermission) {
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       DedicatedWorkerDenyPermission) {
   ASSERT_TRUE(content::NavigateToURL(
       web_contents(), https_server().GetURL("a.com", kWorkerHtmlPath)));
 
-  permissions::PermissionRequestManager* manager =
-      permissions::PermissionRequestManager::FromWebContents(web_contents());
-  std::unique_ptr<permissions::MockPermissionPromptFactory> bubble_factory =
-      std::make_unique<permissions::MockPermissionPromptFactory>(manager);
-
   // Enable auto-deny of LNA permission request.
-  bubble_factory->set_response_type(
+  bubble_factory()->set_response_type(
       permissions::PermissionRequestManager::AutoResponseType::DENY_ALL);
 
   GURL fetch_url = https_server().GetURL("b.com", kLnaPath);
@@ -236,19 +246,17 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, WorkerDenyPermission) {
   EXPECT_EQ("TypeError: Failed to fetch",
             content::EvalJs(web_contents(),
                             content::JsReplace(script_template, fetch_url)));
+  CheckCounter(WebFeature::kPrivateNetworkAccessWithinWorker, 1);
+  CheckCounter(WebFeature::kLocalNetworkAccessWithinDedicatedWorker, 1);
 }
 
-IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, WorkerAcceptPermission) {
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       DedicatedWorkerAcceptPermission) {
   ASSERT_TRUE(content::NavigateToURL(
       web_contents(), https_server().GetURL("a.com", kWorkerHtmlPath)));
 
-  permissions::PermissionRequestManager* manager =
-      permissions::PermissionRequestManager::FromWebContents(web_contents());
-  std::unique_ptr<permissions::MockPermissionPromptFactory> bubble_factory =
-      std::make_unique<permissions::MockPermissionPromptFactory>(manager);
-
   // Enable auto-accept of LNA permission request.
-  bubble_factory->set_response_type(
+  bubble_factory()->set_response_type(
       permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
 
   GURL fetch_url = https_server().GetURL("b.com", kLnaPath);
@@ -257,6 +265,131 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, WorkerAcceptPermission) {
   EXPECT_EQ("Access-Control-Allow-Origin: *",
             content::EvalJs(web_contents(),
                             content::JsReplace(script_template, fetch_url)));
+
+  CheckCounter(WebFeature::kPrivateNetworkAccessWithinWorker, 1);
+  CheckCounter(WebFeature::kLocalNetworkAccessWithinDedicatedWorker, 1);
+}
+
+// TODO(crbug.com/406991278): Adding counters for LNA accesses within workers in
+// third_party/blink/renderer/core/loader/resource_load_observer_for_worker.cc
+// works for shared and dedicated workers, but operates oddly for service
+// workers:
+//
+// * It counts the initial load of the service worker JS file
+// * It doesn't count LNA requests without permission
+// * It does count LNA request with permission (the AllowPermission test below)
+// * Trying to check the count via CheckCounter() or WebFeatureHistogramTester
+//   does not work.
+//
+// Figure out how to add use counters for service worker fetches.
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       ServiceWorkerNoPermissionSet) {
+  ASSERT_TRUE(content::NavigateToURL(
+      web_contents(), https_server().GetURL("a.com", kServiceWorkerHtmlPath)));
+
+  // Enable auto-accept of LNA permission requests (which shouldn't be checked).
+  bubble_factory()->set_response_type(
+      permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
+
+  EXPECT_EQ("ready", content::EvalJs(web_contents(), "setup();"));
+  GURL fetch_url = https_server().GetURL("b.com", kLnaPath);
+  std::string_view script_template = "fetch_from_service_worker($1);";
+  // Failure to fetch URL, as for service workers the permission is only
+  // checked; if its not present we don't pop up a permission prompt.
+  //
+  // See the comment in
+  // StoragePartitionImpl::OnLocalNetworkAccessPermissionRequired for
+  // Context::kServiceWorker for more context.
+  EXPECT_EQ("TypeError: Failed to fetch",
+            content::EvalJs(web_contents(),
+                            content::JsReplace(script_template, fetch_url)));
+}
+
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       ServiceWorkerDenyPermission) {
+  // Use enterprise policy to block LNA requests
+  policy::PolicyMap policies;
+  base::Value::List blocklist;
+  blocklist.Append(base::Value("*"));
+  SetPolicy(&policies, policy::key::kLocalNetworkAccessBlockedForUrls,
+            base::Value(std::move(blocklist)));
+  UpdateProviderPolicy(policies);
+  ASSERT_TRUE(content::NavigateToURL(
+      web_contents(), https_server().GetURL("a.com", kServiceWorkerHtmlPath)));
+
+  EXPECT_EQ("ready", content::EvalJs(web_contents(), "setup();"));
+  GURL fetch_url = https_server().GetURL("b.com", kLnaPath);
+  std::string_view script_template = "fetch_from_service_worker($1);";
+  // Failure to fetch URL.
+  EXPECT_EQ("TypeError: Failed to fetch",
+            content::EvalJs(web_contents(),
+                            content::JsReplace(script_template, fetch_url)));
+}
+
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       ServiceWorkerAllowPermission) {
+  // Use enterprise policy to allow LNA requests
+  policy::PolicyMap policies;
+  base::Value::List allowlist;
+  allowlist.Append(base::Value("*"));
+  SetPolicy(&policies, policy::key::kLocalNetworkAccessAllowedForUrls,
+            base::Value(std::move(allowlist)));
+  UpdateProviderPolicy(policies);
+  ASSERT_TRUE(content::NavigateToURL(
+      web_contents(), https_server().GetURL("a.com", kServiceWorkerHtmlPath)));
+
+  EXPECT_EQ("ready", content::EvalJs(web_contents(), "setup();"));
+  GURL fetch_url = https_server().GetURL("b.com", kLnaPath);
+  std::string_view script_template = "fetch_from_service_worker($1);";
+  // Fetched URL
+  EXPECT_EQ("Access-Control-Allow-Origin: *",
+            content::EvalJs(web_contents(),
+                            content::JsReplace(script_template, fetch_url)));
+}
+
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       SharedWorkerDenyPermission) {
+  ASSERT_TRUE(content::NavigateToURL(
+      web_contents(), https_server().GetURL("a.com", kSharedWorkerHtmlPath)));
+
+  // Enable auto-deny of LNA permission request.
+  bubble_factory()->set_response_type(
+      permissions::PermissionRequestManager::AutoResponseType::DENY_ALL);
+
+  GURL fetch_url = https_server().GetURL("b.com", kLnaPath);
+  std::string_view script_template = "fetch_from_shared_worker($1);";
+  // Failure to fetch URL
+  EXPECT_EQ("TypeError: Failed to fetch",
+            content::EvalJs(web_contents(),
+                            content::JsReplace(script_template, fetch_url)));
+  CheckCounter(WebFeature::kPrivateNetworkAccessWithinWorker, 1);
+  CheckCounter(WebFeature::kLocalNetworkAccessWithinSharedWorker, 1);
+}
+
+// Known to not work. See crbug.com/434744665.
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       SharedWorkerAcceptPermissionDoesNotWork) {
+  policy::PolicyMap policies;
+  base::Value::List allowlist;
+  allowlist.Append(base::Value("*"));
+  SetPolicy(&policies, policy::key::kLocalNetworkAccessAllowedForUrls,
+            base::Value(std::move(allowlist)));
+  UpdateProviderPolicy(policies);
+  ASSERT_TRUE(content::NavigateToURL(
+      web_contents(), https_server().GetURL("a.com", kSharedWorkerHtmlPath)));
+
+  // Enable auto-deny of LNA permission request.
+  bubble_factory()->set_response_type(
+      permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
+
+  GURL fetch_url = https_server().GetURL("b.com", kLnaPath);
+  std::string_view script_template = "fetch_from_shared_worker($1);";
+  // Failure to fetch URL
+  EXPECT_EQ("TypeError: Failed to fetch",
+            content::EvalJs(web_contents(),
+                            content::JsReplace(script_template, fetch_url)));
+  CheckCounter(WebFeature::kPrivateNetworkAccessWithinWorker, 1);
+  CheckCounter(WebFeature::kLocalNetworkAccessWithinSharedWorker, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
@@ -272,13 +405,8 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
           "a.com",
           "/private_network_access/no-favicon-treat-as-public-address.html")));
 
-  permissions::PermissionRequestManager* manager =
-      permissions::PermissionRequestManager::FromWebContents(web_contents());
-  std::unique_ptr<permissions::MockPermissionPromptFactory> bubble_factory =
-      std::make_unique<permissions::MockPermissionPromptFactory>(manager);
-
   // Enable auto-denial of LNA permission request.
-  bubble_factory->set_response_type(
+  bubble_factory()->set_response_type(
       permissions::PermissionRequestManager::AutoResponseType::DENY_ALL);
 
   // Expect LNA fetch to fail.
@@ -374,14 +502,9 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
           "a.com",
           "/private_network_access/no-favicon-treat-as-public-address.html")));
 
-  permissions::PermissionRequestManager* manager =
-      permissions::PermissionRequestManager::FromWebContents(web_contents());
-  std::unique_ptr<permissions::MockPermissionPromptFactory> bubble_factory =
-      std::make_unique<permissions::MockPermissionPromptFactory>(manager);
-
   // Enable auto-accept of LNA permission request, although it should not be
   // checked.
-  bubble_factory->set_response_type(
+  bubble_factory()->set_response_type(
       permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
 
   // LNA fetch should fail.
@@ -401,7 +524,6 @@ class LocalNetworkAccessBrowserHttpCommandLineOverrideTest
   void SetUpCommandLine(base::CommandLine* command_line) final {
     LocalNetworkAccessBrowserTest::SetUpCommandLine(command_line);
 
-    ASSERT_TRUE(embedded_test_server()->Start());
     command_line->AppendSwitchASCII(
         network::switches::kUnsafelyTreatInsecureOriginAsSecure,
         embedded_test_server()->GetURL("a.com", "/").spec());
@@ -440,8 +562,6 @@ class LocalNetworkAccessBrowserHttpPolicyOverrideTest
   void SetUpInProcessBrowserTestFixture() override {
     LocalNetworkAccessBrowserTest::SetUpInProcessBrowserTestFixture();
 
-    ASSERT_TRUE(embedded_test_server()->Start());
-
     policy::PolicyMap policies;
     base::Value::List secureList;
     secureList.Append(
@@ -471,4 +591,130 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserHttpPolicyOverrideTest,
                 web_contents(),
                 content::JsReplace("fetch($1).then(response => response.ok)",
                                    https_server().GetURL("b.com", kLnaPath))));
+}
+
+// *****************************
+// * Deprecation trial testing *
+// *****************************
+
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       RecordUseCounterForDeprecationTrialEnabled) {
+  content::DeprecationTrialURLLoaderInterceptor interceptor;
+  WebFeatureHistogramTester feature_histogram_tester;
+
+  // Deprecation trial allows LNA on non-secure contexts (with permission
+  // grant).
+  ASSERT_TRUE(
+      content::NavigateToURL(web_contents(), interceptor.EnabledHttpUrl()));
+  EXPECT_EQ(feature_histogram_tester.GetCount(
+                WebFeature::
+                    kLocalNetworkAccessNonSecureContextAllowedDeprecationTrial),
+            1);
+
+  // Deprecation trial has no impact on secure contexts.
+  ASSERT_TRUE(
+      content::NavigateToURL(web_contents(), interceptor.EnabledHttpsUrl()));
+  EXPECT_EQ(feature_histogram_tester.GetCount(
+                WebFeature::
+                    kLocalNetworkAccessNonSecureContextAllowedDeprecationTrial),
+            1);
+}
+
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       RecordUseCounterForDeprecationTrialDisabled) {
+  content::DeprecationTrialURLLoaderInterceptor interceptor;
+  WebFeatureHistogramTester feature_histogram_tester;
+
+  ASSERT_TRUE(
+      content::NavigateToURL(web_contents(), interceptor.DisabledHttpUrl()));
+  ASSERT_TRUE(
+      content::NavigateToURL(web_contents(), interceptor.DisabledHttpsUrl()));
+
+  EXPECT_EQ(feature_histogram_tester.GetCount(
+                WebFeature::
+                    kLocalNetworkAccessNonSecureContextAllowedDeprecationTrial),
+            0);
+}
+
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       DeprecationTrialAllowsForLNAOnNonSecureSite) {
+  content::DeprecationTrialURLLoaderInterceptor interceptor;
+  WebFeatureHistogramTester feature_histogram_tester;
+
+  // Deprecation trial allows LNA on non-secure contexts (with permission
+  // grant).
+  ASSERT_TRUE(
+      content::NavigateToURL(web_contents(), interceptor.EnabledHttpUrl()));
+  EXPECT_EQ(feature_histogram_tester.GetCount(
+                WebFeature::
+                    kLocalNetworkAccessNonSecureContextAllowedDeprecationTrial),
+            1);
+
+  // Enable auto-accept of LNA permission request
+  bubble_factory()->set_response_type(
+      permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
+
+  // LNA fetch should pass.
+  ASSERT_EQ(true,
+            content::EvalJs(
+                web_contents(),
+                content::JsReplace("fetch($1).then(response => response.ok)",
+                                   https_server().GetURL("b.com", kLnaPath))));
+}
+
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, DeprecationTrialIframe) {
+  content::DeprecationTrialURLLoaderInterceptor interceptor;
+  WebFeatureHistogramTester feature_histogram_tester;
+
+  // Deprecation trial allows LNA on non-secure contexts (with permission
+  // grant).
+  ASSERT_TRUE(
+      content::NavigateToURL(web_contents(), interceptor.EnabledHttpUrl()));
+  EXPECT_EQ(feature_histogram_tester.GetCount(
+                WebFeature::
+                    kLocalNetworkAccessNonSecureContextAllowedDeprecationTrial),
+            1);
+
+  // Enable auto-accept of LNA permission request.
+  bubble_factory()->set_response_type(
+      permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
+
+  GURL iframe_url = https_server().GetURL("b.com", kLnaPath);
+  content::TestNavigationManager nav_manager(web_contents(), iframe_url);
+  std::string_view script_template = R"(
+    const child = document.createElement("iframe");
+    child.src = $1;
+    document.body.appendChild(child);
+  )";
+  EXPECT_THAT(content::EvalJs(web_contents(),
+                              content::JsReplace(script_template, iframe_url)),
+              content::EvalJsResult::IsOk());
+  ASSERT_TRUE(nav_manager.WaitForNavigationFinished());
+
+  // Check that the child iframe was successfully fetched.
+  EXPECT_TRUE(nav_manager.was_successful());
+}
+
+IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
+                       DeprecationTrialDedicatedWorker) {
+  content::DeprecationTrialURLLoaderInterceptor interceptor;
+  WebFeatureHistogramTester feature_histogram_tester;
+
+  ASSERT_TRUE(content::NavigateToURL(web_contents(),
+                                     interceptor.EnabledHttpWorkerUrl()));
+  EXPECT_EQ(feature_histogram_tester.GetCount(
+                WebFeature::
+                    kLocalNetworkAccessNonSecureContextAllowedDeprecationTrial),
+            1);
+
+  // Enable auto-accept of LNA permission request.
+  bubble_factory()->set_response_type(
+      permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
+
+  GURL fetch_url = https_server().GetURL("b.com", kLnaPath);
+  std::string_view script_template = "fetch_from_worker($1);";
+  // URL fetched, body is just the header that's set.
+  EXPECT_EQ("Access-Control-Allow-Origin: *",
+            content::EvalJs(web_contents(),
+                            content::JsReplace(script_template, fetch_url)));
 }

@@ -38,6 +38,8 @@ source_set("permissions") {
     "permission_manager_factory.h",
     "permission_revocation_request.cc",
     "permission_revocation_request.h",
+    "prediction_service/language_detection_observer.cc",
+    "prediction_service/language_detection_observer.h",
     "prediction_service/permissions_aiv1_handler.cc",
     "prediction_service/permissions_aiv1_handler.h",
     "prediction_service/prediction_based_permission_ui_selector.cc",
@@ -66,20 +68,21 @@ source_set("permissions") {
   deps = [
     ":permissions_proto",
     "//chrome/browser:browser_process",
-    "//chrome/browser/content_extraction:content_extraction",
+    "//chrome/browser/content_extraction",
     "//chrome/browser/content_settings:content_settings_factory",
     "//chrome/browser/favicon",
     "//chrome/browser/optimization_guide",
     "//chrome/browser/profiles",
+    "//chrome/browser/profiles",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/profiles:profiles",
     "//chrome/browser/safe_browsing",
     "//chrome/browser/search_engines",
     "//chrome/browser/serial",
     "//chrome/browser/storage_access_api",
     "//chrome/browser/top_level_storage_access_api:permissions",
+    "//chrome/browser/translate",
     "//chrome/browser/ui/hats",
-    "//chrome/browser/ui/page_info:page_info",
+    "//chrome/browser/ui/page_info",
     "//chrome/common",
     "//chrome/common:chrome_features",
     "//chrome/common:constants",
@@ -91,6 +94,7 @@ source_set("permissions") {
     "//components/google/core/common",
     "//components/infobars/content",
     "//components/keyed_service/content",
+    "//components/language_detection/core",
     "//components/optimization_guide/core",
     "//components/optimization_guide/proto:optimization_guide_proto",
     "//components/permissions",
@@ -105,9 +109,9 @@ source_set("permissions") {
     "//components/subresource_filter/content/browser",
     "//components/supervised_user/core/common:features",
     "//components/unified_consent",
-    "//components/vector_icons:vector_icons",
+    "//components/vector_icons",
     "//content/public/browser",
-    "//extensions/buildflags:buildflags",
+    "//extensions/buildflags",
     "//services/device/public/cpp/geolocation",
   ]
 
@@ -162,7 +166,11 @@ source_set("permissions") {
     if (!is_android) {
       deps += [ "//third_party/tflite_support" ]
     }
-    deps += [ "//components/segmentation_platform/internal:optimization_guide_segmentation_handler" ]
+    deps += [
+      "//chrome/browser/passage_embeddings",
+      "//components/passage_embeddings",
+      "//components/segmentation_platform/internal:optimization_guide_segmentation_handler",
+    ]
   }
 
   if (!is_android) {
@@ -185,12 +193,18 @@ source_set("test_support") {
   testonly = true
 
   sources = [
+    "//chrome/browser/permissions/test/enums_to_string.cc",
+    "//chrome/browser/permissions/test/enums_to_string.h",
+    "//chrome/browser/permissions/test/mock_passage_embedder.cc",
+    "//chrome/browser/permissions/test/mock_passage_embedder.h",
     "system/mock_platform_handle.cc",
     "system/mock_platform_handle.h",
   ]
 
   deps = [
     ":permissions",
+    "//components/passage_embeddings:test_support",
+    "//components/permissions:test_support",
     "//testing/gmock",
   ]
 }
@@ -223,7 +237,7 @@ source_set("unit_tests") {
     "//chrome/browser/search_engines",
     "//chrome/test:test_support",
     "//components/optimization_guide/core:test_support",
-    "//components/permissions/prediction_service:prediction_service",
+    "//components/permissions/prediction_service",
     "//components/site_engagement/content",
     "//components/ukm/content",
     "//components/unified_consent",
@@ -274,6 +288,7 @@ if (!is_android) {
 
     deps = [
       ":permissions",
+      ":test_support",
       "//chrome/browser/content_settings:content_settings_factory",
       "//chrome/browser/media/webrtc",
       "//chrome/browser/optimization_guide",
@@ -283,6 +298,7 @@ if (!is_android) {
       "//chrome/test:test_support",
       "//components/back_forward_cache",
       "//components/optimization_guide/core:test_support",
+      "//components/passage_embeddings:test_support",
     ]
 
     if (is_chromeos) {

@@ -345,7 +345,7 @@ class StyleCascadeTest : public PageTestBase {
         CSSStyleSheet::Create(GetDocument(), init, exception_state);
     sheet->replaceSync(css_text, exception_state);
     sheet->Contents()->EnsureRuleSet(
-        MediaQueryEvaluator(GetDocument().GetFrame()));
+        MediaQueryEvaluator(GetDocument().GetFrame()), /*mixins=*/{});
     return sheet;
   }
 
@@ -365,7 +365,12 @@ class StyleCascadeTest : public PageTestBase {
     GetDocument()
         .GetStyleEngine()
         .GetDocumentStyleSheetCollection()
-        .AppendActiveStyleSheet(active_sheets[0]);
+        .AppendActiveStyleSheet(active_sheets[0].first);
+    GetDocument()
+        .GetStyleEngine()
+        .GetDocumentStyleSheetCollection()
+        .CreateRuleSets(GetDocument().GetStyleEngine(),
+                        MediaQueryEvaluator(GetDocument().GetFrame()));
   }
 
   Element* DocumentElement() const { return GetDocument().documentElement(); }
@@ -567,23 +572,7 @@ TEST_F(StyleCascadeTest, RegisteredPropertyFallback) {
   EXPECT_EQ("10px", cascade.ComputedValue("--x"));
 }
 
-TEST_F(StyleCascadeTest, RegisteredPropertyFallbackValidation) {
-  ScopedCSSTypeAgnosticVarFallbackForTest scoped_feature(false);
-
-  RegisterProperty(GetDocument(), "--x", "<length>", "0px", false);
-
-  TestCascade cascade(GetDocument());
-  cascade.Add("--x", "10px");
-  cascade.Add("--y", "var(--x,red)");  // Fallback must be valid <length>.
-  cascade.Add("--z", "var(--y,pass)");
-  cascade.Apply();
-
-  EXPECT_EQ("pass", cascade.ComputedValue("--z"));
-}
-
 TEST_F(StyleCascadeTest, TypeAgnosticFallback) {
-  ScopedCSSTypeAgnosticVarFallbackForTest scoped_feature(true);
-
   RegisterProperty(GetDocument(), "--x", "<length>", "0px", false);
 
   TestCascade cascade(GetDocument());
@@ -4690,34 +4679,6 @@ TEST_F(StyleCascadeTest, CSSFunctionDoesNotExistInShorthand) {
 
     EXPECT_EQ("rgba(0, 0, 0, 0)", cascade.ComputedValue("background-color"));
   }
-}
-
-TEST_F(StyleCascadeTest, VarFallbackValidationCounter) {
-  ScopedCSSTypeAgnosticVarFallbackForTest scoped_feature(false);
-
-  RegisterProperty(GetDocument(), "--registered", "<length>", "0px",
-                   /*inherited=*/false);
-
-  EXPECT_FALSE(GetDocument().IsUseCounted(WebFeature::kVarFallbackValidation));
-
-  {
-    TestCascade cascade(GetDocument());
-    cascade.Add("--unregistered:green");
-    cascade.Add("color:var(--unregistered)");
-    cascade.Add("top:var(--unregistered, 100px)");
-    cascade.Add("right:var(--unregistered, auto)");
-    cascade.Add("bottom:var(--registered)");
-    cascade.Add("left:var(--registered, 100px)");
-    cascade.Apply();
-  }
-  EXPECT_FALSE(GetDocument().IsUseCounted(WebFeature::kVarFallbackValidation));
-
-  {
-    TestCascade cascade(GetDocument());
-    cascade.Add("left:var(--registered, green)");
-    cascade.Apply();
-  }
-  EXPECT_TRUE(GetDocument().IsUseCounted(WebFeature::kVarFallbackValidation));
 }
 
 }  // namespace blink

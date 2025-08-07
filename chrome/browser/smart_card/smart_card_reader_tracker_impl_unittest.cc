@@ -250,6 +250,10 @@ TEST_F(SmartCardReaderTrackerImplTest, CreateContextError) {
   OptionalReaderList readers = start_future.Take();
   // This is treated as an error, no value should appear.
   ASSERT_FALSE(readers.has_value());
+  // Here RunUntilIdle is essential - to wait for WaitContext destruction
+  // scheduled by ChangeState through SequencedTaskRunner::DeleteSoon. Without
+  // it, a memory leak will occur on test end.
+  task_environment_.RunUntilIdle();
 }
 
 TEST_F(SmartCardReaderTrackerImplTest, ListReadersError) {

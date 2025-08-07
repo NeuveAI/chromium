@@ -48,6 +48,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features_generated.h"
+#include "third_party/blink/public/mojom/use_counter/metrics/webdx_feature.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/codec/png_codec.h"
@@ -205,6 +206,9 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
   histograms.ExpectUniqueSample("WebApp.LaunchSource", kLaunchSource, 1);
   histograms.ExpectUniqueSample("WebApp.NewCraftedAppInstalled.ByUser",
                                 /*sample=*/true, 1);
+  histograms.ExpectBucketCount("Blink.UseCounter.WebDXFeatures",
+                               blink::mojom::WebDXFeature::kDRAFT_WebInstallAPI,
+                               1);
 
   EXPECT_THAT(histograms,
               test::ForAllGetAllSamples(
@@ -241,6 +245,9 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
   histograms.ExpectUniqueSample("WebApp.LaunchSource", kLaunchSource, 1);
   histograms.ExpectUniqueSample("WebApp.NewCraftedAppInstalled.ByUser",
                                 /*sample=*/true, 1);
+  histograms.ExpectBucketCount("Blink.UseCounter.WebDXFeatures",
+                               blink::mojom::WebDXFeature::kDRAFT_WebInstallAPI,
+                               1);
 
   EXPECT_THAT(histograms,
               test::ForAllGetAllSamples(
@@ -416,9 +423,50 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
   EXPECT_EQ(GetErrorName(), kAbortError);
 }
 
+IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
+                       InstallApp_CurrentDocument_SkipsPermissionCheck) {
+  GURL current_doc_url =
+      https_server()->GetURL("/banners/manifest_with_id_test_page.html");
+  const std::string manifest_id =
+      GenerateManifestId("some_id", current_doc_url).spec();
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), current_doc_url));
+
+  base::HistogramTester histograms;
+  auto auto_accept_pwa_install_confirmation =
+      SetAutoAcceptPWAInstallConfirmationForTesting();
+  // No permission should be required.
+  SetPermissionResponse(/*permission_granted=*/false);
+
+  ASSERT_TRUE(TryInstallApp(current_doc_url.spec(), manifest_id));
+
+  EXPECT_TRUE(ResultExists());
+  EXPECT_FALSE(ErrorExists());
+
+  histograms.ExpectUniqueSample("WebApp.Install.Source.Success", kInstallSource,
+                                1);
+  histograms.ExpectUniqueSample("WebApp.LaunchSource", kLaunchSource, 1);
+  histograms.ExpectUniqueSample("WebApp.NewCraftedAppInstalled.ByUser",
+                                /*sample=*/true, 1);
+
+  EXPECT_THAT(histograms,
+              test::ForAllGetAllSamples(
+                  test::GetInstallCommandResultHistogramNames(
+                      ".WebInstallFromUrl", ".Crafted"),
+                  base::BucketsAre(base::Bucket(
+                      webapps::InstallResultCode::kSuccessNewInstall, 1))));
+  EXPECT_THAT(histograms,
+              test::ForAllGetAllSamples(
+                  test::GetInstallCommandSourceHistogramNames(
+                      ".WebInstallFromUrl", ".Crafted"),
+                  base::BucketsAre(base::Bucket(
+                      webapps::WebappInstallSource::WEB_INSTALL, 1))));
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // Collection of tests for calling `navigator.install(already_installed_url)`.
 // In these cases we show the `WebAppLaunchDialog` to allow the user to launch
 // or not.
+///////////////////////////////////////////////////////////////////////////////
 using WebInstallBackgroundAppAlreadyInstalledBrowserTest =
     WebInstallFromUrlCommandBrowserTest;
 

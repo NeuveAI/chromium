@@ -46,6 +46,7 @@ source_set("core") {
 
   public_deps = [
     ":constants",
+    "//components/download/public/common:public",
     "//components/enterprise/common/proto:connectors_proto",
   ]
 
@@ -81,6 +82,14 @@ source_set("core") {
   if (enterprise_client_certificates) {
     deps += [ "//components/enterprise/client_certificates/core" ]
   }
+
+  if (enterprise_data_controls) {
+    deps += [ "//components/enterprise/data_controls/core/browser" ]
+  }
+
+  # TODO(crbug.com/40031409): Fix code that adds exit-time destructors and
+  # enable the diagnostic by removing this line.
+  configs += [ "//build/config/compiler:no_exit_time_destructors" ]
 }
 
 source_set("constants") {

@@ -229,7 +229,8 @@ class ServiceWorkerIdTrackingBrowserTest
     // completely shutting down the render process (which is another way that
     // eventually removes the worker from `WorkerIdSet`).
     SCOPED_TRACE("Loading extension tab for test extension");
-    NavigateInNewTab(extension_->GetResourceURL("extension_page_tab.html"));
+    NavigateToURLInNewTab(
+        extension_->GetResourceURL("extension_page_tab.html"));
   }
 
   void LoadServiceWorkerExtensionAndOpenExtensionTab() {
@@ -250,16 +251,6 @@ class ServiceWorkerIdTrackingBrowserTest
     return service_workers_for_extension.empty()
                ? std::nullopt
                : std::optional<WorkerId>(service_workers_for_extension[0]);
-  }
-
-  // Navigates the browser to a new tab at `url` and waits for it to load.
-  void NavigateInNewTab(const GURL& url) {
-    ui_test_utils::NavigateToURLWithDisposition(
-        browser(), url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-        ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
-    content::WebContents* web_contents =
-        browser()->tab_strip_model()->GetActiveWebContents();
-    content::WaitForLoadStop(web_contents);
   }
 
   // Starts the worker and waits for the worker to initialize.
@@ -833,8 +824,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerRendererTrackingBrowserTest,
   ASSERT_EQ("0.2", new_extension_version->version().GetString());
 
   // Double-confirm that after our wait the renderer hasn't crashed.
-  content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+  content::WebContents* web_contents = GetActiveWebContents();
   ASSERT_TRUE(web_contents);
   EXPECT_FALSE(web_contents->IsCrashed());
 }

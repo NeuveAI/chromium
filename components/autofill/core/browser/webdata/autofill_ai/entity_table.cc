@@ -366,16 +366,40 @@ EntityTable::LoadAttributes() const {
                 {attributes::kEntityGuid, attributes::kAttributeType,
                  attributes::kFieldType, attributes::kValueEncrypted,
                  attributes::kVerificationStatus});
+
+  // LINT.IfChange(DecryptionStatus)
+  enum class DecryptionStatus {
+    // Decryption was successful.
+    kSuccess = 0,
+    // Temporary error (e.g. The decryption system was not available).
+    kTemporaryFailure = 1,
+    // The decryption key was lost or the data to be decrypted was corrupt.
+    kPermanentFailure = 2,
+    kMaxValue = kPermanentFailure,
+  };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/autofill/enums.xml:AutofillAiDecryptStatus)
+
   while (s.Step()) {
     base::Uuid entity_guid = base::Uuid::ParseLowercase(s.ColumnStringView(0));
     std::string attribute_type_name = s.ColumnString(1);
     std::underlying_type_t<FieldType> underlying_field_type = s.ColumnInt(2);
     std::u16string decrypted_value;
-    if (!encryptor()->DecryptString16(s.ColumnString(3), &decrypted_value)) {
-      base::UmaHistogramBoolean("Autofill.Ai.EntityTable.DecryptStatus", false);
+    os_crypt_async::Encryptor::DecryptFlags flag;
+    bool decryption_result = encryptor()->DecryptString16(
+        s.ColumnString(3), &decrypted_value, &flag);
+    base::UmaHistogramBoolean("Autofill.Ai.EntityTable.DecryptStatus",
+                              decryption_result);
+    DecryptionStatus decryption_status = DecryptionStatus::kSuccess;
+    if (!decryption_result) {
+      decryption_status = flag.temporarily_unavailable
+                              ? DecryptionStatus::kTemporaryFailure
+                              : DecryptionStatus::kPermanentFailure;
+    }
+    base::UmaHistogramEnumeration("Autofill.Ai.EntityTable.DecryptStatus2",
+                                  decryption_status);
+    if (!decryption_result) {
       continue;
     }
-    base::UmaHistogramBoolean("Autofill.Ai.EntityTable.DecryptStatus", true);
     std::underlying_type_t<VerificationStatus> underlying_verification_status =
         s.ColumnInt(4);
     attribute_records[std::move(entity_guid)][std::move(attribute_type_name)]
@@ -439,8 +463,8 @@ std::optional<EntityInstance> EntityTable::ValidateInstance(
     const {
   // An attribute's field type must never be UNKNOWN_TYPE - otherwise we will
   // discard its value here.
-  static_assert(!DenseSet<FieldType>(DenseSet<AttributeType>::all(),
-                                     &AttributeType::field_type_with_tag_types)
+  static_assert(!FieldTypeSet(DenseSet<AttributeType>::all(),
+                              &AttributeType::field_type_with_tag_types)
                      .contains(UNKNOWN_TYPE));
 
   std::optional<EntityType> entity_type =

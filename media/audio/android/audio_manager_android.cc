@@ -20,6 +20,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/to_string.h"
+#include "base/system/system_monitor.h"
 #include "media/audio/android/aaudio_bluetooth_output.h"
 #include "media/audio/android/aaudio_input.h"
 #include "media/audio/android/aaudio_output.h"
@@ -61,10 +62,14 @@ namespace media {
 namespace {
 
 // Maximum number of output streams that can be open simultaneously.
-const int kMaxOutputStreams = 10;
+constexpr int kMaxOutputStreams = 10;
 
-const int kDefaultInputBufferSize = 1024;
-const int kDefaultOutputBufferSize = 2048;
+constexpr int kDefaultInputBufferSize = 1024;
+constexpr int kDefaultOutputBufferSize = 2048;
+// Randomly picked up frame size which is close to return value on N4.
+// Return this value when getProperty(PROPERTY_OUTPUT_FRAMES_PER_BUFFER)
+// fails.
+constexpr int kDefaultLowLatencyOutputBufferSize = 256;
 
 class JniDelegateImpl : public AudioManagerAndroid::JniDelegate {
  public:
@@ -78,6 +83,11 @@ class JniDelegateImpl : public AudioManagerAndroid::JniDelegate {
   ~JniDelegateImpl() override {
     Java_AudioManagerAndroid_close(AttachCurrentThread(), j_audio_manager_);
     j_audio_manager_.Reset();
+  }
+
+  void InitDeviceListener() override {
+    Java_AudioManagerAndroid_initDeviceListener(AttachCurrentThread(),
+                                                j_audio_manager_);
   }
 
   std::vector<JniAudioDevice> GetDevices(bool inputs) override {
@@ -317,6 +327,16 @@ bool UseAAudioPerStreamDeviceSelection() {
 }
 
 }  // namespace
+
+// Called by the Java AudioManagerAndroid on the main thread when the system
+// reports a change to the list of available audio devices.
+void JNI_AudioManagerAndroid_OnDevicesChanged(JNIEnv* env) {
+  auto* system_monitor = base::SystemMonitor::Get();
+  if (system_monitor) {
+    // Asynchronous call
+    system_monitor->ProcessDevicesChanged(base::SystemMonitor::DEVTYPE_AUDIO);
+  }
+}
 
 std::unique_ptr<AudioManager> CreateAudioManager(
     std::unique_ptr<AudioThread> audio_thread,
@@ -863,8 +883,7 @@ void AudioManagerAndroid::OnStopAAudioInputStream(AAudioInputStream* stream) {
   }
 }
 
-void AudioManagerAndroid::SetMute(JNIEnv* env,
-                                  jboolean muted) {
+void AudioManagerAndroid::SetMute(JNIEnv* env, jboolean muted) {
   GetTaskRunner()->PostTask(
       FROM_HERE, base::BindOnce(&AudioManagerAndroid::DoSetMuteOnAudioThread,
                                 base::Unretained(this), muted));
@@ -959,16 +978,40 @@ AudioManagerAndroid::JniDelegate& AudioManagerAndroid::GetJniDelegate() {
     // Create the JNI delegate on the audio thread; prepare the list of audio
     // devices and register receivers for device notifications.
     jni_delegate_ = std::make_unique<JniDelegateImpl>(this);
+
+    // This feature is checked for on the native side in order to avoid build
+    // dependency conflicts when using the Java ChromeFeatureList.
+    if (base::FeatureList::IsEnabled(features::kAndroidAudioDeviceListener)) {
+      jni_delegate_->InitDeviceListener();
+    }
   }
   return *jni_delegate_;
 }
 
 int AudioManagerAndroid::GetOptimalOutputFrameSize(int sample_rate,
                                                    int channels) {
-  if (GetJniDelegate().IsAudioLowLatencySupported()) {
-    return GetJniDelegate().GetAudioLowLatencyOutputFrameSize();
+  if (base::FeatureList::IsEnabled(
+          features::kAlwaysUseAudioManagerOutputFramesPerBuffer)) {
+    int buffer_size = GetJniDelegate().GetAudioLowLatencyOutputFrameSize();
+    // Use AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER value if Android
+    // supports it.
+    if (buffer_size) {
+      return buffer_size;
+    }
+    // Use small buffer size for low latency audio devices as a fallback.
+    if (GetJniDelegate().IsAudioLowLatencySupported()) {
+      return kDefaultLowLatencyOutputBufferSize;
+    }
+  } else if (GetJniDelegate().IsAudioLowLatencySupported()) {
+    int buffer_size = GetJniDelegate().GetAudioLowLatencyOutputFrameSize();
+    if (buffer_size == 0) {
+      buffer_size = kDefaultLowLatencyOutputBufferSize;
+    }
+    return buffer_size;
   }
 
+  // Use 2048 frames or bigger buffer size for non-low latency audio devices to
+  // be conservative.
   return std::max(
       kDefaultOutputBufferSize,
       GetJniDelegate().GetMinOutputFrameSize(sample_rate, channels));

@@ -53,6 +53,7 @@
 #include "services/metrics/public/cpp/ukm_source.h"
 #include "services/metrics/public/mojom/ukm_interface.mojom-forward.h"
 #include "testing/gmock/include/gmock/gmock.h"
+#include "third_party/blink/public/common/features.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/login/test/device_state_mixin.h"
@@ -1449,24 +1450,152 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceContentExtractionTest,
       "OptimizationGuide.AIPageContent.TotalLatency", 1);
 }
 
+class PageContentAnnotationsServiceContentExtractionResponseCodeTest
+    : public PageContentAnnotationsServiceContentExtractionTest,
+      public testing::WithParamInterface<bool> {
+ public:
+  void InitializeFeatureList() override {
+    std::vector<base::test::FeatureRefAndParams> enabled_features_with_params =
+        {{features::kAnnotatedPageContentExtraction,
+          {{"capture_delay", "0s"}, {"include_inner_text", "true"}}}};
+    std::vector<base::test::FeatureRef> disabled_features;
+
+    bool are_404_navigations_saved_to_history = GetParam();
+    if (are_404_navigations_saved_to_history) {
+      enabled_features_with_params.push_back(
+          {blink::features::kVisitedLinksOnErrorNavigation, {}});
+    } else {
+      disabled_features.push_back(
+          blink::features::kVisitedLinksOnErrorNavigation);
+    }
+
+    scoped_feature_list_.InitWithFeaturesAndParameters(
+        enabled_features_with_params, disabled_features);
+  }
+};
+
+IN_PROC_BROWSER_TEST_P(
+    PageContentAnnotationsServiceContentExtractionResponseCodeTest,
+    SameDocumentNonErrorNavigation) {
+  base::HistogramTester histogram_tester;
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
+  base::test::TestFuture<void> future;
+  ukm_recorder.SetOnAddEntryCallback(
+      ukm::builders::OptimizationGuide_AnnotatedPageContent::kEntryName,
+      future.GetRepeatingCallback());
+
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  GURL initial_url(embedded_test_server()->GetURL("a.test", "/links.html"));
+  content::NavigateToURLBlockUntilNavigationsComplete(web_contents, initial_url,
+                                                      1);
+  GURL same_doc_url(
+      embedded_test_server()->GetURL("a.test", "/links.html#ref"));
+  content::NavigationHandleCommitObserver handle_observer(web_contents,
+                                                          same_doc_url);
+  ASSERT_TRUE(NavigateToURL(web_contents, same_doc_url));
+  ASSERT_TRUE(handle_observer.has_committed());
+  ASSERT_TRUE(handle_observer.was_same_document());
+
+  // We should treat same-document navigations as having the same status code
+  // as the navigation that brought us to the current document. For non-error
+  // navigations, that means extracting page content.
+  EXPECT_TRUE(future.Wait());
+  auto entries = ukm_recorder.GetEntriesByName(
+      ukm::builders::OptimizationGuide_AnnotatedPageContent::kEntryName);
+  EXPECT_EQ(1u, entries.size());
+  auto* entry = entries[0].get();
+  EXPECT_EQ(11,
+            *ukm_recorder.GetEntryMetric(
+                entry, ukm::builders::OptimizationGuide_AnnotatedPageContent::
+                           kWordsCountName));
+  EXPECT_EQ(7,
+            *ukm_recorder.GetEntryMetric(
+                entry, ukm::builders::OptimizationGuide_AnnotatedPageContent::
+                           kNodeCountName));
+  EXPECT_LT(0,
+            *ukm_recorder.GetEntryMetric(
+                entry, ukm::builders::OptimizationGuide_AnnotatedPageContent::
+                           kTotalSizeName));
+  EXPECT_TRUE(ukm_recorder.GetEntryMetric(
+      entry, ukm::builders::OptimizationGuide_AnnotatedPageContent::
+                 kExtractionLatencyName));
+}
+
+IN_PROC_BROWSER_TEST_P(
+    PageContentAnnotationsServiceContentExtractionResponseCodeTest,
+    SameDocument404Navigation) {
+  base::HistogramTester histogram_tester;
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
+
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  GURL initial_url(embedded_test_server()->GetURL("a.test", "/page404.html"));
+  content::NavigateToURLBlockUntilNavigationsComplete(web_contents, initial_url,
+                                                      1);
+  GURL same_doc_url(
+      embedded_test_server()->GetURL("a.test", "/page404.html#fragment"));
+  content::NavigationHandleCommitObserver handle_observer(web_contents,
+                                                          same_doc_url);
+  ASSERT_TRUE(NavigateToURL(web_contents, same_doc_url));
+  ASSERT_TRUE(handle_observer.has_committed());
+  ASSERT_TRUE(handle_observer.was_same_document());
+
+  // Since we later are expecting a negative, we first need to wait for any
+  // posted tasks to complete to ensure we're not `EXPECT`ing too early. We set
+  // `features::kAnnotatedPageContentExtraction::capture_delay` to 0 seconds in
+  // the test setup, so a small time delta should ensure our task is queued
+  // behind any scheduled content extraction requests. This pattern isn't ideal,
+  // but since we don't have access to `TaskEnvironment` and we can't pass a
+  // callback, it's the best we can do.
+  base::RunLoop ui_thread_delayed_task_loop;
+  content::GetUIThreadTaskRunner()->PostDelayedTask(
+      FROM_HERE,
+      base::BindLambdaForTesting([&]() { ui_thread_delayed_task_loop.Quit(); }),
+      base::Milliseconds(10));
+  ui_thread_delayed_task_loop.Run();
+
+  // 404 navigations should be ignored by OptimizationGuide, and we should treat
+  // same-document navigations as having the same status code as the navigation
+  // that brought us to the current document, so we should *not* trigger a page
+  // content extraction from this navigation.
+  histogram_tester.ExpectTotalCount(
+      "OptimizationGuide.AnnotatedPageContent.TotalSize2", 0);
+  histogram_tester.ExpectTotalCount(
+      "OptimizationGuide.AnnotatedPageContent.TotalWordCount", 0);
+  histogram_tester.ExpectTotalCount(
+      "OptimizationGuide.AnnotatedPageContent.TotalNodeCount", 0);
+  histogram_tester.ExpectTotalCount(
+      "OptimizationGuide.AnnotatedPageContent.ComputeMetricsLatency", 0);
+
+  histogram_tester.ExpectTotalCount("OptimizationGuide.InnerText.TotalSize2",
+                                    0);
+
+  auto entries = ukm_recorder.GetEntriesByName(
+      ukm::builders::OptimizationGuide_AnnotatedPageContent::kEntryName);
+  EXPECT_THAT(entries, testing::IsEmpty());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    PageContentAnnotationsServiceContentExtractionResponseCodeTest,
+    ::testing::Bool());
+
 class PageContentAnnotationsServiceContentExtractionPdfTest
     : public PageContentAnnotationsServiceContentExtractionTest {
  public:
   void InitializeFeatureList() override {
+    const char* capture_delay = "5s";
+#if defined(MEMORY_SANITIZER) || defined(ADDRESS_SANITIZER) || !defined(NDEBUG)
+    capture_delay = "10s";
+#endif // defined(MEMORY_SANITIZER) || defined(ADDRESS_SANITIZER) || !defined(NDEBUG)
     scoped_feature_list_.InitAndEnableFeatureWithParameters(
-        features::kAnnotatedPageContentExtraction, {{"capture_delay", "4s"}});
+        features::kAnnotatedPageContentExtraction, {{"capture_delay", capture_delay}});
   }
 };
 
-// TODO(crbug.com/410068541): Test is slow for debug/sanitized builds.
-// Reenable once timeouts are fixed.
-#if defined(MEMORY_SANITIZER) || defined(ADDRESS_SANITIZER) || !defined(NDEBUG)
-#define MAYBE_PdfPageCount DISABLED_PdfPageCount
-#else
-#define MAYBE_PdfPageCount PdfPageCount
-#endif
 IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceContentExtractionPdfTest,
-                       MAYBE_PdfPageCount) {
+                       PdfPageCount) {
   ukm::TestAutoSetUkmRecorder ukm_recorder;
   base::test::TestFuture<void> future;
   ukm_recorder.SetOnAddEntryCallback(
@@ -1486,15 +1615,8 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceContentExtractionPdfTest,
                               kPdfPageCountName));
 }
 
-// TODO(crbug.com/410068541): Test is slow for debug/sanitized builds.
-// Reenable once timeouts are fixed.
-#if defined(MEMORY_SANITIZER) || defined(ADDRESS_SANITIZER) || !defined(NDEBUG)
-#define MAYBE_TwoPdfPageLoads DISABLED_TwoPdfPageLoads
-#else
-#define MAYBE_TwoPdfPageLoads TwoPdfPageLoads
-#endif
 IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceContentExtractionPdfTest,
-                       MAYBE_TwoPdfPageLoads) {
+                       TwoPdfPageLoads) {
   ukm::TestAutoSetUkmRecorder ukm_recorder;
   base::test::TestFuture<void> future;
   ukm_recorder.SetOnAddEntryCallback(

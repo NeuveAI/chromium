@@ -14,6 +14,7 @@
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/functional/callback.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/notimplemented.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "services/on_device_model/android/on_device_model_bridge.h"
@@ -21,47 +22,22 @@
 #include "services/on_device_model/public/mojom/on_device_model.mojom.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().
-#include "services/on_device_model/android/jni_headers/AiCoreSession_jni.h"
-#include "services/on_device_model/android/jni_headers/InputPiece_jni.h"
+#include "services/on_device_model/android/jni_headers/AiCoreSessionWrapper_jni.h"
+#include "services/on_device_model/android/jni_headers/GenerateOptionsHelper_jni.h"
+#include "services/on_device_model/android/jni_headers/InputPieceHelper_jni.h"
 
 namespace on_device_model {
 
-namespace {
+BackendSessionImplAndroid::BackendSessionImplAndroid(
+    optimization_guide::proto::ModelExecutionFeature feature,
+    on_device_model::mojom::SessionParamsPtr params)
+    : java_session_(
+          OnDeviceModelBridge::CreateSession(feature, std::move(params))) {}
 
-base::android::ScopedJavaLocalRef<jobject> ToJavaInputPiece(
-    JNIEnv* env,
-    const ml::InputPiece& input) {
-  if (std::holds_alternative<std::string>(input)) {
-    return Java_InputPiece_createText(env,
-                                      base::android::ConvertUTF8ToJavaString(
-                                          env, std::get<std::string>(input)));
-  } else if (std::holds_alternative<ml::Token>(input)) {
-    return Java_InputPiece_createToken(
-        env, static_cast<int>(std::get<ml::Token>(input)));
-  }
-  // TODO(crbug.com/425408635): Support bitmap and audio.
-  NOTREACHED();
+BackendSessionImplAndroid::~BackendSessionImplAndroid() {
+  JNIEnv* env = base::android::AttachCurrentThread();
+  Java_AiCoreSessionWrapper_onNativeDestroyed(env, java_session_);
 }
-
-base::android::ScopedJavaLocalRef<jobjectArray> ToJavaInputPieceArray(
-    JNIEnv* env,
-    const std::vector<ml::InputPiece>& inputs) {
-  std::vector<base::android::ScopedJavaLocalRef<jobject>> java_inputs(
-      inputs.size());
-  std::transform(inputs.begin(), inputs.end(), java_inputs.begin(),
-                 [&](const ml::InputPiece& input) {
-                   return ToJavaInputPiece(env, input);
-                 });
-  return base::android::ToTypedJavaArrayOfObjects(
-      env, java_inputs, org_chromium_on_1device_1model_InputPiece_clazz(env));
-}
-
-}  // namespace
-
-BackendSessionImplAndroid::BackendSessionImplAndroid()
-    : java_session_(OnDeviceModelBridge::CreateSession()) {}
-
-BackendSessionImplAndroid::~BackendSessionImplAndroid() = default;
 
 void BackendSessionImplAndroid::Append(
     on_device_model::mojom::AppendOptionsPtr options,
@@ -82,9 +58,31 @@ void BackendSessionImplAndroid::Generate(
   responder_.Bind(std::move(response));
 
   JNIEnv* env = base::android::AttachCurrentThread();
-  Java_AiCoreSession_generate(
+  // There isn't a generic mojo utility for converting c++ mojo struct to java,
+  // so disassemble the struct here and reassemble it in java.
+  // Only passing the parameters that are supported on Android.
+  base::android::ScopedJavaLocalRef<jobject> java_generate_options =
+      Java_GenerateOptionsHelper_create(env, input->max_output_tokens);
+
+  std::vector<base::android::ScopedJavaLocalRef<jobject>> java_inputs;
+  for (const auto& piece : context_input_pieces_) {
+    if (std::holds_alternative<ml::Token>(piece)) {
+      java_inputs.push_back(Java_InputPieceHelper_fromToken(
+          env, static_cast<int>(std::get<ml::Token>(piece))));
+    } else if (std::holds_alternative<std::string>(piece)) {
+      java_inputs.push_back(Java_InputPieceHelper_fromText(
+          env, base::android::ConvertUTF8ToJavaString(
+                   env, std::get<std::string>(piece))));
+    } else {
+      // TODO(crbug.com/425408635): Support image and audio input.
+      NOTREACHED();
+    }
+  }
+
+  Java_AiCoreSessionWrapper_generate(
       env, java_session_, reinterpret_cast<intptr_t>(this),
-      ToJavaInputPieceArray(env, context_input_pieces_));
+      java_generate_options,
+      base::android::ToJavaArrayOfObjects(env, java_inputs));
   std::move(on_complete).Run();
 }
 
@@ -114,22 +112,39 @@ std::unique_ptr<BackendSession> BackendSessionImplAndroid::Clone() {
   return nullptr;
 }
 
+void BackendSessionImplAndroid::AsrStream(
+    on_device_model::mojom::AsrStreamOptionsPtr options,
+    mojo::PendingRemote<on_device_model::mojom::AsrStreamResponder> responder) {
+  NOTIMPLEMENTED();
+}
+
+void BackendSessionImplAndroid::AsrAddAudioChunk(
+    on_device_model::mojom::AudioDataPtr data) {
+  NOTIMPLEMENTED();
+}
+
 void BackendSessionImplAndroid::OnResponse(const std::string& response) {
   auto chunk = on_device_model::mojom::ResponseChunk::New();
   chunk->text = response;
   responder_->OnResponse(std::move(chunk));
 }
 
-void BackendSessionImplAndroid::OnComplete() {
+void BackendSessionImplAndroid::OnComplete(GenerateResult generate_result) {
+  base::UmaHistogramEnumeration("OnDeviceModel.Android.GenerateResult",
+                                generate_result);
   responder_->OnComplete(on_device_model::mojom::ResponseSummary::New());
   responder_.reset();
 }
 
-void JNI_AiCoreSession_OnComplete(JNIEnv* env, jlong backend_session) {
-  reinterpret_cast<BackendSessionImplAndroid*>(backend_session)->OnComplete();
+void JNI_AiCoreSessionWrapper_OnComplete(JNIEnv* env,
+                                         jlong backend_session,
+                                         jint j_generate_result) {
+  reinterpret_cast<BackendSessionImplAndroid*>(backend_session)
+      ->OnComplete(static_cast<BackendSessionImplAndroid::GenerateResult>(
+          j_generate_result));
 }
 
-void JNI_AiCoreSession_OnResponse(
+void JNI_AiCoreSessionWrapper_OnResponse(
     JNIEnv* env,
     jlong backend_session,
     const jni_zero::JavaParamRef<jstring>& j_response) {

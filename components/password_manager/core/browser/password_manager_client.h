@@ -217,9 +217,7 @@ class PasswordManagerClient {
       password_manager::PasswordStoreBackendErrorType error_type);
 
   // Instructs the client to show a keyboard replacing surface UI (e.g.
-  // TouchToFill). `shown_cb` will be invoked with whether the view was shown.
-  // TODO(crbug.com/341322405): Make this synchronous again once the account
-  // storage notice is gone.
+  // TouchToFill).
   virtual void ShowKeyboardReplacingSurface(
       PasswordManagerDriver* driver,
       const autofill::PasswordSuggestionRequest& request);
@@ -510,10 +508,6 @@ class PasswordManagerClient {
   // Causes a navigation to the manage passwords page.
   virtual void NavigateToManagePasswordsPage(ManagePasswordsReferrer referrer) {
   }
-
-  // If PasswordChangeService exists, notifies it of presence of OTP field on
-  // the page.
-  virtual void InformPasswordChangeServiceOfOtpPresent() {}
 
 #if BUILDFLAG(IS_ANDROID)
   virtual void NavigateToManagePasskeysPage(ManagePasswordsReferrer referrer) {}

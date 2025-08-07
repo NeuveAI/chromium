@@ -195,6 +195,11 @@ AppLaunchConfiguration SharedTabGroupAppLaunchConfiguration(
   // Create a tab group with an item at 0.
   CreateTabGroupAtIndex(0, kGroup1Name);
 
+  // On iOS26 the grey_longPress action doesn't return an error for EarlGrey,
+  // but the tab group doesn't open accordingly. Waiting has been seen as fixing
+  // this.
+  base::PlatformThread::Sleep(base::Seconds(1));
+
   // Share the first group.
   LongPressTabGroupCellAtIndex(0);
   [[EarlGrey selectElementWithMatcher:ShareGroupButton()]

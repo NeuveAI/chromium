@@ -11,6 +11,7 @@
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
+#import "base/strings/sys_string_conversions.h"
 #import "base/time/time.h"
 #import "components/feature_engagement/public/event_constants.h"
 #import "components/feature_engagement/public/tracker.h"
@@ -33,11 +34,13 @@
 #import "ios/chrome/browser/discover_feed/model/discover_feed_service.h"
 #import "ios/chrome/browser/discover_feed/model/discover_feed_service_factory.h"
 #import "ios/chrome/browser/discover_feed/model/discover_feed_visibility_browser_agent.h"
+#import "ios/chrome/browser/home_customization/model/framing_coordinates.h"
 #import "ios/chrome/browser/home_customization/model/home_background_customization_service.h"
 #import "ios/chrome/browser/home_customization/model/home_background_customization_service_observer_bridge.h"
 #import "ios/chrome/browser/metrics/model/new_tab_page_uma.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_state.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_tab_helper.h"
+#import "ios/chrome/browser/ntp/search_engine_logo/ui/search_engine_logo_state.h"
 #import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_constants.h"
 #import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_recorder.h"
 #import "ios/chrome/browser/ntp/shared/metrics/new_tab_page_metrics_constants.h"
@@ -50,6 +53,7 @@
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_header_constants.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_header_consumer.h"
+#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_image_background_trait.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_trait.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_view_controller.h"
 #import "ios/chrome/browser/ntp/ui_bundled/theme_utils.h"
@@ -61,6 +65,7 @@
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/util/custom_ui_trait_accessor.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
@@ -274,8 +279,11 @@ void LogLensButtonNewBadgeShownHistogram(IOSNTPNewBadgeShownResult result) {
 - (void)setUp {
   self.templateURLService->Load();
   [self updateModuleVisibilityForConsumer];
-  [self.headerConsumer setLogoIsShowing:search::DefaultSearchProviderIsGoogle(
-                                            self.templateURLService)];
+  SearchEngineLogoState logoState =
+      search::DefaultSearchProviderIsGoogle(self.templateURLService)
+          ? SearchEngineLogoState::kLogo
+          : SearchEngineLogoState::kNone;
+  [self.headerConsumer setSearchEngineLogoState:logoState];
   [self.headerConsumer
       setVoiceSearchIsEnabled:ios::provider::IsVoiceSearchEnabled()];
 
@@ -385,11 +393,22 @@ void LogLensButtonNewBadgeShownHistogram(IOSNTPNewBadgeShownResult result) {
 }
 
 - (void)updateBackground {
+  std::optional<std::pair<std::string, FramingCoordinates>> userUploaded =
+      _backgroundCustomizationService->GetCurrentUserUploadedBackground();
+  if (userUploaded) {
+    [self handleUserUploadedBackground:userUploaded->first
+                    framingCoordinates:userUploaded->second];
+    return;
+  }
+
   std::optional<sync_pb::NtpCustomBackground> background =
       _backgroundCustomizationService->GetCurrentCustomBackground();
 
   std::optional<sync_pb::UserColorTheme> colorTheme =
       _backgroundCustomizationService->GetCurrentColorTheme();
+
+  CustomUITraitAccessor* traitAccessor = [[CustomUITraitAccessor alloc]
+      initWithMutableTraits:self.consumer.traitOverrides];
 
   if (colorTheme && colorTheme->color()) {
     // Sets the New Tab Page trait to a color palette generated from the current
@@ -398,20 +417,21 @@ void LogLensButtonNewBadgeShownHistogram(IOSNTPNewBadgeShownResult result) {
         skia::UIColorFromSkColor(colorTheme->color()),
         ProtoEnumToSchemeVariant(colorTheme->browser_color_variant()));
 
-    [self.consumer.traitOverrides setObject:colorPalette
-                                   forTrait:NewTabPageTrait.class];
+    [traitAccessor setObjectForNewTabPageTrait:colorPalette];
     [self.consumer setBackgroundImage:nil];
-    [self.headerConsumer updateLogoColor:colorPalette.tintColor];
+    [traitAccessor setBoolForNewTabPageImageBackgroundTrait:NO];
     return;
   }
 
   // Clears the color palette associated with the New Tab Page trait,
   // reverting to the default colors defined by the trait.
-  [self.consumer.traitOverrides setObject:[NewTabPageTrait defaultValue]
-                                 forTrait:NewTabPageTrait.class];
+  [traitAccessor setObjectForNewTabPageTrait:[NewTabPageTrait defaultValue]];
+
+  [traitAccessor
+      setBoolForNewTabPageImageBackgroundTrait:background.has_value()];
+
   if (!background) {
     [self.consumer setBackgroundImage:nil];
-    [self.headerConsumer updateLogoColor:nil];
     return;
   }
 
@@ -456,8 +476,11 @@ void LogLensButtonNewBadgeShownHistogram(IOSNTPNewBadgeShownResult result) {
   _defaultSearchEngine = updatedDefaultSearchEngine;
   // AIM availability must be updated before default search engine.
   [self updateAIMAvailability];
-  [self.headerConsumer setLogoIsShowing:search::DefaultSearchProviderIsGoogle(
-                                            self.templateURLService)];
+  SearchEngineLogoState logoState =
+      search::DefaultSearchProviderIsGoogle(self.templateURLService)
+          ? SearchEngineLogoState::kLogo
+          : SearchEngineLogoState::kNone;
+  [self.headerConsumer setSearchEngineLogoState:logoState];
   [self.feedControlDelegate updateFeedForDefaultSearchEngineChanged];
 
   NSString* dseName =
@@ -607,7 +630,74 @@ void LogLensButtonNewBadgeShownHistogram(IOSNTPNewBadgeShownResult result) {
 // image for the new tab page.
 - (void)handleBackgroundImageFetch:(const gfx::Image&)image {
   [self.consumer setBackgroundImage:image.ToUIImage()];
-  [self.headerConsumer updateLogoColor:UIColor.whiteColor];
+}
+
+// Helper method to handle displaying a user-uploaded background image
+// with the specified framing coordinates.
+- (void)handleUserUploadedBackground:(const std::string&)imagePath
+                  framingCoordinates:(const FramingCoordinates&)coordinates {
+  // Convert file path to NSURL.
+  NSString* imagePathString = base::SysUTF8ToNSString(imagePath);
+  NSURL* imageURL = [NSURL fileURLWithPath:imagePathString];
+
+  // Load the image from disk.
+  NSData* imageData = [NSData dataWithContentsOfURL:imageURL];
+  if (!imageData) {
+    // Clear the corrupted data.
+    _backgroundCustomizationService->ClearCurrentUserUploadedBackground();
+    [self.consumer setBackgroundImage:nil];
+    return;
+  }
+
+  UIImage* originalImage = [UIImage imageWithData:imageData];
+  if (!originalImage) {
+    _backgroundCustomizationService->ClearCurrentUserUploadedBackground();
+    [self.consumer setBackgroundImage:nil];
+    return;
+  }
+
+  // Apply framing coordinates to frame the image.
+  UIImage* framedImage = [self applyFramingCoordinates:coordinates
+                                               toImage:originalImage];
+
+  [self.consumer setBackgroundImage:framedImage];
+}
+
+// Helper method to apply framing coordinates to position
+// the user-uploaded background image.
+- (UIImage*)applyFramingCoordinates:(const FramingCoordinates&)coordinates
+                            toImage:(UIImage*)originalImage {
+  // Create a canvas the size of the view.
+  CGSize canvasSize = [UIScreen mainScreen].bounds.size;
+
+  // Calculate scale to fill the view.
+  CGFloat widthScale = canvasSize.width / originalImage.size.width;
+  CGFloat heightScale = canvasSize.height / originalImage.size.height;
+  CGFloat scale = MAX(widthScale, heightScale);
+
+  CGFloat scaledWidth = originalImage.size.width * scale;
+  CGFloat scaledHeight = originalImage.size.height * scale;
+
+  // Use negative offset to position the image so the framed area is visible.
+  CGFloat offsetX = -(coordinates.x * scale);
+  CGFloat offsetY = -(coordinates.y * scale);
+
+  UIGraphicsImageRendererFormat* format =
+      [[UIGraphicsImageRendererFormat alloc] init];
+  format.opaque = NO;
+  format.scale = 0.0;
+
+  UIGraphicsImageRenderer* renderer =
+      [[UIGraphicsImageRenderer alloc] initWithSize:canvasSize format:format];
+
+  UIImage* framedImage =
+      [renderer imageWithActions:^(UIGraphicsImageRendererContext* context) {
+        // Draw the positioned image.
+        [originalImage
+            drawInRect:CGRectMake(offsetX, offsetY, scaledWidth, scaledHeight)];
+      }];
+
+  return framedImage;
 }
 
 @end

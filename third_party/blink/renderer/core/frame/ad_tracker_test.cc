@@ -8,6 +8,7 @@
 
 #include "base/containers/contains.h"
 #include "base/run_loop.h"
+#include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "components/subresource_filter/content/renderer/web_document_subresource_filter_impl.h"
 #include "components/subresource_filter/core/common/memory_mapped_ruleset.h"
@@ -137,17 +138,7 @@ class FixedSubresourceFilterWebFrameClient
 class TestAdTracker : public AdTracker {
  public:
   explicit TestAdTracker(LocalFrame* frame) : AdTracker(frame) {}
-  void SetScriptAtTopOfStack(const String& url) { script_at_top_ = url; }
-  void SetExecutionContext(ExecutionContext* execution_context) {
-    execution_context_ = execution_context;
-  }
-
   ~TestAdTracker() override {}
-
-  void Trace(Visitor* visitor) const override {
-    visitor->Trace(execution_context_);
-    AdTracker::Trace(visitor);
-  }
 
   bool RequestWithUrlTaggedAsAd(const String& url) const {
     DCHECK(is_ad_.Contains(url));
@@ -192,27 +183,6 @@ class TestAdTracker : public AdTracker {
   }
 
  protected:
-  // Override ScriptAtTopofStack to allow us to mock out the returned script
-  // (via `SetScriptAtTopOfStack`).
-  String ScriptAtTopOfStack(
-      std::optional<AdScriptIdentifier>* out_ad_script = nullptr) override {
-    if (script_at_top_) {
-      return script_at_top_;
-    }
-    if (!sim_test_) {
-      return "";
-    }
-
-    return AdTracker::ScriptAtTopOfStack(out_ad_script);
-  }
-
-  ExecutionContext* GetCurrentExecutionContext() override {
-    if (!execution_context_)
-      return AdTracker::GetCurrentExecutionContext();
-
-    return execution_context_.Get();
-  }
-
   bool CalculateIfAdSubresource(
       ExecutionContext* execution_context,
       const KURL& request_url,
@@ -235,8 +205,8 @@ class TestAdTracker : public AdTracker {
 
  private:
   HashMap<String, bool> is_ad_;
-  String script_at_top_;
-  Member<ExecutionContext> execution_context_;
+  HashMap<String, int> script_ids_;
+
   bool sim_test_ = false;
   AdScriptAncestry last_ad_script_ancestry_;
 
@@ -262,346 +232,6 @@ void SetIsAdFrame(LocalFrame* frame, bool created_by_ad_script = true) {
 }
 
 }  // namespace
-
-class AdTrackerTest : public testing::Test {
- protected:
-  void SetUp() override;
-  void TearDown() override;
-  LocalFrame* GetFrame() const {
-    return page_holder_->GetDocument().GetFrame();
-  }
-
-  void CreateAdTracker() {
-    if (ad_tracker_)
-      ad_tracker_->Shutdown();
-    ad_tracker_ = MakeGarbageCollected<TestAdTracker>(GetFrame());
-    ad_tracker_->SetExecutionContext(GetExecutionContext());
-  }
-
-  void WillExecuteScript(const String& script_url,
-                         int script_id = v8::Message::kNoScriptIdInfo,
-                         bool top_level = true) {
-    auto* execution_context = GetExecutionContext();
-    ad_tracker_->WillExecuteScript(
-        execution_context, v8::Isolate::GetCurrent()->GetCurrentContext(),
-        String(script_url), script_id, top_level);
-  }
-
-  ExecutionContext* GetExecutionContext() {
-    return page_holder_->GetFrame().DomWindow();
-  }
-
-  void DidExecuteScript() { ad_tracker_->DidExecuteScript(); }
-
-  bool AnyExecutingScriptsTaggedAsAdResource() {
-    return AnyExecutingScriptsTaggedAsAdResourceWithStackType(
-        AdTracker::StackType::kBottomAndTop);
-  }
-
-  bool AnyExecutingScriptsTaggedAsAdResourceWithStackType(
-      AdTracker::StackType stack_type) {
-    return ad_tracker_->IsAdScriptInStack(stack_type);
-  }
-
-  std::optional<AdScriptIdentifier> BottommostAdScript() {
-    AdScriptAncestry ad_script_ancestry;
-    ad_tracker_->IsAdScriptInStack(AdTracker::StackType::kBottomOnly,
-                                   /*out_ad_script=*/&ad_script_ancestry);
-
-    return !ad_script_ancestry.ancestry_chain.empty()
-               ? std::optional{ad_script_ancestry.ancestry_chain[0]}
-               : std::nullopt;
-  }
-
-  void AppendToKnownAdScripts(const String& url) {
-    ad_tracker_->AppendToKnownAdScripts(
-        *GetExecutionContext(), url,
-        std::make_unique<AdTracker::NoAdProvenance>());
-  }
-
-  void AppendToKnownAdScripts(int script_id) {
-    // Matches AdTracker's inline script encoding
-    AppendToKnownAdScripts(String::Format("{ id %d }", script_id));
-  }
-
-  test::TaskEnvironment task_environment_;
-  Persistent<TestAdTracker> ad_tracker_;
-  std::unique_ptr<DummyPageHolder> page_holder_;
-};
-
-void AdTrackerTest::SetUp() {
-  page_holder_ = std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
-  page_holder_->GetDocument().SetURL(KURL("https://example.com/foo"));
-  CreateAdTracker();
-}
-
-void AdTrackerTest::TearDown() {
-  ad_tracker_->Shutdown();
-}
-
-TEST_F(AdTrackerTest, AnyExecutingScriptsTaggedAsAdResource) {
-  String ad_script_url("https://example.com/bar.js");
-  AppendToKnownAdScripts(ad_script_url);
-
-  WillExecuteScript("https://example.com/foo.js");
-  WillExecuteScript("https://example.com/bar.js");
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-}
-
-TEST_F(AdTrackerTest, BottomScriptTaggedAsAdResource) {
-  AppendToKnownAdScripts("https://example.com/ad.js");
-
-  WillExecuteScript("https://example.com/ad.js");
-  ad_tracker_->SetScriptAtTopOfStack("https://example.com/vanilla.js");
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResourceWithStackType(
-      AdTracker::StackType::kBottomAndTop));
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResourceWithStackType(
-      AdTracker::StackType::kBottomOnly));
-}
-
-TEST_F(AdTrackerTest, TopScriptTaggedAsAdResource) {
-  AppendToKnownAdScripts("https://example.com/ad.js");
-
-  WillExecuteScript("https://example.com/vanilla.js");
-  ad_tracker_->SetScriptAtTopOfStack("https://example.com/ad.js");
-
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResourceWithStackType(
-      AdTracker::StackType::kBottomAndTop));
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResourceWithStackType(
-      AdTracker::StackType::kBottomOnly));
-}
-
-// Tests that if neither script in the stack is an ad,
-// AnyExecutingScriptsTaggedAsAdResource should return false.
-TEST_F(AdTrackerTest, AnyExecutingScriptsTaggedAsAdResource_False) {
-  WillExecuteScript("https://example.com/foo.js");
-  WillExecuteScript("https://example.com/bar.js");
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-}
-
-TEST_F(AdTrackerTest, TopOfStackIncluded) {
-  String ad_script_url("https://example.com/ad.js");
-  AppendToKnownAdScripts(ad_script_url);
-
-  WillExecuteScript("https://example.com/foo.js");
-  WillExecuteScript("https://example.com/bar.js");
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  ad_tracker_->SetScriptAtTopOfStack("https://www.example.com/baz.js");
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  ad_tracker_->SetScriptAtTopOfStack(ad_script_url);
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResourceWithStackType(
-      AdTracker::StackType::kBottomOnly));
-
-  ad_tracker_->SetScriptAtTopOfStack("https://www.example.com/baz.js");
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  ad_tracker_->SetScriptAtTopOfStack("");
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  ad_tracker_->SetScriptAtTopOfStack(String());
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  WillExecuteScript(ad_script_url);
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-}
-
-TEST_F(AdTrackerTest, AdStackFrameCounting) {
-  AppendToKnownAdScripts("https://example.com/ad.js");
-
-  WillExecuteScript("https://example.com/vanilla.js");
-  WillExecuteScript("https://example.com/vanilla.js");
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  WillExecuteScript("https://example.com/ad.js");
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-
-  DidExecuteScript();
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  WillExecuteScript("https://example.com/ad.js");
-  WillExecuteScript("https://example.com/ad.js");
-  WillExecuteScript("https://example.com/vanilla.js");
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-
-  DidExecuteScript();
-  DidExecuteScript();
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-
-  DidExecuteScript();
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  DidExecuteScript();
-  DidExecuteScript();
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  WillExecuteScript("https://example.com/ad.js");
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-}
-
-TEST_F(AdTrackerTest, AsyncTagging) {
-  CreateAdTracker();
-
-  // Put an ad script on the stack.
-  AppendToKnownAdScripts("https://example.com/ad.js");
-  WillExecuteScript("https://example.com/ad.js");
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-
-  // Create a fake task void*.
-  probe::AsyncTaskContext async_task_context;
-
-  // Create an async task while ad script is running.
-  ad_tracker_->DidCreateAsyncTask(&async_task_context);
-
-  // Finish executing the ad script.
-  DidExecuteScript();
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  // Start and stop the async task created by the ad script.
-  ad_tracker_->DidStartAsyncTask(&async_task_context);
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-  ad_tracker_->DidFinishAsyncTask(&async_task_context);
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  // Do it again.
-  ad_tracker_->DidStartAsyncTask(&async_task_context);
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-  ad_tracker_->DidFinishAsyncTask(&async_task_context);
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  // Call the task recursively.
-  ad_tracker_->DidStartAsyncTask(&async_task_context);
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-  ad_tracker_->DidStartAsyncTask(&async_task_context);
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-  ad_tracker_->DidFinishAsyncTask(&async_task_context);
-  EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-  ad_tracker_->DidFinishAsyncTask(&async_task_context);
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-}
-
-TEST_F(AdTrackerTest, BottommostAdScript) {
-  AppendToKnownAdScripts("https://example.com/ad.js");
-  AppendToKnownAdScripts("https://example.com/ad2.js");
-  AppendToKnownAdScripts(/*script_id=*/5);
-  EXPECT_FALSE(BottommostAdScript().has_value());
-
-  WillExecuteScript("https://example.com/vanilla.js", /*script_id=*/1);
-  EXPECT_FALSE(BottommostAdScript().has_value());
-
-  WillExecuteScript("https://example.com/ad.js", /*script_id=*/2);
-  ASSERT_TRUE(BottommostAdScript().has_value());
-  EXPECT_EQ(BottommostAdScript()->id, 2);
-
-  // Additional scripts (ad or not) don't change the bottommost ad script.
-  WillExecuteScript("https://example.com/vanilla.js", /*script_id=*/3);
-  ASSERT_TRUE(BottommostAdScript().has_value());
-  EXPECT_EQ(BottommostAdScript()->id, 2);
-  DidExecuteScript();
-
-  WillExecuteScript("https://example.com/ad2.js", /*script_id=*/4);
-  ASSERT_TRUE(BottommostAdScript().has_value());
-  EXPECT_EQ(BottommostAdScript()->id, 2);
-  DidExecuteScript();
-
-  // The bottommost ad script can have an empty name.
-  DidExecuteScript();
-  EXPECT_FALSE(BottommostAdScript().has_value());
-
-  WillExecuteScript("", /*script_id=*/5);
-  ASSERT_TRUE(BottommostAdScript().has_value());
-  EXPECT_EQ(BottommostAdScript()->id, 5);
-}
-
-TEST_F(AdTrackerTest, BottommostAsyncAdScript) {
-  CreateAdTracker();
-
-  // Put an ad script on the stack.
-  AppendToKnownAdScripts("https://example.com/ad.js");
-  AppendToKnownAdScripts("https://example.com/ad2.js");
-
-  EXPECT_FALSE(BottommostAdScript().has_value());
-
-  // Create a couple of async tasks while ad script is running.
-  WillExecuteScript("https://example.com/ad.js", 1);
-  probe::AsyncTaskContext async_task_context1;
-  ad_tracker_->DidCreateAsyncTask(&async_task_context1);
-  DidExecuteScript();
-  EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-
-  WillExecuteScript("https://example.com/ad2.js", 2);
-  probe::AsyncTaskContext async_task_context2;
-  ad_tracker_->DidCreateAsyncTask(&async_task_context2);
-  DidExecuteScript();
-
-  // Start and stop the async task created by the ad script.
-  {
-    ad_tracker_->DidStartAsyncTask(&async_task_context1);
-    EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_TRUE(BottommostAdScript().has_value());
-    EXPECT_EQ(BottommostAdScript()->id, 1);
-
-    ad_tracker_->DidFinishAsyncTask(&async_task_context1);
-    EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_FALSE(BottommostAdScript().has_value());
-  }
-
-  // Run two async tasks
-  {
-    ad_tracker_->DidStartAsyncTask(&async_task_context1);
-    EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_TRUE(BottommostAdScript().has_value());
-    EXPECT_EQ(BottommostAdScript()->id, 1);
-
-    ad_tracker_->DidStartAsyncTask(&async_task_context2);
-    EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_TRUE(BottommostAdScript().has_value());
-    EXPECT_EQ(BottommostAdScript()->id, 1);
-
-    ad_tracker_->DidFinishAsyncTask(&async_task_context2);
-    EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_TRUE(BottommostAdScript().has_value());
-    EXPECT_EQ(BottommostAdScript()->id, 1);
-
-    ad_tracker_->DidFinishAsyncTask(&async_task_context1);
-    EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_FALSE(BottommostAdScript().has_value());
-  }
-
-  // Run an async task followed by sync.
-  {
-    ad_tracker_->DidStartAsyncTask(&async_task_context2);
-    EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_TRUE(BottommostAdScript().has_value());
-    EXPECT_EQ(BottommostAdScript()->id, 2);
-
-    WillExecuteScript("https://example.com/ad.js");
-    EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_TRUE(BottommostAdScript().has_value());
-    EXPECT_EQ(BottommostAdScript()->id, 2);
-
-    ad_tracker_->DidStartAsyncTask(&async_task_context1);
-    EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_TRUE(BottommostAdScript().has_value());
-    EXPECT_EQ(BottommostAdScript()->id, 2);
-
-    ad_tracker_->DidFinishAsyncTask(&async_task_context1);
-    EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_TRUE(BottommostAdScript().has_value());
-    EXPECT_EQ(BottommostAdScript()->id, 2);
-
-    DidExecuteScript();
-    EXPECT_TRUE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_TRUE(BottommostAdScript().has_value());
-    EXPECT_EQ(BottommostAdScript()->id, 2);
-
-    ad_tracker_->DidFinishAsyncTask(&async_task_context2);
-    EXPECT_FALSE(AnyExecutingScriptsTaggedAsAdResource());
-    EXPECT_FALSE(BottommostAdScript().has_value());
-  }
-}
 
 class AdTrackerSimTest : public SimTest {
  protected:
@@ -676,24 +306,6 @@ TEST_F(AdTrackerSimTest, ScriptLoadedWhileExecutingAdScript) {
       IsKnownAdScript(GetDocument().GetExecutionContext(), kVanillaUrl));
   EXPECT_TRUE(ad_tracker_->RequestWithUrlTaggedAsAd(kAdUrl));
   EXPECT_TRUE(ad_tracker_->RequestWithUrlTaggedAsAd(kVanillaUrl));
-}
-
-// Unknown script running in an ad context should be labeled as ad script.
-// This test case relies on overriding internal state. More realistic and
-// end-to-end test cases are covered in `*AdFrameScripted*`.
-TEST_F(AdTrackerSimTest, ScriptDetectedByContext) {
-  // Create an iframe that's considered an ad.
-  main_resource_->Complete("<body><iframe></iframe></body>");
-  auto* child_frame =
-      To<LocalFrame>(GetDocument().GetFrame()->Tree().FirstChild());
-  SetIsAdFrame(child_frame);
-
-  // Now run unknown script in the child's context. It should be considered an
-  // ad based on context alone.
-  ad_tracker_->SetExecutionContext(child_frame->DomWindow());
-  ad_tracker_->SetScriptAtTopOfStack("foo.js");
-  EXPECT_TRUE(
-      ad_tracker_->IsAdScriptInStack(AdTracker::StackType::kBottomAndTop));
 }
 
 TEST_F(AdTrackerSimTest, EventHandlerForPostMessageFromAdFrame_NoAdInStack) {
@@ -1054,11 +666,6 @@ TEST_F(AdTrackerSimTest, VanillaPromiseNotDetected) {
 
 // Image loaded by ad script is tagged as ad.
 TEST_F(AdTrackerSimTest, DataURLImageLoadedWhileExecutingAdScriptAsyncEnabled) {
-  // Reset the AdTracker so that it gets the latest base::Feature value on
-  // construction.
-  ad_tracker_ = MakeGarbageCollected<TestAdTracker>(GetDocument().GetFrame());
-  GetDocument().GetFrame()->SetAdTrackerForTesting(ad_tracker_);
-
   const char kAdUrl[] = "https://example.com/ad_script.js";
   SimSubresourceRequest ad_resource(kAdUrl, "text/javascript");
 
@@ -1624,11 +1231,6 @@ TEST_F(AdTrackerSimTest, StyleRecalcCausedByAdScript) {
   // performed, but the AdTracker is notified.
   EXPECT_TRUE(ad_tracker_->UrlHasBeenRequested(vanilla_font_url));
   EXPECT_FALSE(ad_tracker_->UrlHasBeenRequested(vanilla_image_url));
-
-  // We override these to ensure the ad script appears on top of the stack when
-  // the requests are made.
-  ad_tracker_->SetExecutionContext(GetDocument().GetExecutionContext());
-  ad_tracker_->SetScriptAtTopOfStack(ad_script_url);
 
   script.Complete(R"SCRIPT(
     let div = document.getElementsByTagName("div")[0];
@@ -2416,6 +2018,50 @@ TEST_F(AdTrackerSimTest,
   // Clean up for SimTest expectations.
   ad_document1.Complete("<body></body>");
   ad_document2.Complete("<body></body>");
+}
+
+TEST_F(AdTrackerSimTest, SelectivePermissionsInterventionOn) {
+  ScopedSelectivePermissionsInterventionForTest feature(true);
+
+  String ad_script_url = "https://example.com/script.js?ad=true";
+  SimSubresourceRequest ad_script(ad_script_url, "text/javascript");
+  main_resource_->Complete(R"HTML(
+    <body>
+      <script src="script.js?ad=true"></script>
+    </body>
+  )HTML");
+
+  ad_script.Complete(R"SCRIPT(
+     navigator.geolocation.getCurrentPosition(() => {}, () => {console.log("Failed")});
+  )SCRIPT");
+  EXPECT_TRUE(
+      base::test::RunUntil([&]() { return ConsoleMessages().size() == 3; }));
+  EXPECT_TRUE(ConsoleMessages()[0].StartsWith(
+      "Blocked call to geolocation because ad-script"));
+  EXPECT_TRUE(ConsoleMessages()[1].StartsWith(
+      "Permissions policy violation: Geolocation"));
+  EXPECT_EQ("Failed", ConsoleMessages()[2]);
+}
+
+TEST_F(AdTrackerSimTest, SelectivePermissionsInterventionOff) {
+  ScopedSelectivePermissionsInterventionForTest feature(false);
+
+  String ad_script_url = "https://example.com/script.js?ad=true";
+  SimSubresourceRequest ad_script(ad_script_url, "text/javascript");
+  main_resource_->Complete(R"HTML(
+    <body>
+      <script src="script.js?ad=true"></script>
+    </body>
+  )HTML");
+
+  ad_script.Complete(R"SCRIPT(
+    navigator.geolocation.getCurrentPosition(() => {console.log("Success")}, () => {console.log("Failed")});
+  )SCRIPT");
+  EXPECT_TRUE(
+      base::test::RunUntil([&]() { return ConsoleMessages().size() == 1; }));
+
+  // It still fails in this environment, but not because of permission policy.
+  EXPECT_EQ("Failed", ConsoleMessages()[0]);
 }
 
 // Tests that `IsAdScriptInStack` returns the correct ad script ancestry when

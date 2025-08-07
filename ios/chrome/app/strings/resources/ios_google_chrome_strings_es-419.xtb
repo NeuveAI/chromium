@@ -118,7 +118,6 @@ Espera unos minutos antes de salir. Si sales ahora, se borrarán estos datos.</t
 <translation id="3863841106411295595">Agrega las URLs ingresadas a tu Lista de lectura en Chrome.</translation>
 <translation id="3901001113120561395">Aprovecha Chrome al máximo.</translation>
 <translation id="3913386780052199712">Accediste a Chrome.</translation>
-<translation id="3932250749914183695">Sugerencia para Chrome: Verifica tu identidad</translation>
 <translation id="3984746313391923992">Tu organización requiere que no accedas a tu cuenta en Chrome.</translation>
 <translation id="3988789688219830639">Google Chrome no puede acceder a tus fotos ni videos. Habilita el acceso en Configuración de iOS &gt; Privacidad &gt; Fotos.</translation>
 <translation id="4064699917955374540">Para usar y guardar datos de Chrome en tu Cuenta de Google, verifica tu identidad.</translation>
@@ -133,6 +132,7 @@ Espera unos minutos antes de salir. Si sales ahora, se borrarán estos datos.</t
 <translation id="4636900170638246267">Accede a este sitio y a Chrome.</translation>
 <translation id="4647910807533196601">Abre mi pestaña más reciente en Chrome.</translation>
 <translation id="4693084815234024320">Estás en el modo Incógnito de Chrome</translation>
+<translation id="4713740144985377441">Regresa a Chrome para subir tu archivo</translation>
 <translation id="4713907610796204963">Conoce los conceptos básicos de Chrome para comenzar</translation>
 <translation id="4724297637870447613">Usa Chrome en todas partes</translation>
 <translation id="4738647308035481133">Página de Google Chrome</translation>
@@ -200,6 +200,7 @@ Espera unos minutos antes de cambiar de cuenta. Si cambias de cuenta ahora, se b
 <translation id="6238746320622508509">Permite que Chrome bloquee tus pestañas de incógnito.</translation>
 <translation id="6247557882553405851">Administrador de contraseñas de Google</translation>
 <translation id="6272822675004864999">Para recibir notificaciones de Chrome, actívalas en la configuración de iOS.</translation>
+<translation id="6299253454218177732">Sugerencia para Chrome: Obtén tus contraseñas</translation>
 <translation id="630693926528731525">No se compartió tu contraseña. Revisa la conexión a Internet y asegúrate de que accediste a Chrome. Luego, vuelve a intentarlo.</translation>
 <translation id="6348855835728304880">Accede a tus contraseñas de Chrome y más en otras apps de este dispositivo.</translation>
 <translation id="6373751563207403289">La Verificación de seguridad te protege de violaciones de la seguridad de los datos, sitios web inseguros y mucho más. Recibe alertas sobre cualquier problema de privacidad o seguridad que Chrome detecte.</translation>
@@ -230,6 +231,7 @@ Si quieres ver más parámetros de configuración que usan datos para mejorar tu
 <translation id="6922332667202044570">Borra los datos de navegación en Chrome.</translation>
 <translation id="6924922227983877439">Abrir vínculos en Chrome</translation>
 <translation id="6975725306479268850">Elige Chrome para autocompletar</translation>
+<translation id="7038674195294813388">Abre la configuración de Apps predeterminadas en iOS, presiona "App de navegador" y selecciona Chrome.</translation>
 <translation id="7056826488869329999">Abre y ejecuta la Verificación de seguridad en Chrome.</translation>
 <translation id="7061455974939528301">Mantén presionado el ícono de Chrome y haz clic en "Edita la pantalla de inicio"</translation>
 <translation id="7124339256045485976">Mantén Chrome actualizado</translation>

@@ -292,12 +292,27 @@ BtmServiceImpl::BtmServiceImpl(base::PassKey<BrowserContextImpl>,
     : browser_context_(context) {
   DCHECK(base::FeatureList::IsEnabled(features::kBtm));
   base::FilePath btm_path = GetBtmFilePath(browser_context_);
-
+  // This feature explicitly uses in-memory storage on WebEngine on Fuchsia to
+  // avoid consuming too much storage space. WebEngine has only 2MB of storage
+  // for the user data directory.
+  const bool use_in_memory_db =
+#if BUILDFLAG(IS_FUCHSIA) && defined(IS_WEB_ENGINE)
+      true;
+#else
+      browser_context_->IsOffTheRecord();
+#endif
   storage_ =
-      browser_context_->IsOffTheRecord()
+      use_in_memory_db
           ? base::SequenceBound<BtmStorage>(CreateTaskRunner(), std::nullopt)
           : base::SequenceBound<BtmStorage>(
                 CreateTaskRunnerForResource(btm_path), btm_path);
+#if BUILDFLAG(IS_FUCHSIA) && defined(IS_WEB_ENGINE)
+  // WebEngine on Fuchsia has a limited amount of storage, so we don't want to
+  // keep around any data from previous sessions before the change was made to
+  // always use an in-memory database.
+  BtmStorage::DeleteDatabaseFiles(btm_path,
+                                  fuchsia_cleanup_loop_.QuitClosure());
+#endif
 
   repeating_timer_ = CreateTimer();
   repeating_timer_->Start();
@@ -394,7 +409,7 @@ void BtmServiceImpl::HandleRedirectChain(
     if (redirect->redirect_type == BtmRedirectType::kServer) {
       total_server_bounce_delay += redirect->server_bounce_delay;
     }
-    redirect_sites.insert(GetSiteForBtm(redirect->redirecting_url.url));
+    redirect_sites.insert(GetSiteForBtm(redirect->redirector.url));
   }
   UmaHistogramBounceChainDelay(total_server_bounce_delay);
 
@@ -459,7 +474,7 @@ void BtmServiceImpl::RecordBounce(
     StatefulBounceCallback stateful_bounce_callback,
     const BtmRedirectInfo& redirect,
     const BtmRedirectChainInfo& chain) {
-  const GURL& url = redirect.redirecting_url.url;
+  const GURL& url = redirect.redirector.url;
   bool stateful = redirect.access_type > BtmDataAccessType::kRead;
 
   // If the bounced URL has a 3PC exception when embedded under the initial or
@@ -527,7 +542,7 @@ void BtmServiceImpl::HandleRedirect(const BtmRedirectInfo& redirect,
   bool final_site_same = (redirect.site == chain.final_site);
 
   if (!chain.are_3pcs_generally_enabled) {
-    ukm::builders::BTM_Redirect(redirect.redirecting_url.source_id)
+    ukm::builders::BTM_Redirect(redirect.redirector.source_id)
         .SetSiteHadUserActivation(redirect.site_had_user_activation.value())
         .SetSiteHadWebAuthnAssertion(
             redirect.site_had_webauthn_assertion.value())

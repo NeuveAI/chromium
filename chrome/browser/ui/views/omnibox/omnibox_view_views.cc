@@ -40,6 +40,7 @@
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/lens/lens_overlay_entry_point_controller.h"
 #include "chrome/browser/ui/omnibox/clipboard_utils.h"
+#include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -47,6 +48,7 @@
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_view_views.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_result_view.h"
+#include "chrome/browser/ui/views/page_action/page_action_icon_controller.h"
 #include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_bubble_controller.h"
 #include "chrome/browser/ui/views/user_education/browser_help_bubble.h"
 #include "chrome/grit/branded_strings.h"
@@ -539,6 +541,17 @@ void OmniboxViewViews::SetFocus(bool is_user_initiated) {
   // re-pressed. This occurs even if the omnibox is already focused and we
   // re-request focus (e.g. pressing ctrl-l twice).
   model()->ConsumeCtrlKey();
+}
+
+void OmniboxViewViews::RequestViewFocus() {
+  RequestFocus();
+}
+
+void OmniboxViewViews::RequestAimButtonFocus() {
+  set_focus_is_going_to_aim_button(true);
+  location_bar_view_->page_action_icon_controller()
+      ->GetIconView(PageActionIconType::kAiMode)
+      ->RequestFocus();
 }
 
 int OmniboxViewViews::GetTextWidth() const {
@@ -1457,6 +1470,14 @@ bool OmniboxViewViews::HandleAccessibleAction(
 void OmniboxViewViews::OnFocus() {
   views::Textfield::OnFocus();
 
+  // If focus is returning from the AIM button, there is no need for any of the
+  // usual bookkeeping, since the omnibox was logically considered to have
+  // retained focus.
+  if (focus_is_returning_from_aim_button()) {
+    set_focus_is_returning_from_aim_button(false);
+    return;
+  }
+
   // TODO(tommycli): This does not seem like it should be necessary.
   // Investigate why it's needed and see if we can remove it.
   model()->ResetDisplayTexts();
@@ -1488,6 +1509,16 @@ void OmniboxViewViews::OnFocus() {
 }
 
 void OmniboxViewViews::OnBlur() {
+  views::Textfield::OnBlur();
+
+  // If focus is going to the AIM button, there is no need for any of the usual
+  // bookkeeping, since the omnibox will logically be considered to have
+  // retained focus.
+  if (focus_is_going_to_aim_button()) {
+    set_focus_is_going_to_aim_button(false);
+    return;
+  }
+
   // Save the user's existing selection to restore it later.
   saved_selection_for_focus_change_ = GetSelectedRange();
 
@@ -1513,7 +1544,6 @@ void OmniboxViewViews::OnBlur() {
     RevertAll();
   }
 
-  views::Textfield::OnBlur();
   model()->OnWillKillFocus();
 
   // If ZeroSuggest is active, and there is evidence that there is a text

@@ -11,6 +11,7 @@
 #include "base/callback_list.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -66,6 +67,9 @@ class MultiContentsView : public views::View,
   ~MultiContentsView() override;
 
   ContentsContainerView* GetActiveContentsContainerView();
+  ContentsContainerView* GetInactiveContentsContainerView();
+  ContentsContainerView* GetContentsContainerViewFor(
+      content::WebContents* web_contents);
 
   // Returns the currently active ContentsWebView.
   ContentsWebView* GetActiveContentsView();
@@ -116,6 +120,10 @@ class MultiContentsView : public views::View,
   // Returns the minimum width for a single view within the `MultiContentsView`.
   // Returns 0 if not in a split view.
   int GetMinViewWidth() const;
+
+  // Returns accessible panes to be used in BrowserView to create the order of
+  // pane traversal.
+  std::vector<views::View*> GetAccessiblePanes();
 
   // views::ResizeAreaDelegate:
   void OnResize(int resize_amount, bool done_resizing) override;
@@ -182,6 +190,11 @@ class MultiContentsView : public views::View,
 
   void UpdateContentsBorderAndOverlay();
 
+  double CalculateRatioWithSnapPoints(double end_width,
+                                      double total_width) const;
+
+  bool SupportsSplitViewDragAndDrop() const;
+
   raw_ptr<BrowserView> browser_view_;
   std::unique_ptr<MultiContentsViewDelegate> delegate_;
 
@@ -228,12 +241,14 @@ class MultiContentsView : public views::View,
 
   bool show_inactive_scrim_ = false;
 
-  // This is needed because drag and drop is broken on Wayland. Once that is
-  // resolved, this variable should be deleted.
-  // TODO(crbug.com/425715421): Fix drag and drop on Wayland.
+  // This returns true if we support split view drag and drop.
   bool is_drag_and_drop_enabled_ = true;
 
   std::optional<int> min_contents_width_for_testing_ = std::nullopt;
+
+  // Width ratios that a split view will snap to when resize is within a
+  // snap distance (kSideBySideSnapDistance).
+  std::vector<double> snap_points_ = {0.5};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_MULTI_CONTENTS_VIEW_H_

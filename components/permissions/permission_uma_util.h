@@ -16,6 +16,7 @@
 #include "base/version.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_types.h"
+#include "components/passage_embeddings/passage_embeddings_types.h"
 #include "components/permissions/permission_request_enums.h"
 #include "components/permissions/prediction_service/permission_ui_selector.h"
 #include "components/permissions/request_type.h"
@@ -46,19 +47,6 @@ enum class ActivityIndicatorState {
   // Always keep at the end.
   kMaxValue = kBlockedOnSystemLevel,
 };
-
-// Used for UMA histograms to record model execution stats for the different
-// models we use for a permission prediction.
-// LINT.IfChange(PredictionModelType)
-enum class PredictionModelType {
-  kUnknown = 0,
-  kServerSideCpssV3Model = 1,
-  kOnDeviceCpssV1Model = 2,
-  kOnDeviceAiV1Model = 3,
-  kOnDeviceAiV3Model = 4,
-  kOnDeviceAiV4Model = 5,
-};
-// LINT.ThenChange(//tools/metrics/histograms/metadata/permissions/histograms.xml:PredictionModels)
 
 // Used for UMA to record the types of permission prompts shown.
 // When updating, you also need to update:
@@ -139,7 +127,9 @@ enum class PermissionSourceUI {
 
   // Permission settings from Android.
   // Currently this value is only used when revoking notification permission in
-  // Android O+ system channel settings.
+  // Android O+ system channel settings activity, and only when that activity
+  // is launched directly from the Chrome site settings, which is not a common
+  // user journey (see usages of `REQUEST_CODE_NOTIFICATION_CHANNEL_SETTINGS`).
   ANDROID_SETTINGS = 4,
 
   // Permission settings as part of the event's UI.
@@ -155,7 +145,9 @@ enum class PermissionSourceUI {
   SAFETY_HUB_AUTO_REVOCATION = 7,
 
   // The permission status changed, but we're unsure from what source.
-  // This is likely ANDROID_SETTINGS above though.
+  // This is recorded instead of ANDROID_SETTINGS above when the Android system
+  // settings UI interaction happens while Chrome is not running, and thus
+  // Chrome only observes the permission change on next start-up.
   UNIDENTIFIED = 8,
 
   // Always keep this at the end.
@@ -240,7 +232,8 @@ enum class PermissionPromptDisposition {
 
   // Only used on desktop, a chip on the left-hand side of the location bar that
   // shows a bubble when clicked.
-  LOCATION_BAR_LEFT_CHIP = 6,
+  // DEPRECATED: This disposition is no longer existent.
+  // LOCATION_BAR_LEFT_CHIP = 6,
 
   // There was no UI being shown. This is usually because the user closed an
   // inactive tab that had a pending permission request.
@@ -450,24 +443,6 @@ enum class AutoDSEPermissionRevertTransition {
   // Always keep at the end.
   kMaxValue = INVALID_END_STATE,
 };
-
-// LINT.IfChange(PermissionPredictionSource)
-
-// This enum backs up the 'PermissionPredictionSource` histogram enum. It
-// indicates whether the permission prediction was done by the local on device
-// model or by the server side model (or both).
-// These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
-enum class PermissionPredictionSource {
-  ON_DEVICE_TFLITE = 0,
-  SERVER_SIDE = 1,
-  ONDEVICE_AI_AND_SERVER_SIDE = 2,
-
-  // Always keep at the end.
-  kMaxValue = ONDEVICE_AI_AND_SERVER_SIDE,
-};
-
-// LINT.ThenChange(//tools/metrics/histograms/metadata/permissions/enums.xml:PermissionPredictionSource)
 
 // This enum backs up the
 // 'Permissions.PageInfo.ChangedWithin1m.{PermissionType}' histograms enum. It
@@ -771,8 +746,12 @@ class PermissionUmaUtil {
   static void RecordDSEEffectiveSetting(ContentSettingsType permission_type,
                                         ContentSetting setting);
 
+  static void RecordPermissionPredictionConcurrentRequests(
+      RequestType request_type);
+
   static void RecordPermissionPredictionSource(
-      PermissionPredictionSource prediction_type);
+      PermissionPredictionSource prediction_source,
+      RequestType request_type);
 
   static void RecordPermissionPredictionServiceHoldback(
       RequestType request_type,
@@ -887,14 +866,41 @@ class PermissionUmaUtil {
 
   // Records the execution time of prediction model inquiries.
   static void RecordPredictionModelInquireTime(
-      base::TimeTicks model_inquire_start_time,
-      PredictionModelType model_type);
+      PredictionModelType model_type,
+      base::TimeTicks model_inquire_start_time);
 
   // Records the success and duration of taking a screenshot for AIvX models.
   static void RecordSnapshotTakenTimeAndSuccessForAivX(
-      bool success,
+      PredictionModelType model_type,
       base::TimeTicks snapshot_inquire_start_time,
-      PredictionModelType model_type);
+      bool success);
+
+  // Records whether we could fetch the rendered text successfully and it was
+  // useful for prediction (i.e. longer than 10 characters).
+  static void RecordRenderedTextAcquireSuccessForAivX(
+      PredictionModelType model_type,
+      bool success);
+
+  // Records whether we needed to cancel the previous passage embeddings model
+  // call before starting a new one.
+  static void RecordTryCancelPreviousEmbeddingsModelExecution(
+      PredictionModelType model_type,
+      bool cancel_previous_task);
+
+  // Records whether the returning passage embedder task is outdated (a new
+  // passage embedder task has started).
+  static void RecordFinishedPassageEmbeddingsTaskOutdated(
+      PredictionModelType model_type,
+      bool outdated);
+
+  // Records the success and duration of taking a screenshot for AIvX models.
+  static void RecordPassageEmbeddingModelExecutionTimeAndStatus(
+      PredictionModelType model_type,
+      base::TimeTicks snapshot_inquire_start_time,
+      passage_embeddings::ComputeEmbeddingsStatus status);
+
+  // Records the status of language detection during the Aiv4 workflow.
+  static void RecordLanguageDetectionStatus(LanguageDetectionStatus status);
 
   // Records if the browser was active at the time the prompt started displaying
   static void RecordPromptShownInActiveBrowser(

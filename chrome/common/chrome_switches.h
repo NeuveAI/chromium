@@ -92,6 +92,9 @@ extern const char kEnableAudioDebugRecordingsFromExtension[];
 extern const char kEnableBookmarkUndo[];
 extern const char kEnableCloudPrintProxy[];
 extern const char kEnableDomainReliability[];
+#if BUILDFLAG(IS_CHROMEOS)
+extern const char kEnableDevToolsPwaHandler[];
+#endif
 extern const char kEnableDownloadWarningImprovements[];
 extern const char kEnableExtensionActivityLogging[];
 extern const char kEnableExtensionActivityLogTesting[];
@@ -264,6 +267,7 @@ extern const char kNotificationLaunchId[];
 extern const char kPrefetchArgumentBrowserBackground[];
 extern const char kPwaLauncherVersion[];
 extern const char kShowIcons[];
+extern const char kSourceAppId[];
 extern const char kSourceShortcut[];
 extern const char kUninstall[];
 extern const char kUninstallAppId[];

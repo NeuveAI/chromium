@@ -103,6 +103,7 @@ class OpenXrApiWrapper {
   std::vector<mojom::XRInputSourceStatePtr> GetInputState();
 
   std::vector<mojom::XRViewPtr> GetDefaultViews() const;
+  float RecommendedViewportScale() const;
   XrTime GetPredictedDisplayTime() const;
   bool GetStageParameters(std::vector<gfx::Point3F>& stage_bounds,
                           gfx::Transform& local_from_stage);
@@ -115,7 +116,6 @@ class OpenXrApiWrapper {
   OpenXrAnchorManager* GetAnchorManager();
   OpenXrHitTestManager* GetHitTestManager();
   OpenXrLightEstimator* GetLightEstimator();
-  OpenXRSceneUnderstandingManager* GetSceneUnderstandingManager();
   OpenXrDepthSensor* GetDepthSensor();
 
   void OnContextProviderCreated(
@@ -242,7 +242,6 @@ class OpenXrApiWrapper {
   std::unordered_map<XrViewConfigurationType, OpenXrViewConfiguration>
       secondary_view_configs_;
 
-  std::unique_ptr<OpenXrAnchorManager> anchor_manager_;
   std::unique_ptr<OpenXrDepthSensor> depth_sensor_;
   std::unique_ptr<OpenXrLightEstimator> light_estimator_;
   std::unique_ptr<OpenXrStageBoundsProvider> bounds_provider_;

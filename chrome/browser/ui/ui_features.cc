@@ -61,12 +61,14 @@ BASE_FEATURE(kOfferPinToTaskbarWhenSettingToDefault,
 BASE_FEATURE(kOfferPinToTaskbarInFirstRunExperience,
              "OfferPinToTaskbarInFirstRunExperience",
              base::FEATURE_ENABLED_BY_DEFAULT);
-BASE_FEATURE(kOfferPinToTaskbarInfoBar,
-             "OfferPinToTaskbarInfoBar",
-             base::FEATURE_DISABLED_BY_DEFAULT);
 #endif
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+// Shows an infobar at startup offering to pin Chrome to the taskbar (on
+// Windows) or the Dock (on MacOS).
+BASE_FEATURE(kOfferPinToTaskbarInfoBar,
+             "OfferPinToTaskbarInfoBar",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 // Shows an infobar on PDFs offering to become the default PDF viewer if Chrome
 // isn't the default already.
 BASE_FEATURE(kPdfInfoBar, "PdfInfoBar", base::FEATURE_DISABLED_BY_DEFAULT);
@@ -158,6 +160,12 @@ BASE_FEATURE_ENUM_PARAM(MiniToolbarActiveConfiguration,
                         "mini_toolbar_active_config",
                         MiniToolbarActiveConfiguration::ShowMenu,
                         &kMiniToolbarActiveConfigurationOptions);
+
+BASE_FEATURE_PARAM(int,
+                   kSideBySideSnapDistance,
+                   &kSideBySide,
+                   "snap_distance",
+                   5);
 
 // When enabled along with SideBySide flag, split tabs will be restored on
 // startup.
@@ -526,6 +534,18 @@ BASE_FEATURE_PARAM(bool,
                    "collaboration_messaging",
                    false);
 
+BASE_FEATURE_PARAM(bool,
+                   kPageActionsMigrationPriceTracking,
+                   &kPageActionsMigration,
+                   "price_tracking",
+                   false);
+
+BASE_FEATURE_PARAM(bool,
+                   kPageActionsMigrationAutofillMandatoryReauth,
+                   &kPageActionsMigration,
+                   "mandatory_reauth",
+                   false);
+
 BASE_FEATURE(kSavePasswordsContextualUi,
              "SavePasswordsContextualUi",
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -591,6 +611,14 @@ bool HasTabSearchToolbarButton() {
 
 BASE_FEATURE(kNonMilestoneUpdateToast,
              "NonMilestoneUpdateToast",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kBookmarkTabGroupConversion,
+             "BookmarkTabGroupConversion",
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsBookmarkTabGroupConversionEnabled() {
+  return base::FeatureList::IsEnabled(kBookmarkTabGroupConversion);
+}
 
 }  // namespace features

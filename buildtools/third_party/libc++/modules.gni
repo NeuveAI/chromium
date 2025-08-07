@@ -5,6 +5,16 @@
 import("//build/config/c++/modules.gni")
 import("//build/config/clang/clang.gni")
 
+if (is_ios) {
+  import("//build/config/ios/ios_sdk.gni")
+  sdk_path = ios_sdk_path
+}
+
+if (is_mac) {
+  import("//build/config/mac/mac_sdk.gni")
+  sdk_path = mac_sdk_path
+}
+
 configs_to_add = [
   "//buildtools/third_party/libc++:config",
   "//build/config/compiler:no_chromium_code",
@@ -26,11 +36,24 @@ if (use_clang_modules) {
                              ])
       use_libcxx_modules = false
       sources = [ invoker.modulemap ]
+      if (!defined(public_deps)) {
+        public_deps = []
+      }
+      if (is_ios) {
+        public_deps += [ "//buildtools/third_party/libc++:copy_sysroot_modulemaps($default_toolchain)" ]
+      }
+      if (!defined(public_configs)) {
+        public_configs = []
+      }
 
       # By always including all module maps, we can get it to error out if
       # we attempt to include something not in your dependencies.
       # Otherwise, it would silently add it to your own AST.
-      cflags = module_map_flags
+      public_configs += [
+        "//buildtools/third_party/libc++:builtin_modulemap",
+        "//buildtools/third_party/libc++:libcxx_modulemap",
+        "//buildtools/third_party/libc++:sysroot_modulemaps",
+      ]
       configs -= configs_to_remove
       configs += configs_to_add
     }
@@ -42,6 +65,7 @@ if (use_clang_modules) {
   # before submitting this.
   template("alias") {
     source_set(target_name) {
+      forward_variables_from(invoker, [ "public_configs" ])
       public_deps = invoker.actual
       use_libcxx_modules = false
     }
@@ -59,32 +83,31 @@ if (use_clang_modules) {
     # This is a template to build libc++'s module file.
     modulemap(target_name) {
       forward_variables_from(invoker, "*")
-      modulemap =
-          "${root_gen_dir}/third_party/libc++/src/include/module.modulemap"
+      modulemap = "${root_build_dir}/gen/third_party/libc++/src/include/module.modulemap"
       deps = [
-        "//buildtools/third_party/libc++:copy_custom_headers",
-        "//buildtools/third_party/libc++:copy_libcxx_headers",
+        "//buildtools/third_party/libc++:copy_custom_headers($default_toolchain)",
+        "//buildtools/third_party/libc++:copy_libcxx_headers($default_toolchain)",
       ]
     }
   }
 
-  if (is_mac || is_ios) {
+  if (is_apple) {
     template("DarwinBasic_module") {
       modulemap(target_name) {
         forward_variables_from(invoker, "*")
-        modulemap = "$mac_sdk_path/usr/include/DarwinBasic.modulemap"
+        modulemap = "$sdk_path/usr/include/DarwinBasic.modulemap"
       }
     }
     template("DarwinFoundation_module") {
       modulemap(target_name) {
         forward_variables_from(invoker, "*")
-        modulemap = "$mac_sdk_path/usr/include/DarwinFoundation.modulemap"
+        modulemap = "$sdk_path/usr/include/DarwinFoundation.modulemap"
       }
     }
     template("c_standard_library_module") {
       modulemap(target_name) {
         forward_variables_from(invoker, "*")
-        modulemap = "$mac_sdk_path/usr/include/c_standard_library.modulemap"
+        modulemap = "$sdk_path/usr/include/c_standard_library.modulemap"
       }
     }
   } else {
@@ -93,8 +116,8 @@ if (use_clang_modules) {
         forward_variables_from(invoker, "*")
         modulemap = sysroot_modulemap
         deps = [
-          ":copy_custom_headers",
-          ":copy_libcxx_headers",
+          ":copy_custom_headers($default_toolchain)",
+          ":copy_libcxx_headers($default_toolchain)",
         ]
       }
     }

@@ -42,6 +42,7 @@
 #include "base/trace_event/common/trace_event_common.h"
 #include "base/trace_event/trace_event.h"
 #include "base/trace_event/trace_id_helper.h"
+#include "cc/base/features.h"
 #include "components/viz/common/frame_timing_details.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/network/public/mojom/load_timing_info.mojom-blink.h"
@@ -694,11 +695,11 @@ void WindowPerformance::EventTimingProcessingEnd(
 #endif  // BUILDFLAG(IS_MAC)
   }
 
-  if (event.target()) {
+  if (event.RawTarget()) {
     // `event->target()` is assigned as part of EventDispatch, and will be unset
     // whenever we skip dispatch. (See: crbug.com/1367329).
     // Note: target may be dom detached, and even GC-ed, before Observer fires.
-    entry->SetTarget(event.target()->ToNode());
+    entry->SetTarget(event.RawTarget()->ToNode());
   }
 
   // Request presentation time first, because this might increment presentation
@@ -791,6 +792,15 @@ void WindowPerformance::OnPresentationPromiseResolved(
   bool is_presentation_for_expected_source =
       !expected_frame_source_id || !actual_frame_source_id ||
       expected_frame_source_id == actual_frame_source_id;
+  if (base::FeatureList::IsEnabled(
+          ::features::kInternalBeginFrameSourceOnManyDidNotProduceFrame)) {
+    // Switch to cc BeginFrameSource will generate kNotRestartable(0) begin
+    // frame and submit compositor frame with kManualSourceId.
+    if ((expected_frame_source_id >> 32) == 0 ||
+        actual_frame_source_id == viz::BeginFrameArgs::kManualSourceId) {
+      is_presentation_for_expected_source = true;
+    }
+  }
 
   for (auto entry : event_timing_entries_) {
     auto* timing = entry->GetEventTimingReportingInfo();

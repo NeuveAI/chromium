@@ -19,6 +19,7 @@
 #include "base/containers/span.h"
 #include "base/notreached.h"
 #include "base/numerics/byte_conversions.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_view_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -96,6 +97,96 @@ constexpr unsigned char kIndexNamesKeyTypeByte = 201;
 constexpr unsigned char kObjectMetaDataTypeMaximum = 255;
 constexpr unsigned char kIndexMetaDataTypeMaximum = 255;
 
+constexpr unsigned char kTwoByteEncodingIndicator = 0x80;
+constexpr unsigned char kThreeByteEncodingIndicator = 0xff;
+
+// Appends encoded `source` to the end of `target` using a variable-length
+// encoding that maintains relative comparison order. When `source` is null, a
+// sentinel is encoded.
+void EncodeSortableVarChar16(std::optional<char16_t> source,
+                             std::string* target) {
+  // The sentinel value is a null byte.
+  if (!source.has_value()) {
+    target->push_back(kSentinel);
+    return;
+  }
+
+  // All char16_t that fit in 7 bits will be encoded in a single byte (where the
+  // first bit is 0), with a caveat. An actual null byte cannot be encoded as a
+  // null byte because it would conflict with the sentinel, so we add 1 to all
+  // of these, and 0x7f will fall into the next bucket.
+  if (*source <= (0x80 - 2)) {
+    target->push_back(*source + 1);
+    return;
+  }
+
+  // If the character can fit into 14 bits, encode in two bytes, with the first
+  // two bits 1 and 0 so that it sorts higher than the previous bucket
+  // encodings, which always start with 0.
+  if (*source < (0xffff >> 2)) {
+    unsigned char high = ((*source >> 8) & 0xff) | kTwoByteEncodingIndicator;
+    unsigned char low = *source & 0xff;
+    target->push_back(high);
+    target->push_back(low);
+    return;
+  }
+
+  // Otherwise we'll need three bytes. The first two bits are 1 and 1 so that it
+  // sorts higher than the two-byte encoding. The following 6 bits are wasted
+  // (all 1, but not used).
+  unsigned char high = (*source >> 8) & 0xff;
+  unsigned char low = *source & 0xff;
+  target->push_back(kThreeByteEncodingIndicator);
+  target->push_back(high);
+  target->push_back(low);
+}
+
+// Decodes the first few bytes (up to 3) from `from`, which were encoded from a
+// char16_t using EncodeSortableVarChar16(). The value is stored in `target`,
+// which will be nullopt for the sentinel value. Returns true on success.
+bool DecodeSortableVarChar16(std::string_view* from,
+                             std::optional<char16_t>* target) {
+  if (from->empty()) {
+    return false;
+  }
+
+  unsigned char first = from->front();
+  if (first == kSentinel) {
+    from->remove_prefix(1);
+    target->reset();
+    return true;
+  }
+
+  if ((first & 0x80) == 0) {
+    from->remove_prefix(1);
+    *target = (first & 0x7f) - 1;
+    return true;
+  }
+
+  if (from->size() < 2) {
+    return false;
+  }
+
+  unsigned char second = from->at(1);
+  if ((first & 0b11000000) == kTwoByteEncodingIndicator) {
+    from->remove_prefix(2);
+    *target = char16_t{second} | ((char16_t{first} & 0b00111111) << 8);
+    return true;
+  }
+
+  if (from->size() < 3) {
+    return false;
+  }
+
+  unsigned char third = from->at(2);
+  if (first != kThreeByteEncodingIndicator) {
+    return false;
+  }
+  from->remove_prefix(3);
+  *target = char16_t{third} | (char16_t{second} << 8);
+  return true;
+}
+
 IndexedDBKey InvalidKey() {
   return IndexedDBKey{blink::mojom::IDBKeyType::Invalid};
 }
@@ -105,21 +196,15 @@ inline void EncodeIntSafely(int64_t value, int64_t max, std::string* into) {
   return EncodeInt(value, into);
 }
 
-// This doubles the length of the data; a variable length encoding would be more
-// efficient. TODO(estade): use variable length encoding.
 void EncodeStringWithSentinel(const std::u16string& value, std::string* into) {
   size_t length = value.length();
-  into->reserve(into->size() +
-                length * (sizeof(char16_t) + sizeof(kPaddingByte)) +
-                kSentinelLength);
+  // This is a guesstimate.
+  into->reserve(into->size() + length * sizeof(char16_t) + kSentinelLength);
 
   for (char16_t c : value) {
-    into->push_back(kPaddingByte);
-    into->push_back(static_cast<char>(c >> 8));
-    into->push_back(static_cast<char>(c));
+    EncodeSortableVarChar16(c, into);
   }
-
-  into->push_back(kSentinel);
+  EncodeSortableVarChar16(std::nullopt, into);
 }
 
 // Reads and consumes the first bytes of `encoded` and outputs decoded string to
@@ -130,23 +215,17 @@ bool DecodeStringWithSentinel(std::string_view& encoded,
     return false;
   }
 
-  constexpr int kChunkLengthInBytes = sizeof(kPaddingByte) + sizeof(char16_t);
-  for (; !encoded.empty(); encoded = encoded.substr(kChunkLengthInBytes)) {
-    if (encoded.front() == kSentinel) {
-      encoded = encoded.substr(kSentinelLength);
+  while (true) {
+    std::optional<char16_t> decoded_char;
+    if (!DecodeSortableVarChar16(&encoded, &decoded_char)) {
+      return false;
+    }
+    if (!decoded_char.has_value()) {
+      // Sentinel value.
       return true;
     }
-    if (encoded.size() < kChunkLengthInBytes + kSentinelLength) {
-      return false;
-    }
-    if (encoded.at(0) != kPaddingByte) {
-      return false;
-    }
-    uint8_t hi = static_cast<uint8_t>(encoded.at(1));
-    uint8_t lo = static_cast<uint8_t>(encoded.at(2));
-    output->push_back((char16_t{hi} << 8) | char16_t{lo});
+    output->push_back(*decoded_char);
   }
-  return false;
 }
 
 // This doubles the length of the data; a variable length encoding would be more
@@ -283,8 +362,6 @@ IndexedDBKey DecodeSortableKeyNonArray(char value_type,
 }
 
 }  // namespace
-
-const unsigned char kMinimumIndexId = 30;
 
 std::string MaxIDBKey() {
   std::string ret;
@@ -569,9 +646,11 @@ bool DecodeStringWithLength(std::string_view* slice, std::u16string* value) {
     return false;
 
   int64_t length = 0;
-  if (!DecodeVarInt(slice, &length) || length < 0)
+  size_t bytes;
+  if (!DecodeVarInt(slice, &length) ||
+      !base::CheckMul(length, sizeof(char16_t)).AssignIfValid(&bytes)) {
     return false;
-  size_t bytes = length * sizeof(char16_t);
+  }
   if (slice->size() < bytes)
     return false;
 
@@ -588,11 +667,15 @@ bool DecodeBinary(std::string_view* slice, std::string* value) {
     return false;
 
   int64_t length = 0;
-  if (!DecodeVarInt(slice, &length) || length < 0)
+  size_t size;
+  if (!DecodeVarInt(slice, &length) ||
+      !base::MakeCheckedNum(length).AssignIfValid(&size)) {
     return false;
-  size_t size = length;
-  if (slice->size() < size)
+  }
+
+  if (slice->size() < size) {
     return false;
+  }
 
   value->assign(slice->data(), size);
   slice->remove_prefix(size);
@@ -604,9 +687,12 @@ bool DecodeBinary(std::string_view* slice, base::span<const uint8_t>* value) {
     return false;
 
   int64_t length = 0;
-  if (!DecodeVarInt(slice, &length) || length < 0)
+  size_t size;
+  if (!DecodeVarInt(slice, &length) ||
+      !base::MakeCheckedNum(length).AssignIfValid(&size)) {
     return false;
-  size_t size = length;
+  }
+
   if (slice->size() < size)
     return false;
 
@@ -917,21 +1003,24 @@ int CompareEncodedStringsWithLength(std::string_view* slice1,
     *ok = false;
     return 0;
   }
-  if (len1 < 0 || len2 < 0) {
+
+  size_t size1, size2;
+  if (!base::CheckMul(len1, sizeof(char16_t)).AssignIfValid(&size1) ||
+      !base::CheckMul(len2, sizeof(char16_t)).AssignIfValid(&size2)) {
     *ok = false;
     return 0;
   }
-  if (slice1->size() < len1 * sizeof(char16_t) ||
-      slice2->size() < len2 * sizeof(char16_t)) {
+
+  if (slice1->size() < size1 || slice2->size() < size2) {
     *ok = false;
     return 0;
   }
 
   // Extract the string data, and advance the passed slices.
-  std::string_view string1(slice1->data(), len1 * sizeof(char16_t));
-  std::string_view string2(slice2->data(), len2 * sizeof(char16_t));
-  slice1->remove_prefix(len1 * sizeof(char16_t));
-  slice2->remove_prefix(len2 * sizeof(char16_t));
+  std::string_view string1(slice1->data(), size1);
+  std::string_view string2(slice2->data(), size2);
+  slice1->remove_prefix(size1);
+  slice2->remove_prefix(size2);
 
   *ok = true;
   // Strings are UTF-16BE encoded, so a simple memcmp is sufficient.
@@ -946,12 +1035,13 @@ int CompareEncodedBinary(std::string_view* slice1,
     *ok = false;
     return 0;
   }
-  if (len1 < 0 || len2 < 0) {
+
+  size_t size1, size2;
+  if (!base::MakeCheckedNum(len1).AssignIfValid(&size1) ||
+      !base::MakeCheckedNum(len2).AssignIfValid(&size2)) {
     *ok = false;
     return 0;
   }
-  size_t size1 = len1;
-  size_t size2 = len2;
 
   if (slice1->size() < size1 || slice2->size() < size2) {
     *ok = false;

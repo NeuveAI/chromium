@@ -25,7 +25,10 @@ KioskAppLevelLogsManager::KioskAppLevelLogsManager(
           profile,
           base::BindRepeating(&KioskAppLevelLogsManager::SaveLog,
                               base::Unretained(this))),
-      kiosk_web_contents_logs_collector_(
+      browser_logs_collector_(
+          base::BindRepeating(&KioskAppLevelLogsManager::SaveLog,
+                              base::Unretained(this))),
+      app_windows_logs_collector_(
           profile,
           base::BindRepeating(&KioskAppLevelLogsManager::SaveLog,
                               base::Unretained(this))) {

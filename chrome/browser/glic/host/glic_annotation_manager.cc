@@ -11,11 +11,11 @@
 #include "base/state_transitions.h"
 #include "base/strings/escape.h"
 #include "base/types/expected.h"
-#include "chrome/browser/glic/glic_keyed_service.h"
 #include "chrome/browser/glic/glic_metrics.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/host/context/glic_sharing_manager_impl.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
+#include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/common/chrome_features.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "components/pdf/common/constants.h"
@@ -124,8 +124,7 @@ GetVerifiedAnnotationTargetFrame(content::WebContents* focused_contents,
         optimization_guide::DocumentIdentifierUserData::GetForCurrentDocument(
             focused_rfh);
     if (!document_identifier_user_data ||
-        document_identifier_user_data->serialized_token() !=
-            params.document_id) {
+        document_identifier_user_data->token() != params.document_id) {
       return base::unexpected(mojom::ScrollToErrorReason::kNoMatchingDocument);
     }
   }

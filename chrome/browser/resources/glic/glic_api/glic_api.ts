@@ -94,15 +94,6 @@ export declare interface GlicWebClient {
   notifyPanelWasClosed?(): Promise<void>;
 
   /**
-   * Called when the browser wants the web client to change its view to match
-   * a requested change (e.g., because the user clicked a UI element to toggle
-   * to a different view).
-   *
-   * The web client should update its view to match the requested change.
-   */
-  requestViewChange?(viewChangeRequest: ViewChangeRequest): void;
-
-  /**
    * The web client should resolve the promise after verifying the app is
    * responsive.
    *
@@ -110,6 +101,11 @@ export declare interface GlicWebClient {
    * as unresponsive and displaying an error state to the user.
    */
   checkResponsive?(): Promise<void>;
+
+  // !!! ATTENTION !!!
+  // Avoid adding new methods to this interface! Instead, to push information to
+  // the web client it's much more preferable to add new functions to
+  // GlicBrowserHost that return an Observable or ObservableValue instances.
 }
 
 /**
@@ -203,7 +199,8 @@ export declare interface GlicBrowserHost {
   setMaximumNumberOfPinnedTabs?(numTabs: number): Promise<number>;
 
   /**
-   * @deprecated Use CreateTask and PerformActions instead.
+   * @deprecated Use CreateTask and PerformActions instead. This method
+   * is undefined in Chrome and calling it is not supported.
    *
    * Inform Chrome about an action. Chrome Takes an action based on the
    * action proto and returns new context based on the tab context options.
@@ -221,7 +218,6 @@ export declare interface GlicBrowserHost {
    *
    * @throws {ActInFocusedTabError} on failure.
    *
-   * @todo Not yet implemented. https://crbug.com/425681926
    */
   createTask?(): Promise<number>;
 
@@ -233,7 +229,6 @@ export declare interface GlicBrowserHost {
    *
    * The output corresponds to the ActionsResult proto.
    *
-   * @todo Not yet implemented. https://crbug.com/425681926
    */
   performActions?(actions: ArrayBuffer): Promise<ArrayBuffer>;
 
@@ -246,10 +241,12 @@ export declare interface GlicBrowserHost {
    * rejected.
    *
    * If the task ID is not provided or 0, the most recent task is stopped.
+   * If the stopReason is not provided, it uses the default value
+   * ActorTaskStopReason.TASK_COMPLETE.
    *
    * @todo Require callers to provide a valid ID.
    */
-  stopActorTask?(taskId?: number): void;
+  stopActorTask?(taskId?: number, stopReason?: ActorTaskStopReason): void;
 
   /**
    * Pauses the actor task with the given ID in the browser if it exists. No-op
@@ -260,10 +257,12 @@ export declare interface GlicBrowserHost {
    * canceled and the associated Promises are rejected.
    *
    * If the task ID is 0, the most recent task is paused.
+   * If the pauseReason is not provided, it uses the default value
+   * ActorTaskPauseReason.PAUSED_BY_MODEL.
    *
    * @todo Require callers to provide a valid ID.
    */
-  pauseActorTask?(taskId: number): void;
+  pauseActorTask?(taskId: number, pauseReason?: ActorTaskPauseReason): void;
 
   /**
    * Resumes a previously paused actor task with the given ID.
@@ -610,13 +609,8 @@ export declare interface GlicBrowserHost {
    * `ObservableValue` instances. So if a previous one existed, it will stop
    * receiving updates when a new one is obtained.
    *
-   * Dynamic updates can be a costly operation so the observable value should be
-   * released/destroyed as soon as it's not useful anymore.
-   *
-   * TODO(b/432258121): A race condition can occur when a consumer
-   * unsubscribes and a new one subscribes. An update from the first
-   * subscription that is already in-flight may be delivered to the second
-   * consumer.
+   * Dynamic updates can be a costly operation so the observable should be
+   * subscribed only while it is required.
    */
   getPinCandidates?
       (options: GetPinCandidatesOptions): ObservableValue<PinCandidate[]>;
@@ -636,6 +630,15 @@ export declare interface GlicBrowserHost {
    * Returns the list of capabilities of the glic host.
    */
   getHostCapabilities?(): Set<HostCapability>;
+
+  /**
+   * Emits when the browser wants the web client to change its view to match
+   * a requested change (e.g., because the user clicked a UI element to toggle
+   * to a different view).
+   *
+   * The web client should update its view to match the requested change.
+   */
+  getViewChangeRequests?(): Observable<ViewChangeRequest>;
 
   /**
    * Notifies the browser that the web client has changed the view shown to the
@@ -687,7 +690,7 @@ export declare interface CreateTabOptions {
  * Provides measurement-related functionality to the Glic web client.
  *
  * The typical sequence of events should be either:
- *  (onUserInputSubmitted -> (onRequestStarted -> onResponseStarted ->
+ *  (onUserInputSubmitted -> (onResponseStarted ->
  *                            onResponseStopped)*
  *  )*
  * or
@@ -702,12 +705,6 @@ export declare interface CreateTabOptions {
 export declare interface GlicBrowserHostMetrics {
   /** Called when the user has submitted input via the web client. */
   onUserInputSubmitted?(mode: WebClientMode): void;
-
-  /**
-   * Called when the web client has submitted a request to the server
-   * awaiting a response.
-   */
-  onRequestStarted?(): void;
 
   /**
    * Called when the web client has sufficiently processed the input such that
@@ -924,6 +921,10 @@ export enum InvocationSource {
   WHATS_NEW = 9,
   /** User clicks sign-in and then signs in. */
   AFTER_SIGN_IN = 10,
+  /** User shared a tab. */
+  SHARED_TAB = 11,
+  /** From the actor task icon. */
+  ACTOR_TASK_ICON = 12,
 }
 
 /** The default value of TabContextOptions.pdfSizeLimit. */
@@ -1277,6 +1278,22 @@ export enum ActorTaskState {
   STOPPED = 4,
 }
 
+/* The reason/source of why a actor task was paused. */
+export enum ActorTaskPauseReason {
+  /* Actor task was paused by the model. */
+  PAUSED_BY_MODEL = 0,
+  /* Actor task was puased by the user. */
+  PAUSED_BY_USER = 1,
+}
+
+/* The reason/source of why an actor task was stopped. */
+export enum ActorTaskStopReason {
+  /* Actor task is complete. */
+  TASK_COMPLETE = 0,
+  /* Actor task was stopped by the user. */
+  STOPPED_BY_USER = 1,
+}
+
 export enum PerformActionsErrorReason {
   UNKNOWN = 0,
 
@@ -1540,6 +1557,13 @@ export declare interface ViewChangedNotification {
 export declare interface Observable<T> {
   /** Receive updates for value changes. */
   subscribe(change: (newValue: T) => void): Subscriber;
+
+  /**
+   * Subscribe with an Observer.
+   * This API was added in later, and is not supported by all versions of
+   * Chrome.
+   */
+  subscribeObserver?(observer: Observer<T>): Subscriber;
 }
 
 /**
@@ -1561,6 +1585,16 @@ export interface ObservableValue<T> extends Observable<T> {
 /** Allows control of a subscription to an Observable. */
 export declare interface Subscriber {
   unsubscribe(): void;
+}
+
+/** Observes an Observable. */
+export declare interface Observer<T> {
+  /** Called when the Observable emits a value. */
+  next?(value: T): void;
+  /** Called if the Observable emits an error. */
+  error?(err: any): void;
+  /** Called when the Observable completes. */
+  complete?(): void;
 }
 
 /** Information from a signed-in Chrome user profile. */
@@ -1653,6 +1687,8 @@ export declare interface SuggestionContent {
 export enum HostCapability {
   /** Glic host supports scrollTo() on PDF documents. */
   SCROLL_TO_PDF = 0,
+  /** Glic host will reset panel size and location on open. */
+  RESET_SIZE_AND_LOCATION_ON_OPEN = 1,
 }
 
 //
@@ -1717,4 +1753,6 @@ export interface ExtensibleEnums {
   settingsPageField: typeof SettingsPageField;
   hostCapability: typeof HostCapability;
   actorTaskState: typeof ActorTaskState;
+  actorTaskPauseReason: typeof ActorTaskPauseReason;
+  actorTaskStopReason: typeof ActorTaskStopReason;
 }

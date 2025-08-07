@@ -125,7 +125,9 @@ public class BookmarkBarCoordinator implements TopControlLayer, BookmarkBarVisib
                         profileSupplier,
                         currentTab,
                         bookmarkOpener,
-                        bookmarkManagerOpenerSupplier);
+                        bookmarkManagerOpenerSupplier,
+                        itemsContainer,
+                        mView);
         PropertyModelChangeProcessor.create(model, mView, BookmarkBarViewBinder::bind);
 
         mTopControlsStacker = topControlsStacker;
@@ -145,6 +147,14 @@ public class BookmarkBarCoordinator implements TopControlLayer, BookmarkBarVisib
      */
     public View getView() {
         return mView;
+    }
+
+    public boolean isVisible() {
+        return mView != null && mView.getVisibility() == VISIBLE;
+    }
+
+    public void setVisibility(boolean isVisible) {
+        mMediator.setVisibility(isVisible);
     }
 
     private BookmarkBarButton inflateBookmarkBarButton(ViewGroup parent) {

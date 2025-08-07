@@ -18,6 +18,7 @@
 #include "chrome/common/actor.mojom-forward.h"
 #include "chrome/common/actor/action_result.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 
 namespace actor {
 
@@ -52,13 +53,19 @@ void ActorTask::SetState(State state) {
   VLOG(1) << "ActorTask state change: " << state_ << " -> " << state;
 #if DCHECK_IS_ON()
   static const base::NoDestructor<base::StateTransitions<State>>
-      allowed_transitions(base::StateTransitions<State>({
-          {kCreated, {kActing, kReflecting, kPausedByClient, kFinished}},
-          {kActing, {kReflecting, kPausedByClient, kFinished}},
-          {kReflecting, {kActing, kPausedByClient, kFinished}},
-          {kPausedByClient, {kActing, kReflecting, kFinished}},
-          {kFinished, {}},
-      }));
+      allowed_transitions(base::StateTransitions<State>(
+          {{kCreated,
+            {kActing, kReflecting, kPausedByActor, kPausedByUser, kCancelled,
+             kFinished}},
+           {kActing,
+            {kReflecting, kPausedByActor, kPausedByUser, kCancelled,
+             kFinished}},
+           {kReflecting,
+            {kActing, kPausedByActor, kPausedByUser, kCancelled, kFinished}},
+           {kPausedByActor, {kActing, kReflecting, kCancelled, kFinished}},
+           {kPausedByUser, {kActing, kReflecting, kCancelled, kFinished}},
+           {kCancelled, {}},
+           {kFinished, {}}}));
   if (state != state_) {
     DCHECK_STATE_TRANSITION(allowed_transitions,
                             /*old_state=*/state_,
@@ -75,12 +82,12 @@ void ActorTask::SetState(State state) {
 
 void ActorTask::Act(std::vector<std::unique_ptr<ToolRequest>>&& actions,
                     ActCallback callback) {
-  if (state_ == State::kPausedByClient) {
+  if (state_ == State::kPausedByActor) {
     std::move(callback).Run(MakeResult(mojom::ActionResultCode::kTaskPaused),
                             std::nullopt);
     return;
   }
-  if (state_ == State::kFinished) {
+  if (IsStopped()) {
     std::move(callback).Run(MakeResult(mojom::ActionResultCode::kTaskWentAway),
                             std::nullopt);
     return;
@@ -103,7 +110,7 @@ void ActorTask::OnFinishedAct(ActCallback callback,
   std::move(callback).Run(std::move(result), std::nullopt);
 }
 
-void ActorTask::Stop() {
+void ActorTask::Stop(bool success) {
   if (execution_engine_) {
     execution_engine_->CancelOngoingActions(
         mojom::ActionResultCode::kTaskWentAway);
@@ -114,10 +121,14 @@ void ActorTask::Stop() {
   for (auto& tab : tabs_to_remove) {
     RemoveTab(tab);
   }
-  SetState(State::kFinished);
+  if (success) {
+    SetState(State::kFinished);
+  } else {
+    SetState(State::kCancelled);
+  }
 }
 
-void ActorTask::Pause() {
+void ActorTask::Pause(bool from_actor) {
   if (GetState() == State::kFinished) {
     return;
   }
@@ -125,17 +136,26 @@ void ActorTask::Pause() {
     execution_engine_->CancelOngoingActions(
         mojom::ActionResultCode::kTaskPaused);
   }
-  SetState(State::kPausedByClient);
+  if (from_actor) {
+    SetState(State::kPausedByActor);
+  } else {
+    SetState(State::kPausedByUser);
+  }
 }
 
 void ActorTask::Resume() {
-  if (GetState() != State::kFinished) {
+  if (GetState() != State::kFinished || GetState() != State::kCancelled) {
     SetState(State::kReflecting);
   }
 }
 
 bool ActorTask::IsPaused() const {
-  return GetState() == State::kPausedByClient;
+  return (GetState() == State::kPausedByActor) ||
+         (GetState() == State::kPausedByUser);
+}
+
+bool ActorTask::IsStopped() const {
+  return (GetState() == State::kFinished) || (GetState() == State::kCancelled);
 }
 
 base::Time ActorTask::GetEndTime() const {
@@ -148,6 +168,17 @@ void ActorTask::AddTab(tabs::TabHandle tab_handle, AddTabCallback callback) {
         FROM_HERE, base::BindOnce(std::move(callback), MakeOkResult()));
     return;
   }
+
+  CHECK(!actuation_mode_runners_.contains(tab_handle));
+  if (tab_handle.Get() && tab_handle.Get()->GetContents()) {
+    content::WebContents* web_contents = tab_handle.Get()->GetContents();
+    actuation_mode_runners_.emplace(
+        tab_handle, web_contents->IncrementCapturerCount(gfx::Size(),
+                                                         /*stay_hidden=*/false,
+                                                         /*stay_awake=*/true,
+                                                         /*is_activity=*/true));
+  }
+
   // Notify the UI of the new tab.
   tab_handles_.insert(tab_handle);
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -159,6 +190,10 @@ void ActorTask::AddTab(tabs::TabHandle tab_handle, AddTabCallback callback) {
 }
 
 void ActorTask::RemoveTab(tabs::TabHandle tab_handle) {
+  // Erasing the ScopedClosureRunner from the map triggers its destructor, which
+  // automatically calls DecrementCapturerCount on the WebContents.
+  actuation_mode_runners_.erase(tab_handle);
+
   auto num_removed = tab_handles_.erase(tab_handle);
   if (num_removed > 0) {
     // Notify the UI of the tab removal.
@@ -195,8 +230,12 @@ std::string ToString(const ActorTask::State& state) {
       return "Acting";
     case kReflecting:
       return "Reflecting";
-    case kPausedByClient:
-      return "PausedByClient";
+    case kPausedByActor:
+      return "PausedByActor";
+    case kPausedByUser:
+      return "PausedByUser";
+    case kCancelled:
+      return "Cancelled";
     case kFinished:
       return "Finished";
   }

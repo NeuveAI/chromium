@@ -102,7 +102,6 @@
 #include "media/mojo/mojom/media_metrics_provider.mojom-forward.h"
 #include "media/mojo/mojom/media_player.mojom-forward.h"
 #include "media/mojo/mojom/video_encoder_metrics_provider.mojom-forward.h"
-#include "media/mojo/services/media_metrics_provider.h"
 #include "media/mojo/services/mojo_video_encoder_metrics_provider_service.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
@@ -191,7 +190,6 @@
 #include "ui/accessibility/platform/ax_platform_tree_manager.h"
 #include "ui/accessibility/platform/ax_platform_tree_manager_delegate.h"
 #include "ui/accessibility/platform/ax_unique_id.h"
-#include "ui/accessibility/platform/browser_accessibility_manager.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
@@ -248,6 +246,10 @@ namespace network {
 struct ResourceRequest;
 class ResourceRequestBody;
 }  // namespace network
+
+namespace ui {
+class BrowserAccessibilityManager;
+}
 
 namespace ukm {
 class UkmRecorder;
@@ -1641,7 +1643,7 @@ class CONTENT_EXPORT RenderFrameHostImpl
 
   // Requests that the renderer discard the frame associated with this host,
   // freeing up as many resources as possible.
-  void DiscardFrame();
+  void DiscardFrame(base::OnceClosure on_discarded_cb);
 
   // BEGIN IPC REVIEW BOUNDARY: to enforce security review for IPC, these
   // methods are defined in render_frame_host_impl_interface_bindings.cc.
@@ -2619,6 +2621,9 @@ class CONTENT_EXPORT RenderFrameHostImpl
   void RecordWindowProxyUsageMetrics(
       const blink::FrameToken& target_frame_token,
       blink::mojom::WindowProxyAccessType access_type) override;
+  void InitializeCrashReportStorage(
+      uint64_t length,
+      InitializeCrashReportStorageCallback callback) override;
   void SetCrashReportStorageKey(
       const std::string& key,
       const std::string& value,
@@ -4417,6 +4422,11 @@ class CONTENT_EXPORT RenderFrameHostImpl
   media::PictureInPictureEventsInfo::AutoPipReasonCallback
   CreateAutoPipReasonCallback();
 
+  // Notifies discard clients the operation completed successfully. This may be
+  // called either when the renderer acknowledges the operation completed
+  // successfully or the renderer was proactively terminated.
+  void MaybeNotifyDiscardedFrame();
+
   // The RenderViewHost that this RenderFrameHost is associated with.
   //
   // It is kept alive as long as any RenderFrameHosts or RenderFrameProxyHosts
@@ -4738,6 +4748,13 @@ class CONTENT_EXPORT RenderFrameHostImpl
   // Returns whether the tab was previously discarded.
   // This is passed to CommitNavigationParams in NavigationRequest.
   bool was_discarded_ = false;
+
+  // Callback invoked once the discard operation has finished. The operation may
+  // finish with an acknowledgement from the renderer or a process-kill (in
+  // which case the renderer will have terminated before acknowledging
+  // completion).
+  // Defined only if there is a discard operation being processed by this frame.
+  base::OnceClosure on_discarded_cb_;
 
   // Indicates whether this RenderFrameHost is in the process of loading a
   // document or not, and if so, whether it should show loading UI.
@@ -5517,6 +5534,13 @@ class CONTENT_EXPORT RenderFrameHostImpl
   // supplied by the renderer, and read from during
   // `MaybeGenerateCrashReport()`, to supplement crash reports with this data.
   std::map<std::string, std::string> crash_storage_map_;
+  // For now, this member is *only* used to track whether initialization has
+  // already occurred via this method. It will be more useful soon when it is
+  // used by `SetCrashReportStorageKey()` to actually enforce a cap on the
+  // number of bytes written to the backing crash report storage memory (for
+  // now, this is `crash_storage_map_`, but in the future it could be a shared
+  // memory region; see https://crrev.com/c/6788146 which is exploring this).
+  std::optional<uint64_t> crash_storage_requested_length_;
 
   // WeakPtrFactories are the last members, to ensure they are destroyed before
   // all other fields of `this`.

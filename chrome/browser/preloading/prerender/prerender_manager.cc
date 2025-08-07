@@ -19,8 +19,10 @@
 #include "chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_service_factory.h"
 #include "chrome/browser/preloading/prerender/prerender_utils.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/page_load_metrics/browser/navigation_handle_user_data.h"
+#include "components/search_engines/template_url_service.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
@@ -31,6 +33,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
+#include "content/public/common/content_features.h"
 #include "net/base/url_util.h"
 #include "url/gurl.h"
 
@@ -44,6 +47,9 @@ const char kHistogramPrerenderPredictionStatusDirectUrlInput[] =
 namespace {
 
 using content::PreloadingTriggeringOutcome;
+
+const char kHistogramPrerenderPrewarmDecision[] =
+    "Prerender.Experimental.PrewarmDecision";
 
 void MarkPreloadingAttemptAsDuplicate(
     content::PreloadingAttempt* preloading_attempt) {
@@ -218,22 +224,12 @@ PrerenderManager::StartPrerenderDirectUrlInput(
 bool PrerenderManager::MaybeStartPrewarmSearchResult() {
   // TODO(https://crbug.com/423465927): Revalidate the handle when the prewarm
   // is reused for prerendering.
-  if (search_prewarm_handle_ ||
-      !base::FeatureList::IsEnabled(features::kPrewarm) ||
-      headless::IsHeadlessMode() || headless::IsOldHeadlessMode() ||
-      (content::DevToolsAgentHost::IsDebuggerAttached(web_contents()) &&
-       !features::kForceEnableWithDevTools.Get())) {
-    // We just return in the following cases;
-    // - The prewarm was already triggered.
-    // - The prewarm feature is disabled.
-    // - Running in a headless mode.
-    // - A Debugger is attached (this condition can be masked by a parameter).
+  GURL prewarm_url;
+  PrewarmDecision decision = ShouldPrewarm(prewarm_url);
+  base::UmaHistogramEnumeration(kHistogramPrerenderPrewarmDecision, decision);
+  if (decision != PrewarmDecision::kReady) {
     return false;
   }
-
-  const GURL prewarm_url =
-      prewarm_url_for_testing_.value_or(GURL(features::kPrewarmUrl.Get()));
-  CHECK(prewarm_url.is_valid());
 
   auto* preloading_data =
       content::PreloadingData::GetOrCreateForWebContents(web_contents());
@@ -251,10 +247,8 @@ bool PrerenderManager::MaybeStartPrewarmSearchResult() {
       /*no_vary_search_hint=*/std::nullopt,
       ui::PageTransitionFromInt(ui::PAGE_TRANSITION_GENERATED |
                                 ui::PAGE_TRANSITION_FROM_ADDRESS_BAR),
-      // TODO(https://crbug.com/406378765): Consider enabling rendering
-      // warm-ups when we support process reuse.
-      /*should_warm_up_compositor=*/false,
-      /*should_prepare_paint_tree=*/false,
+      /*should_warm_up_compositor=*/true,
+      /*should_prepare_paint_tree=*/true,
       content::PreloadingHoldbackStatus::kUnspecified,
       content::PreloadPipelineInfo::Create(
           /*planned_max_preloading_type=*/content::PreloadingType::kPrerender),
@@ -286,12 +280,23 @@ void PrerenderManager::StartPrerenderSearchResult(
     const GURL& canonical_search_url,
     const GURL& prerendering_url,
     base::WeakPtr<content::PreloadingAttempt> preloading_attempt) {
-  // If the caller does not want to prerender a new result, this does not need
-  // to do anything.
-  if (!ResetSearchPrerenderTaskIfNecessary(canonical_search_url,
-                                           preloading_attempt)) {
+  // Do not re-prerender the same search result.
+  if (search_prerender_task_ &&
+      search_prerender_task_->prerendered_canonical_search_url() ==
+          canonical_search_url) {
+    // In case a prerender is already present for the URL, prerendering is
+    // eligible but mark triggering outcome as a duplicate.
+    if (preloading_attempt) {
+      preloading_attempt->SetEligibility(
+          content::PreloadingEligibility::kEligible);
+      MarkPreloadingAttemptAsDuplicate(preloading_attempt.get());
+    }
     return;
   }
+  // Keep a reference to the previous search prerenderer task so that the
+  // PrerenderHost is not destructed and can be reused.
+  std::unique_ptr<SearchPrerenderTask> previous_search_prerender_task =
+      std::move(search_prerender_task_);
 
   // web_contents() owns the instance that stores this callback, so it is safe
   // to call std::ref.
@@ -319,13 +324,17 @@ void PrerenderManager::StartPrerenderSearchResult(
                   kPrerender),
           preloading_attempt.get(), std::move(url_match_predicate),
           /*prerender_navigation_handle_callback=*/{},
-          /*allow_reuse=*/true);
+          features::kPrerender2ReuseSearchResultHost.Get());
 
   if (prerender_handle) {
     CHECK(!search_prerender_task_)
         << "SearchPrerenderTask should be reset before setting a new one.";
     search_prerender_task_ = std::make_unique<SearchPrerenderTask>(
         canonical_search_url, std::move(prerender_handle));
+  }
+  if (previous_search_prerender_task) {
+    previous_search_prerender_task->set_prediction_status(
+        PrerenderPredictionStatus::kCancelled);
   }
 }
 
@@ -402,30 +411,50 @@ void PrerenderManager::ResetPrerenderHandlesOnPrimaryPageChanged(
   }
 }
 
-bool PrerenderManager::ResetSearchPrerenderTaskIfNecessary(
-    const GURL& canonical_search_url,
-    base::WeakPtr<content::PreloadingAttempt> preloading_attempt) {
-  if (!search_prerender_task_) {
-    return true;
+PrerenderManager::PrewarmDecision PrerenderManager::ShouldPrewarm(
+    GURL& prewarm_url) {
+  if (search_prewarm_handle_) {
+    return PrewarmDecision::kAlreadyExists;
   }
-
-  // Do not re-prerender the same search result.
-  if (search_prerender_task_->prerendered_canonical_search_url() ==
-      canonical_search_url) {
-    // In case a prerender is already present for the URL, prerendering is
-    // eligible but mark triggering outcome as a duplicate.
-    if (preloading_attempt) {
-      preloading_attempt->SetEligibility(
-          content::PreloadingEligibility::kEligible);
-
-      MarkPreloadingAttemptAsDuplicate(preloading_attempt.get());
+  if (!base::FeatureList::IsEnabled(features::kPrewarm)) {
+    return PrewarmDecision::kDisabled;
+  }
+  if (headless::IsHeadlessMode() || headless::IsOldHeadlessMode()) {
+    return PrewarmDecision::kInHeadlessMode;
+  }
+  if (content::DevToolsAgentHost::IsDebuggerAttached(web_contents()) &&
+      !features::kForceEnableWithDevTools.Get()) {
+    // TODO(https://crbug.com/431928370): Allows this once the prewarm support
+    // is implemented in the CDP.
+    return PrewarmDecision::kDebuggerAttached;
+  }
+  prewarm_url =
+      prewarm_url_for_testing_.value_or(GURL(features::kPrewarmUrl.Get()));
+  if (!prewarm_url.is_valid()) {
+    // A valid URL would not be provided if the feature is enabled from
+    // chrome://flags, or arbitrary command line options.
+    return PrewarmDecision::kInvalidUrl;
+  }
+  if (!prewarm_url_for_testing_.has_value() &&
+      features::kPrewarmZeroSuggestTrigger.Get()) {
+    // Check if the prewarm URL is aligned with the default search provider.
+    // This check should be done only when the feature is correctly configured
+    // for the production.
+    // TODO(https://crbug.com/434823934): Once we ensure the feature is
+    // promising, integrate it with the template service for other search
+    // providers.
+    auto* template_url_service = TemplateURLServiceFactory::GetForProfile(
+        Profile::FromBrowserContext(web_contents()->GetBrowserContext()));
+    if (!template_url_service) {
+      return PrewarmDecision::kNoTemplateUrlService;
     }
-    return false;
+    if (!template_url_service->GetDefaultSearchProviderOrigin()
+             .IsSameOriginWith(prewarm_url)) {
+      return PrewarmDecision::kNotSameOriginWithDSE;
+    }
   }
-  search_prerender_task_->set_prediction_status(
-      PrerenderPredictionStatus::kCancelled);
-  search_prerender_task_.reset();
-  return true;
+
+  return PrewarmDecision::kReady;
 }
 
 PrerenderManager::PrerenderManager(content::WebContents* web_contents)

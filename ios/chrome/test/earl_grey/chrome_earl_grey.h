@@ -731,9 +731,6 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // Returns YES if UKM feature is enabled.
 - (BOOL)isUKMEnabled [[nodiscard]];
 
-// Returns YES if DWA feature is enabled.
-- (BOOL)isDWAEnabled [[nodiscard]];
-
 // Returns YES if kTestFeature is enabled.
 - (BOOL)isTestFeatureEnabled;
 
@@ -1004,6 +1001,17 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 
 // Waits for the MessagingBackendService to be initialized.
 - (NSError*)waitForMessagingBackendServiceInitialized;
+
+#pragma mark - Reader mode Utilities
+
+// Shows Reader mode in the current tab.
+- (void)showReaderMode;
+
+// Waits until the Reader mode WebState is ready in the current tab.
+- (BOOL)waitUntilReaderModeWebStateIsReady;
+
+// Hides Reader mode in the current tab.
+- (void)hideReaderMode;
 
 @end
 

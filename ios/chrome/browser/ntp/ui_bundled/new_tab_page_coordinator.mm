@@ -18,6 +18,7 @@
 #import "components/feed/core/v2/public/common_enums.h"
 #import "components/feed/core/v2/public/ios/pref_names.h"
 #import "components/feed/feed_feature_list.h"
+#import "components/image_fetcher/ios/ios_image_data_fetcher_wrapper.h"
 #import "components/omnibox/common/omnibox_features.h"
 #import "components/policy/policy_constants.h"
 #import "components/pref_registry/pref_registry_syncable.h"
@@ -25,6 +26,7 @@
 #import "components/search/search.h"
 #import "components/search_engines/template_url_service.h"
 #import "components/signin/public/base/signin_metrics.h"
+#import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
 #import "components/signin/public/identity_manager/tribool.h"
 #import "components/sync/service/sync_service.h"
@@ -54,12 +56,14 @@
 #import "ios/chrome/browser/follow/model/follow_browser_agent.h"
 #import "ios/chrome/browser/follow/model/followed_web_site.h"
 #import "ios/chrome/browser/follow/model/followed_web_site_state.h"
+#import "ios/chrome/browser/google/model/google_logo_service_factory.h"
 #import "ios/chrome/browser/home_customization/coordinator/home_customization_coordinator.h"
 #import "ios/chrome/browser/home_customization/coordinator/home_customization_delegate.h"
 #import "ios/chrome/browser/home_customization/utils/home_customization_constants.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_entrypoint.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_state.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_tab_helper.h"
+#import "ios/chrome/browser/ntp/model/new_tab_page_util.h"
 #import "ios/chrome/browser/ntp/search_engine_logo/mediator/search_engine_logo_mediator.h"
 #import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_constants.h"
 #import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_recorder.h"
@@ -75,7 +79,6 @@
 #import "ios/chrome/browser/ntp/ui_bundled/feed_wrapper_view_controller.h"
 #import "ios/chrome/browser/ntp/ui_bundled/home_start_data_source.h"
 #import "ios/chrome/browser/ntp/ui_bundled/incognito/incognito_view_controller.h"
-#import "ios/chrome/browser/ntp/ui_bundled/logo_vendor.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_actions_delegate.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_component_factory_protocol.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_constants.h"
@@ -139,11 +142,11 @@
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/grit/ios_branded_strings.h"
 #import "ios/chrome/grit/ios_strings.h"
-#import "ios/public/provider/chrome/browser/ui_utils/ui_utils_api.h"
 #import "ios/web/public/navigation/navigation_context.h"
 #import "ios/web/public/navigation/navigation_item.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/web_state_observer_bridge.h"
+#import "services/network/public/cpp/shared_url_loader_factory.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 
 @interface NewTabPageCoordinator () <AccountMenuCoordinatorDelegate,
@@ -271,12 +274,11 @@
 // Recorder for new tab page metrics.
 @property(nonatomic, strong) NewTabPageMetricsRecorder* NTPMetricsRecorder;
 
-// Logo vendor to display the doodle on the NTP.
-@property(nonatomic, strong) id<LogoVendor> logoVendor;
-
 @end
 
 @implementation NewTabPageCoordinator {
+  // IdentityManager for the primary account info.
+  raw_ptr<signin::IdentityManager> _identityManager;
   // Coordinator for the AIM prototype.
   AIMPrototypeCoordinator* _aimPrototypeCoordinator;
   // Coordinator in charge of handling sharing use cases.
@@ -291,6 +293,8 @@
   AccountMenuCoordinator* _accountMenuCoordinator;
   // The sign in coordinator displayed on top of the NTP.
   SigninCoordinator* _signinCoordinator;
+  // Logo mediator to display the doodle on the NTP.
+  SearchEngineLogoMediator* _searchEngineLogoMediator;
 }
 
 // Synthesize NewTabPageConfiguring properties.
@@ -323,7 +327,7 @@
 
   self.webState = self.browser->GetWebStateList()->GetActiveWebState();
   DCHECK(self.webState);
-  DCHECK(NewTabPageTabHelper::FromWebState(self.webState)->IsActive());
+  DCHECK(IsVisibleURLNewTabPage(self.webState));
 
   // Start observing SceneState changes.
   SceneState* sceneState = self.browser->GetSceneState();
@@ -362,11 +366,9 @@
   }
 
   // Update the feed if the account is subject to parental controls.
-  signin::IdentityManager* identityManager =
-      IdentityManagerFactory::GetForProfile(self.profile);
   signin::Tribool capability =
       supervised_user::IsPrimaryAccountSubjectToParentalControls(
-          identityManager);
+          _identityManager);
   [self updateFeedWithIsSupervisedUser:(capability == signin::Tribool::kTrue)];
 
   [self configureNTPMediator];
@@ -411,8 +413,8 @@
 
   [sceneState.profileState removeObserver:self];
 
-  [self.logoVendor disconnect];
-  self.logoVendor = nil;
+  [_searchEngineLogoMediator disconnect];
+  _searchEngineLogoMediator = nil;
 
   [_tabGroupIndicatorCoordinator stop];
   _tabGroupIndicatorCoordinator = nil;
@@ -467,6 +469,8 @@
 
   [_fakeboxLensIconBubblePresenter dismissAnimated:NO];
 
+  _identityManager = nullptr;
+
   self.started = NO;
 }
 
@@ -475,9 +479,7 @@
 - (void)stopIfNeeded {
   WebStateList* webStateList = self.browser->GetWebStateList();
   for (int i = 0; i < webStateList->count(); i++) {
-    NewTabPageTabHelper* NTPHelper =
-        NewTabPageTabHelper::FromWebState(webStateList->GetWebStateAt(i));
-    if (NTPHelper && NTPHelper->IsActive()) {
+    if (IsVisibleURLNewTabPage(webStateList->GetWebStateAt(i))) {
       return;
     }
   }
@@ -486,12 +488,7 @@
 }
 
 - (BOOL)isNTPActiveForCurrentWebState {
-  if (!self.webState) {
-    return NO;
-  }
-  NewTabPageTabHelper* NTPHelper =
-      NewTabPageTabHelper::FromWebState(self.webState);
-  return NTPHelper && NTPHelper->IsActive();
+  return IsVisibleURLNewTabPage(self.webState);
 }
 
 - (BOOL)isScrolledToTop {
@@ -631,6 +628,7 @@
 // Gets all NTP services from the profile.
 - (void)initializeServices {
   ProfileIOS* profile = self.profile;
+  _identityManager = IdentityManagerFactory::GetForProfile(profile);
   self.authService = AuthenticationServiceFactory::GetForProfile(profile);
   self.templateURLService =
       ios::TemplateURLServiceFactory::GetForProfile(profile);
@@ -644,16 +642,14 @@
   DCHECK(self.headerViewController);
 
   // Start observing IdentityManager.
-  signin::IdentityManager* identityManager =
-      IdentityManagerFactory::GetForProfile(self.profile);
   _identityObserverBridge =
-      std::make_unique<signin::IdentityManagerObserverBridge>(identityManager,
+      std::make_unique<signin::IdentityManagerObserverBridge>(_identityManager,
                                                               self);
 
   // Start observing Family Link user capabilities.
   _familyLinkUserCapabilitiesObserverBridge = std::make_unique<
       supervised_user::FamilyLinkUserCapabilitiesObserverBridge>(
-      identityManager, self);
+      _identityManager, self);
 
   // Start observing DiscoverFeedService.
   _discoverFeedObserverBridge = std::make_unique<DiscoverFeedObserverBridge>(
@@ -668,11 +664,26 @@
 // Creates all the NTP components.
 - (void)initializeNTPComponents {
   Browser* browser = self.browser;
+  ProfileIOS* profile = browser->GetProfile();
+  web::WebState* webState = browser->GetWebStateList()->GetActiveWebState();
+  TemplateURLService* templateURLService =
+      ios::TemplateURLServiceFactory::GetForProfile(profile);
+  GoogleLogoService* logoService =
+      GoogleLogoServiceFactory::GetForProfile(profile);
+  UrlLoadingBrowserAgent* URLLoadingBrowserAgent =
+      UrlLoadingBrowserAgent::FromBrowser(browser);
+  scoped_refptr<network::SharedURLLoaderFactory> sharedURLLoaderFactory =
+      profile->GetSharedURLLoaderFactory();
+  BOOL offTheRecord = profile->IsOffTheRecord();
+  _searchEngineLogoMediator =
+      [[SearchEngineLogoMediator alloc] initWithWebState:webState
+                                      templateURLService:templateURLService
+                                             logoService:logoService
+                                  URLLoadingBrowserAgent:URLLoadingBrowserAgent
+                                  sharedURLLoaderFactory:sharedURLLoaderFactory
+                                            offTheRecord:offTheRecord];
   id<NewTabPageComponentFactoryProtocol> componentFactory =
       self.componentFactory;
-  self.logoVendor =
-      [[SearchEngineLogoMediator alloc] initWithBrowser:browser
-                                               webState:self.webState];
   self.NTPViewController = [componentFactory NTPViewController];
   self.headerViewController =
       [componentFactory headerViewControllerForProfile:self.profile];
@@ -758,7 +769,7 @@
   headerViewController.baseViewController = self.baseViewController;
   headerViewController.NTPMetricsRecorder = self.NTPMetricsRecorder;
   headerViewController.mutator = self.NTPMediator;
-  [headerViewController setLogoVendor:self.logoVendor];
+  [headerViewController setSearchEngineLogoMediator:_searchEngineLogoMediator];
 }
 
 // Configures `self.contentSuggestionsCoordinator`.
@@ -908,7 +919,7 @@
   [self dismissCustomizationMenu];
   [self.NTPMetricsRecorder recordIdentityDiscTapped];
   BOOL isSignedIn =
-      self.authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin);
+      _identityManager->HasPrimaryAccount(signin::ConsentLevel::kSignin);
   if (![self isSignInAllowed]) {
     id<SettingsCommands> handler = HandlerForProtocol(
         self.browser->GetCommandDispatcher(), SettingsCommands);
@@ -1074,8 +1085,8 @@
 }
 
 - (BOOL)isFollowingFeedAvailable {
-  return IsWebChannelsEnabled() && self.authService &&
-         self.authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin);
+  return IsWebChannelsEnabled() && _identityManager &&
+         _identityManager->HasPrimaryAccount(signin::ConsentLevel::kSignin);
 }
 
 - (NSUInteger)lastVisibleFeedCardIndex {
@@ -1135,8 +1146,8 @@
 
 - (void)showSignInUIFromSource:(FeedSignInPromoSource)source {
   // If the user is already signed in, do nothing.
-  if (self.authService &&
-      self.authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin)) {
+  if (_identityManager &&
+      _identityManager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
     return;
   }
   // This flow shouldn't be offered if sign-in is disallowed.
@@ -1633,9 +1644,7 @@
 }
 
 - (bool)hasIdentitiesOnDevice {
-  return !IdentityManagerFactory::GetForProfile(self.profile)
-              ->GetAccountsOnDevice()
-              .empty();
+  return !_identityManager->GetAccountsOnDevice().empty();
 }
 
 // Update the state, to take into account that the signin coordinator
@@ -1755,7 +1764,7 @@
 
   _webState = webState;
   self.contentSuggestionsCoordinator.webState = _webState;
-  [self.logoVendor setWebState:_webState];
+  [_searchEngineLogoMediator setWebState:_webState];
 }
 
 // Called when the NTP changes visibility, either when the user navigates to

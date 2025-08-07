@@ -4,12 +4,12 @@
 #ifndef DEVICE_VR_OPENXR_ANDROID_OPENXR_SCENE_UNDERSTANDING_MANAGER_ANDROID_H_
 #define DEVICE_VR_OPENXR_ANDROID_OPENXR_SCENE_UNDERSTANDING_MANAGER_ANDROID_H_
 
+#include "device/vr/openxr/android/openxr_anchor_manager_android.h"
 #include "device/vr/openxr/android/openxr_hit_test_manager_android.h"
 #include "device/vr/openxr/android/openxr_plane_manager_android.h"
 #include "device/vr/openxr/openxr_extension_handler_factory.h"
 #include "device/vr/openxr/openxr_scene_understanding_manager.h"
 #include "device/vr/public/mojom/vr_service.mojom.h"
-#include "third_party/openxr/dev/xr_android.h"
 #include "third_party/openxr/src/include/openxr/openxr.h"
 
 namespace device {
@@ -28,20 +28,18 @@ class OpenXRSceneUnderstandingManagerAndroid
 
   // OpenXRSceneUnderstandingManager
   OpenXrPlaneManager* GetPlaneManager() override;
+  OpenXrAnchorManager* GetAnchorManager() override;
   OpenXrHitTestManager* GetHitTestManager() override;
-
  private:
-  void OnFrameUpdate(XrTime predicted_display_time) override;
-
-  const raw_ref<const OpenXrExtensionHelper> extension_helper_;
   XrSpace mojo_space_;
 
   std::unique_ptr<OpenXrPlaneManagerAndroid> plane_manager_;
+  std::unique_ptr<OpenXrAnchorManagerAndroid> anchor_manager_;
   std::unique_ptr<OpenXrHitTestManagerAndroid> hit_test_manager_;
 };
 
 class OpenXrSceneUnderstandingManagerAndroidFactory
-    : public OpenXrExtensionHandlerFactory {
+    : public OpenXrSceneUnderstandingManagerFactory {
  public:
   OpenXrSceneUnderstandingManagerAndroidFactory();
   ~OpenXrSceneUnderstandingManagerAndroidFactory() override;

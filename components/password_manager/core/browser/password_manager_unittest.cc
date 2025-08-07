@@ -1753,10 +1753,6 @@ TEST_P(PasswordManagerTest,
   base::HistogramTester histogram_tester;
   PasswordForm form(MakeSimpleForm());
   form.type = PasswordForm::Type::kChangeSubmission;
-  // Since date_last_used is earlier than the backup creation time, this is the
-  // first login with the backup password.
-  form.date_last_used = base::Time::Now() - base::Seconds(1);
-  form.SetPasswordBackupNote(u"backup_password");
   store_->AddLogin(form);
   FormData observed_form = form.form_data;
   manager()->OnPasswordFormsParsed(&driver_, {observed_form});
@@ -1787,10 +1783,6 @@ TEST_P(PasswordManagerTest,
   base::HistogramTester histogram_tester;
   PasswordForm form(MakeSimpleForm());
   form.type = PasswordForm::Type::kChangeSubmission;
-  // Since date_last_used is earlier than the backup creation time, this is the
-  // first login with the backup password.
-  form.date_last_used = base::Time::Now() - base::Seconds(1);
-  form.SetPasswordBackupNote(u"backup_password");
   store_->AddLogin(form);
   std::vector<FormData> observed = {form.form_data};
   manager()->OnPasswordFormsParsed(&driver_, observed);
@@ -1822,9 +1814,6 @@ TEST_P(PasswordManagerTest,
   ukm::TestAutoSetUkmRecorder test_ukm_recorder;
   base::HistogramTester histogram_tester;
   PasswordForm form(MakeSimpleForm());
-  // Since date_last_used is earlier than the backup creation time, this is the
-  // first login with the backup password.
-  form.date_last_used = base::Time::Now() - base::Seconds(1);
   std::u16string backup_password = u"backup_password";
   form.SetPasswordBackupNote(backup_password);
   // Set the backup password as input of the login form.
@@ -1859,9 +1848,6 @@ TEST_P(PasswordManagerTest,
   ukm::TestAutoSetUkmRecorder test_ukm_recorder;
   base::HistogramTester histogram_tester;
   PasswordForm form(MakeSimpleForm());
-  // Since date_last_used is earlier than the backup creation time, this is the
-  // first login with the backup password.
-  form.date_last_used = base::Time::Now() - base::Seconds(1);
   std::u16string backup_password = u"backup_password";
   form.SetPasswordBackupNote(backup_password);
   // Set the backup password as input of the login form.
@@ -1892,37 +1878,6 @@ TEST_P(PasswordManagerTest,
           kLogInWithPasswordChangeSubmissionName,
       static_cast<int>(
           LogInWithChangedPasswordOutcome::kBackupPasswordSucceeded));
-}
-
-TEST_P(PasswordManagerTest,
-       MetricsNotReportedSecondLogInWithBackupPasswordChangeSubmission) {
-  ukm::TestAutoSetUkmRecorder test_ukm_recorder;
-  base::HistogramTester histogram_tester;
-  PasswordForm form(MakeSimpleForm());
-  std::u16string backup_password = u"backup_password";
-  form.SetPasswordBackupNote(backup_password);
-  // date_last_used is set after the backup creation time. This means this is
-  // the second login with the backup password and we shouldn't report it.
-  form.date_last_used =
-      form.GetPasswordBackupDateCreated().value() + base::Seconds(1);
-  // Set the backup password as input of the login form.
-  test_api(form.form_data).field(1).set_value(backup_password);
-  form.type = PasswordForm::Type::kChangeSubmission;
-  store_->AddLogin(form);
-  std::vector<FormData> observed = {form.form_data};
-
-  manager()->OnPasswordFormsParsed(&driver_, observed);
-  manager()->OnPasswordFormsRendered(&driver_, observed);
-  task_environment_.RunUntilIdle();
-
-  OnPasswordFormSubmitted(form.form_data);
-  observed.clear();
-  manager()->DidNavigateMainFrame(true);
-  manager()->OnPasswordFormsParsed(&driver_, observed);
-  manager()->OnPasswordFormsRendered(&driver_, observed);
-
-  histogram_tester.ExpectTotalCount(
-      "PasswordManager.LogInWithPasswordChangeSubmission", 0);
 }
 
 #if BUILDFLAG(IS_ANDROID)
@@ -6266,10 +6221,13 @@ TEST_P(PasswordManagerTest,
   EXPECT_CALL(client_, IsSavingAndFillingEnabled).WillRepeatedly(Return(true));
   ASSERT_TRUE(manager()->form_managers().empty());
 
-  FormData form_data = MakeSingleUsernameFormData();
-  const FieldGlobalId username_field = form_data.fields()[0].global_id();
+  FormData form_data = MakeFormDataWithOnlyNewPasswordField();
+  test_api(form_data).field(0).set_form_control_type(
+      autofill::FormControlType::kInputText);
+  const FieldGlobalId password_field = form_data.fields()[0].global_id();
   manager()->ProcessClassificationModelPredictions(
-      &driver_, form_data, {{username_field, FieldType::USERNAME}});
+      &driver_, form_data,
+      {{password_field, FieldType::ACCOUNT_CREATION_PASSWORD}});
 
   // Check that a form manager is created.
   ASSERT_EQ(manager()->form_managers().size(), 1u);
@@ -6277,12 +6235,12 @@ TEST_P(PasswordManagerTest,
   // Check that the form is parsed according to the model predictions.
   ASSERT_TRUE(base::test::RunUntil([&]() {
     return manager()->GetParsedObservedForm(
-               &driver_, username_field.renderer_id) != nullptr;
+               &driver_, password_field.renderer_id) != nullptr;
   }));
   const PasswordForm* parsed_form =
-      manager()->GetParsedObservedForm(&driver_, username_field.renderer_id);
-  EXPECT_EQ(parsed_form->username_element_renderer_id,
-            username_field.renderer_id);
+      manager()->GetParsedObservedForm(&driver_, password_field.renderer_id);
+  EXPECT_EQ(parsed_form->new_password_element_renderer_id,
+            password_field.renderer_id);
 }
 
 // Checks that a form manager is not created for the form if the model
@@ -6295,6 +6253,21 @@ TEST_P(PasswordManagerTest, ProcessingModelPredictions_IrrelevantForm) {
   const FieldGlobalId username_field = form_data.fields()[0].global_id();
   manager()->ProcessClassificationModelPredictions(
       &driver_, form_data, {{username_field, FieldType::UNKNOWN_TYPE}});
+
+  // Check that a form manager was not created.
+  ASSERT_TRUE(manager()->form_managers().empty());
+}
+
+// Checks that a form manager is not created for a single username form
+// based on the model predictions only.
+TEST_P(PasswordManagerTest, ProcessingModelPredictions_SingleUsernameForm) {
+  EXPECT_CALL(client_, IsSavingAndFillingEnabled).WillRepeatedly(Return(true));
+  ASSERT_TRUE(manager()->form_managers().empty());
+
+  FormData form_data = MakeSingleUsernameFormData();
+  const FieldGlobalId username_field = form_data.fields()[0].global_id();
+  manager()->ProcessClassificationModelPredictions(
+      &driver_, form_data, {{username_field, FieldType::USERNAME}});
 
   // Check that a form manager was not created.
   ASSERT_TRUE(manager()->form_managers().empty());

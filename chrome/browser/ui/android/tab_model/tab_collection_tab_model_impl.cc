@@ -261,6 +261,15 @@ bool TabCollectionTabModelImpl::GetTabGroupCollapsed(
   return visual_data->is_collapsed();
 }
 
+bool TabCollectionTabModelImpl::DetachedTabGroupExists(
+    JNIEnv* env,
+    const base::Token& tab_group_id) {
+  TabGroupId group_id = TabGroupId::FromRawToken(tab_group_id);
+  TabGroupTabCollection* detached_group =
+      tab_strip_collection_->GetDetachedTabGroup(group_id);
+  return detached_group != nullptr;
+}
+
 void TabCollectionTabModelImpl::CloseDetachedTabGroup(
     JNIEnv* env,
     const base::Token& tab_group_id) {
@@ -355,6 +364,10 @@ TabAndroid* TabCollectionTabModelImpl::GetLastShownTabForGroup(
     return nullptr;
   }
   return TabAndroid::FromTabHandle(*handle);
+}
+
+int TabCollectionTabModelImpl::GetIndexOfFirstNonPinnedTab(JNIEnv* env) {
+  return tab_strip_collection_->IndexOfFirstNonPinnedTab();
 }
 
 // Private methods:

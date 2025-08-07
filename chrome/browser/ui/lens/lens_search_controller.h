@@ -15,7 +15,6 @@
 #include "components/lens/lens_overlay_dismissal_source.h"
 #include "components/lens/lens_overlay_invocation_source.h"
 #include "components/omnibox/browser/autocomplete_match_type.h"
-#include "components/optimization_guide/content/browser/page_context_eligibility.h"
 #include "components/tabs/public/tab_interface.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
@@ -30,6 +29,7 @@ class LensOverlayEventHandler;
 class LensOverlayGen204Controller;
 class LensOverlaySidePanelCoordinator;
 class LensPermissionBubbleController;
+class LensComposeboxController;
 class LensSearchboxController;
 class LensSearchContextualizationController;
 }  // namespace lens
@@ -192,10 +192,11 @@ class LensSearchController {
   // Returns the LensSearchboxController.
   lens::LensSearchboxController* lens_searchbox_controller();
 
+  // Returns the LensComposeboxController.
+  lens::LensComposeboxController* lens_composebox_controller();
+
   // Returns the event handler for this instance of the Lens Overlay.
   lens::LensOverlayEventHandler* lens_overlay_event_handler();
-
-  optimization_guide::PageContextEligibility* page_context_eligibility();
 
   // Returns the LensSearchContextualizationController.
   lens::LensSearchContextualizationController*
@@ -203,13 +204,6 @@ class LensSearchController {
 
   // Returns the LensSessionMetricsLogger.
   lens::LensSessionMetricsLogger* lens_session_metrics_logger();
-
-  // Testing function for setting the page context eligibility API for this
-  // controller.
-  void set_page_context_eligibility_for_testing(
-      optimization_guide::PageContextEligibility* page_context_eligibility) {
-    page_context_eligibility_ = page_context_eligibility;
-  }
 
   lens::LensPermissionBubbleController*
   get_lens_permission_bubble_controller_for_testing() {
@@ -257,6 +251,11 @@ class LensSearchController {
   virtual std::unique_ptr<lens::LensSearchboxController>
   CreateLensSearchboxController();
 
+  // Override these methods to be able to track calls made to the composebox
+  // controller.
+  virtual std::unique_ptr<lens::LensComposeboxController>
+  CreateLensComposeboxController();
+
   // Override these methods to be able to track calls made to the
   // contextualization controller.
   virtual std::unique_ptr<lens::LensSearchContextualizationController>
@@ -283,10 +282,6 @@ class LensSearchController {
 
   // Called when the lens side panel has been hidden.
   void OnSidePanelHidden();
-
-  // Override these methods to be able to track calls made to the page context
-  // eligibility API.
-  virtual void CreatePageContextEligibilityAPI();
 
   // Internal state machine. States are mutually exclusive. Exposed for testing.
   enum class State {
@@ -318,8 +313,6 @@ class LensSearchController {
   State state() { return state_; }
 
  private:
-  void OnPageContextEligibilityAPILoaded(
-      optimization_guide::PageContextEligibility* page_context_eligibility);
 
   // Passes the correct callbacks and dependencies to the protected
   // CreateLensQueryController method.
@@ -393,6 +386,11 @@ class LensSearchController {
   // Tracks the internal state machine.
   State state_ = State::kOff;
 
+  // Tracks the state of the Lens Search feature when the tab is backgrounded.
+  // This state is used to restore the Lens Search feature to the same state
+  // when the tab is foregrounded.
+  State backgrounded_state_ = State::kOff;
+
   // Indicates whether a trigger for the HaTS survey has occurred in the current
   // session. Note that a trigger does not mean the survey will actually be
   // shown.
@@ -428,6 +426,9 @@ class LensSearchController {
   // interactions, without a dependency on the overlay controller.
   std::unique_ptr<lens::LensSearchboxController> lens_searchbox_controller_;
 
+  // The composebox controller for the Lens Search feature on this tab.
+  std::unique_ptr<lens::LensComposeboxController> lens_composebox_controller_;
+
   // The contextualization controller for the Lens Search feature on this tab.
   std::unique_ptr<lens::LensSearchContextualizationController>
       lens_contextualization_controller_;
@@ -441,9 +442,6 @@ class LensSearchController {
 
   // Holds subscriptions for TabInterface callbacks.
   std::vector<base::CallbackListSubscription> tab_subscriptions_;
-
-  // The page context eligibility API if it has been fetched. Can be nullptr.
-  raw_ptr<optimization_guide::PageContextEligibility> page_context_eligibility_;
 
   // Owned by Profile, and thus guaranteed to outlive this instance.
   raw_ptr<variations::VariationsClient> variations_client_;

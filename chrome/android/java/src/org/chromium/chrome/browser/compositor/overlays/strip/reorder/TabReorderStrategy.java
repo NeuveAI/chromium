@@ -4,9 +4,11 @@
 package org.chromium.chrome.browser.compositor.overlays.strip.reorder;
 
 import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.graphics.PointF;
 import android.view.View;
 
+import org.chromium.base.MathUtils;
 import org.chromium.base.Token;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.ObservableSupplierImpl;
@@ -15,6 +17,7 @@ import org.chromium.chrome.browser.compositor.overlays.strip.AnimationHost;
 import org.chromium.chrome.browser.compositor.overlays.strip.ScrollDelegate;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutGroupTitle;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutTab;
+import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutTabDelegate;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutUtils;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutView;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripTabModelActionListener.ActionType;
@@ -179,6 +182,48 @@ public class TabReorderStrategy extends ReorderStrategyBase {
     @Override
     public StripLayoutView getInteractingView() {
         return mInteractingTab;
+    }
+
+    @Override
+    public void reorderViewInDirection(
+            StripLayoutTabDelegate tabDelegate,
+            StripLayoutView[] stripViews,
+            StripLayoutGroupTitle[] groupTitles,
+            StripLayoutTab[] stripTabs,
+            StripLayoutView reorderingView,
+            boolean toLeft) {
+        // Cast to the correct view type.
+        assert reorderingView instanceof StripLayoutTab
+                : "Using incorrect ReorderStrategy for view type.";
+        StripLayoutTab tab = (StripLayoutTab) reorderingView;
+
+        // Ensure we have a valid current index.
+        int curIndex = StripLayoutUtils.findIndexForTab(stripTabs, tab.getTabId());
+        assert curIndex != TabModel.INVALID_TAB_INDEX;
+
+        // Fake a successful reorder in the target direction.
+        float offset = MathUtils.flipSignIf(Float.MAX_VALUE, toLeft);
+        reorderTabIfThresholdReached(
+                stripViews,
+                groupTitles,
+                stripTabs,
+                (StripLayoutTab) reorderingView,
+                offset,
+                curIndex);
+
+        // Animate the reordering view and ensure it's foregrounded.
+        tabDelegate.setIsTabNonDragReordering(tab, /* isNonDragReordering= */ true);
+        reorderingView.setIsForegrounded(/* isForegrounded= */ true);
+        animateViewSliding(
+                reorderingView,
+                new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        tabDelegate.setIsTabNonDragReordering(
+                                tab, /* isNonDragReordering= */ false);
+                        reorderingView.setIsForegrounded(/* isForegrounded= */ false);
+                    }
+                });
     }
 
     /**

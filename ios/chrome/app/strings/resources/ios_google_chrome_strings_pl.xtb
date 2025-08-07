@@ -118,7 +118,6 @@ Odczekaj kilka minut, zanim się wylogujesz. Jeśli wylogujesz się teraz, te da
 <translation id="3863841106411295595">Dodaje wpisane adresy URL do listy Do przeczytania w Chrome.</translation>
 <translation id="3901001113120561395">W pełni wykorzystuj potencjał Chrome.</translation>
 <translation id="3913386780052199712">Zalogowany w Chrome</translation>
-<translation id="3932250749914183695">Wskazówka dotycząca Chrome: potwierdź swoją tożsamość</translation>
 <translation id="3984746313391923992">Twoja organizacja nie pozwala Ci zalogować się w Chrome.</translation>
 <translation id="3988789688219830639">Google Chrome nie ma dostępu do Twoich zdjęć ani filmów. Aby włączyć dostęp w iOS, wybierz Ustawienia &gt; Prywatność &gt; Zdjęcia.</translation>
 <translation id="4064699917955374540">Aby móc zapisywać dane z Chrome na koncie Google i ich używać, potwierdź swoją tożsamość.</translation>
@@ -133,6 +132,7 @@ Odczekaj kilka minut, zanim się wylogujesz. Jeśli wylogujesz się teraz, te da
 <translation id="4636900170638246267">Zaloguj się w na tej stronie i w Chrome.</translation>
 <translation id="4647910807533196601">Otwórz moją ostatnio używaną kartę w Chrome.</translation>
 <translation id="4693084815234024320">Jesteś w trybie incognito w Chrome</translation>
+<translation id="4713740144985377441">Wróć do Chrome, aby przesłać plik</translation>
 <translation id="4713907610796204963">Aby zacząć, zapoznaj się z najważniejszymi przydatnymi informacjami o Chrome</translation>
 <translation id="4724297637870447613">Korzystaj z Chrome w dowolnym miejscu</translation>
 <translation id="4738647308035481133">Strona Google Chrome</translation>
@@ -200,6 +200,7 @@ Zanim przełączysz się na inne konto, odczekaj kilka minut. Jeśli przełączy
 <translation id="6238746320622508509">Pozwól Chrome blokować karty incognito.</translation>
 <translation id="6247557882553405851">Menedżer haseł Google</translation>
 <translation id="6272822675004864999">Aby otrzymywać powiadomienia z Chrome, włącz je w ustawieniach iOS.</translation>
+<translation id="6299253454218177732">Wskazówka Chrome: pobierz swoje hasła</translation>
 <translation id="630693926528731525">Hasło nie zostało udostępnione. Sprawdź połączenie z internetem i upewnij się, że jesteś zalogowany(-a) w Chrome. Następnie spróbuj ponownie.</translation>
 <translation id="6348855835728304880">Korzystaj z haseł w Chrome i innych ustawień w innych aplikacjach na tym urządzeniu.</translation>
 <translation id="6373751563207403289">Kontrola zabezpieczeń chroni Cię przed przypadkami naruszenia bezpieczeństwa danych, niebezpiecznymi stronami i innymi zagrożeniami. Otrzymuj alerty o problemach związanych z prywatnością i bezpieczeństwem, które wykrywa Chrome.</translation>
@@ -230,6 +231,7 @@ W <ph name="BEGIN_LINK" />usługach Google<ph name="END_LINK" /> znajdziesz wi�
 <translation id="6922332667202044570">Usuń dane przeglądania w Chrome.</translation>
 <translation id="6924922227983877439">Otwieraj linki domyślnie w Chrome</translation>
 <translation id="6975725306479268850">Wybieranie Chrome do autouzupełniania</translation>
+<translation id="7038674195294813388">Otwórz ustawienia aplikacji domyślnych na iOS, kliknij „Przeglądarka” i wybierz Chrome.</translation>
 <translation id="7056826488869329999">Otwiera i uruchamia kontrolę zabezpieczeń w Chrome.</translation>
 <translation id="7061455974939528301">Naciśnij i przytrzymaj ikonę Chrome i kliknij „Edytuj ekran główny”</translation>
 <translation id="7124339256045485976">Zawsze używaj aktualnej wersji Chrome</translation>

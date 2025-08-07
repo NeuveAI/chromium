@@ -4,15 +4,21 @@
 
 package org.chromium.chrome.browser.customtabs.features.toolbar;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsProperties.CUSTOM_ACTION_BUTTONS;
+import static org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsProperties.CUSTOM_ACTION_BUTTONS_VISIBLE;
 import static org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsProperties.IS_INCOGNITO;
 import static org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsProperties.MINIMIZE_BUTTON;
+import static org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsProperties.OMNIBOX_ENABLED;
 import static org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsProperties.OPTIONAL_BUTTON_VISIBLE;
+import static org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsProperties.TITLE_VISIBLE;
 import static org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsProperties.TOOLBAR_WIDTH;
 
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.os.Handler;
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.annotation.ColorInt;
 
@@ -113,51 +119,115 @@ class CustomTabToolbarButtonsMediator
     }
 
     void setOptionalButtonData(@Nullable ButtonData buttonData) {
-        if (buttonData != null && mOptionalButtonCoordinator == null) {
-            View optionalButton = mView.ensureOptionalButtonInflated();
-            mOptionalButtonCoordinator =
-                    new OptionalButtonCoordinator(
-                            optionalButton,
-                            () ->
-                                    new UserEducationHelper(
-                                            mActivity, getProfileSupplier(), new Handler()),
-                            mView,
-                            /* isAnimationAllowedPredicate= */ () -> true,
-                            mTrackerSupplier);
-            int width =
-                    mActivity.getResources().getDimensionPixelSize(R.dimen.toolbar_button_width);
-            mOptionalButtonCoordinator.setCollapsedStateWidth(width);
-            mOptionalButtonCoordinator.setTransitionFinishedCallback(
-                    transitionType -> {
-                        switch (transitionType) {
-                            case TransitionType.EXPANDING_ACTION_CHIP:
-                                // TODO(crbug.com/428261559): Adjust URL/Title bar width accordingly
-                                break;
-                        }
-                        mView.requestLayout();
-                    });
-            if (ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
-                    ChromeFeatureList.CCT_ADAPTIVE_BUTTON_TEST_SWITCH, "always-animate", false)) {
-                mOptionalButtonCoordinator.setAlwaysShowActionChip(true);
+        boolean showOptionalButton =
+                mOptionalButtonCoordinator == null ? initializeOptionalButton() : true;
+        if (!showOptionalButton) return;
+
+        if (buttonData == null) {
+            if (mOptionalButtonCoordinator != null
+                    && mOptionalButtonCoordinator.getViewVisibility() != View.GONE) {
+                mOptionalButtonCoordinator.hideButton();
             }
-            if (ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
-                    ChromeFeatureList.CCT_ADAPTIVE_BUTTON_TEST_SWITCH, "hide-button", false)) {
-                // TODO(crbug.com/428261559): Simulate the shortened screen width to hide MTB.
-            }
+            return;
         }
 
-        if (mOptionalButtonCoordinator != null) {
-            if (buttonData != null) {
-                Tab tab = mTabProvider.get();
-                if (tab != null && mTrackerSupplier.get() == null) {
-                    mTrackerSupplier.set(TrackerFactory.getTrackerForProfile(tab.getProfile()));
-                }
-                mOptionalButtonCoordinator.updateButton(buttonData, mModel.get(IS_INCOGNITO));
-                updateOptionalButtonColors(
-                        mView.getBackground().getColor(), mView.getBrandedColorScheme());
-            }
-            mModel.set(OPTIONAL_BUTTON_VISIBLE, buttonData != null && buttonData.canShow());
+        Tab tab = mTabProvider.get();
+        if (tab != null && mTrackerSupplier.get() == null) {
+            mTrackerSupplier.set(TrackerFactory.getTrackerForProfile(tab.getProfile()));
         }
+        // Actual button update task is posted here, because the |Model#set()| below
+        // triggers another round of toolbar positioning job that could interfere with
+        // the button chip animation if done synchronously.
+        new Handler().post(() -> updateOptionalButton(buttonData));
+        mModel.set(OPTIONAL_BUTTON_VISIBLE, buttonData != null && buttonData.canShow());
+    }
+
+    private int getCustomActionButtonCount() {
+        return mModel.get(CUSTOM_ACTION_BUTTONS_VISIBLE)
+                ? mModel.get(CUSTOM_ACTION_BUTTONS).size()
+                : 0;
+    }
+
+    private void updateOptionalButton(@Nullable ButtonData buttonData) {
+        if (mOptionalButtonCoordinator != null) {
+            mOptionalButtonCoordinator.updateButton(buttonData, mModel.get(IS_INCOGNITO));
+            updateOptionalButtonColors(
+                    mView.getBackground().getColor(), mView.getBrandedColorScheme());
+        }
+    }
+
+    private boolean initializeOptionalButton() {
+        assert mOptionalButtonCoordinator == null;
+
+        if (getCustomActionButtonCount() >= 2) {
+            return false;
+        }
+        if (mModel.get(OMNIBOX_ENABLED)) {
+            return false;
+        }
+        View optionalButton = mView.ensureOptionalButtonInflated();
+        mOptionalButtonCoordinator =
+                new OptionalButtonCoordinator(
+                        optionalButton,
+                        () ->
+                                new UserEducationHelper(
+                                        mActivity, getProfileSupplier(), new Handler()),
+                        mView,
+                        /* isAnimationAllowedPredicate= */ () -> true,
+                        mTrackerSupplier);
+        int width = mActivity.getResources().getDimensionPixelSize(R.dimen.toolbar_button_width);
+        mOptionalButtonCoordinator.setCollapsedStateWidth(width);
+        mOptionalButtonCoordinator.setOnBeforeWidthTransitionCallback(
+                (type, widthDelta) -> {
+                    // As CPA chip does the expansion animation, the custom action button on
+                    // the left of it needs animating too. Adjusting its margin makes it
+                    // animate together with the chip.
+                    var view = mView.getCustomActionButtonsParent().getChildAt(0);
+                    var viewLp = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+                    if (type == TransitionType.EXPANDING_ACTION_CHIP
+                            || type == TransitionType.COLLAPSING_ACTION_CHIP) {
+                        viewLp.setMarginEnd(viewLp.rightMargin + widthDelta);
+                        view.setLayoutParams(viewLp);
+                    }
+                });
+        int[] orgMargin = new int[1]; // URL bar right margin.
+        mOptionalButtonCoordinator.setTransitionFinishedCallback(
+                type -> {
+                    var locationBar = mView.findViewById(R.id.location_bar_frame_layout);
+                    var locationBarLp =
+                            ((ViewGroup.MarginLayoutParams) locationBar.getLayoutParams());
+                    if (type == TransitionType.EXPANDING_ACTION_CHIP) {
+                        // Cache the original margin of the URL bar before chip expansion. Will be
+                        // used to restore the bar after the animation is finished.
+                        orgMargin[0] = locationBarLp.rightMargin;
+                        // Increase URL bar margin by the expanded CPA chip width i.e.
+                        // |new button width| - |org button width|
+                        int increasedMargin =
+                                assumeNonNull(mOptionalButtonCoordinator).getViewWidth() - width;
+                        locationBarLp.setMarginEnd(locationBarLp.rightMargin + increasedMargin);
+                        locationBar.setLayoutParams(locationBarLp);
+                    } else if (type == TransitionType.COLLAPSING_ACTION_CHIP) {
+                        locationBarLp.setMarginEnd(orgMargin[0]);
+                        locationBar.setLayoutParams(locationBarLp);
+                    }
+                });
+        if (ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
+                ChromeFeatureList.CCT_ADAPTIVE_BUTTON_TEST_SWITCH, "always-animate", false)) {
+            mOptionalButtonCoordinator.setAlwaysShowActionChip(true);
+        }
+        if (ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
+                ChromeFeatureList.CCT_ADAPTIVE_BUTTON_TEST_SWITCH, "hide-button", false)) {
+            // Simulate the toolbar that barely contains close, menu, 1 custom action button, and
+            // the minimum location bar, which ends up with no space for the MTB.
+            mModel.set(
+                    TOOLBAR_WIDTH,
+                    width * 3
+                            + CustomTabToolbarButtonsViewBinder.getLocationBarMinWidth(
+                                    mActivity.getResources(),
+                                    mModel.get(OMNIBOX_ENABLED),
+                                    mModel.get(TITLE_VISIBLE)));
+        }
+        return true;
     }
 
     @SuppressWarnings("NullAway")

@@ -7,10 +7,15 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
 #include "base/unguessable_token.h"
+#include "components/omnibox/composebox/composebox_query_controller.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+using composebox::SessionState;
 
 namespace {
 const char kTestMetricName[] = "Test.";
+const char kComposeboxFileDeleted[] =
+    "Test.Composebox.Session.File.DeletedCount";
 const char kComposeboxSessionDurationTotal[] =
     "Test.Composebox.Session.Duration.Total";
 const char kComposeboxSessionAbandonedDuration[] =
@@ -40,6 +45,26 @@ const char kComposeboxQueryTextLength[] = "Test.Composebox.Query.TextLength";
 const char kComposeboxQueryFileCount[] = "Test.Composebox.Query.FileCount";
 const char kComposeboxQueryModality[] = "Test.Composebox.Query.Modality";
 const char kComposeboxQueryCount[] = "Test.Composebox.Session.QueryCount";
+const char kComposeboxFileSizePdf[] = "Test.Composebox.File.Size.Pdf";
+
+std::string UploadStatusToString(FileUploadStatus status) {
+  switch (status) {
+    case FileUploadStatus::kNotUploaded:
+      return "NotUploaded";
+    case FileUploadStatus::kProcessing:
+      return "Processing";
+    case FileUploadStatus::kValidationFailed:
+      return "ValidationFailed";
+    case FileUploadStatus::kUploadStarted:
+      return "UploadStarted";
+    case FileUploadStatus::kUploadSuccessful:
+      return "UploadSuccessful";
+    case FileUploadStatus::kUploadFailed:
+      return "UploadFailed";
+    default:
+      return "Unknown";
+  }
+}
 }  // namespace
 
 class ComposeboxMetricsRecorderTest : public testing::Test {
@@ -225,6 +250,8 @@ TEST_F(ComposeboxMetricsRecorderTest, FileValidationError) {
   task_environment().FastForwardBy(base::Seconds(30));
   // Simulate file validation error.
   lens::MimeType file_mime_type = lens::MimeType::kPdf;
+  uint64_t file_size = 1000000;
+  metrics().RecordFileSizeMetric(file_mime_type, file_size);
   FileUploadStatus upload_status = FileUploadStatus::kProcessing;
   metrics().OnFileUploadStatusChanged(file_mime_type, upload_status,
                                       std::nullopt);
@@ -243,6 +270,7 @@ TEST_F(ComposeboxMetricsRecorderTest, FileValidationError) {
   histogram_tester().ExpectBucketCount(kComposeboxFileUploadAttemptPdf, 2, 1);
   histogram_tester().ExpectBucketCount(
       kComposeboxFileValidationBrowserErrorForPdf, 2, 1);
+  histogram_tester().ExpectBucketCount(kComposeboxFileSizePdf, file_size, 1);
 }
 
 TEST_F(ComposeboxMetricsRecorderTest, MultiFileUpload) {
@@ -382,3 +410,50 @@ INSTANTIATE_TEST_SUITE_P(
         testing::Values(lens::MimeType::kPdf,
                         lens::MimeType::kImage,
                         lens::MimeType::kUnknown)));
+
+class MetricsRecorderFileDeletionTest
+    : public ComposeboxMetricsRecorderTest,
+      public testing::WithParamInterface<
+          std::tuple<lens::MimeType, FileUploadStatus>> {
+ public:
+  void SetUp() override {
+    ComposeboxMetricsRecorderTest::SetUp();
+    mime_type_string_ = metrics().MimeTypeToString(mime_type_param());
+    status_string_ = UploadStatusToString(status_param());
+  }
+
+ protected:
+  lens::MimeType mime_type_param() const { return std::get<0>(GetParam()); }
+  FileUploadStatus status_param() const { return std::get<1>(GetParam()); }
+  std::string mime_type_string() const { return mime_type_string_; }
+  std::string status_string() const { return status_string_; }
+
+ private:
+  std::string mime_type_string_;
+  std::string status_string_;
+};
+
+TEST_P(MetricsRecorderFileDeletionTest, FileDeleted) {
+  std::string file_type = "." + mime_type_string();
+  std::string file_status = "." + status_string();
+  // Setup user flow.
+  metrics().RecordFileDeletedMetrics(true, mime_type_param(), status_param());
+
+  DestructMetricsRecorder();
+  histogram_tester().ExpectTotalCount(
+      kComposeboxFileDeleted + file_type + file_status, 1);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    MetricsRecorderFileDeletionTest,
+    testing::Combine(testing::Values(lens::MimeType::kPdf,
+                                     lens::MimeType::kImage,
+                                     lens::MimeType::kUnknown),
+                     testing::Values(FileUploadStatus::kNotUploaded,
+                                     FileUploadStatus::kProcessing,
+                                     FileUploadStatus::kValidationFailed,
+                                     FileUploadStatus::kUploadStarted,
+                                     FileUploadStatus::kUploadSuccessful,
+                                     FileUploadStatus::kUploadFailed,
+                                     FileUploadStatus::kUploadExpired)));

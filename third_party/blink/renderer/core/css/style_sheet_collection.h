@@ -32,6 +32,7 @@
 
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/css/active_style_sheets.h"
+#include "third_party/blink/renderer/core/css/style_rule.h"
 #include "third_party/blink/renderer/platform/bindings/name_client.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
@@ -40,16 +41,15 @@
 
 namespace blink {
 
+class MediaQueryEvaluator;
 class StyleSheet;
+class StyleEngine;
 class RuleSetDiff;
 
 class CORE_EXPORT StyleSheetCollection
     : public GarbageCollected<StyleSheetCollection>,
       public NameClient {
  public:
-  friend class ActiveDocumentStyleSheetCollector;
-  friend class ImportedDocumentStyleSheetCollector;
-
   StyleSheetCollection();
   StyleSheetCollection(const StyleSheetCollection&) = delete;
   StyleSheetCollection& operator=(const StyleSheetCollection&) = delete;
@@ -67,17 +67,24 @@ class CORE_EXPORT StyleSheetCollection
 
   void Swap(StyleSheetCollection&);
   void SwapSheetsForSheetList(HeapVector<Member<StyleSheet>>&);
-  void AppendActiveStyleSheet(const ActiveStyleSheet&);
+  void AppendActiveStyleSheet(CSSStyleSheet*);
   void AppendSheetForList(StyleSheet*);
   void AppendRuleSetDiff(Member<RuleSetDiff>);
   void MarkSheetListDirty() { sheet_list_dirty_ = true; }
+
+  // Creates RuleSets for everything in active_style_sheets_.
+  // This is done as a separate pass, because we do not know what mixins
+  // we have (which is required to create RuleSets) before we've seen
+  // all stylesheets.
+  //
+  // Can only be called once.
+  void CreateRuleSets(const StyleEngine& engine,
+                      const MediaQueryEvaluator& medium);
 
   virtual void Trace(Visitor*) const;
   const char* GetHumanReadableName() const override {
     return "StyleSheetCollection";
   }
-
-  void Dispose();
 
  protected:
   HeapVector<Member<StyleSheet>> style_sheets_for_style_sheet_list_;

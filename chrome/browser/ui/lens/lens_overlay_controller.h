@@ -241,6 +241,10 @@ class LensOverlayController : public lens::mojom::LensPageHandler,
   // logging.
   uint64_t GetInvocationTimeSinceEpoch();
 
+  // Testing helper method for checking the blur layer delegate.
+  lens::LensOverlayBlurLayerDelegate*
+  GetLensOverlayBlurLayerDelegateForTesting();
+
   // Testing helper method for checking view housing our overlay.
   views::View* GetOverlayViewForTesting();
 
@@ -310,6 +314,9 @@ class LensOverlayController : public lens::mojom::LensPageHandler,
 
   // Handles a new region thumbnail being created.
   void HandleRegionBitmapCreated(const SkBitmap& region_bitmap);
+
+  // Called when the side panel alignment changes.
+  void OnSidePanelAlignmentChanged();
 
   // Testing function to issue a Lens region selection request.
   void IssueLensRegionRequestForTesting(lens::mojom::CenterRotatedBoxPtr region,
@@ -660,6 +667,17 @@ class LensOverlayController : public lens::mojom::LensPageHandler,
 
   class UnderlyingWebContentsObserver;
 
+  // Implementation of IssueContextualSearchRequest() for passing
+  // query_start_time.
+  void IssueContextualSearchRequestInner(
+      base::Time query_start_time,
+      std::string query_text,
+      std::map<std::string, std::string> additional_query_parameters,
+      lens::LensOverlayQueryController* lens_overlay_query_controller,
+      AutocompleteMatchType::Type match_type,
+      bool is_zero_prefix_suggestion,
+      lens::LensOverlayInvocationSource invocation_source);
+
   // Takes a screenshot of the current viewport.
   void CaptureScreenshot();
 
@@ -689,6 +707,12 @@ class LensOverlayController : public lens::mojom::LensPageHandler,
       const std::vector<gfx::Rect>& bounds,
       std::optional<uint32_t> pdf_current_page);
 
+  // Called when the page context eligibility is fetched.
+  void OnPageContextEligibilityFetched(const SkBitmap& bitmap,
+                                       const std::vector<gfx::Rect>& all_bounds,
+                                       std::optional<uint32_t> pdf_current_page,
+                                       bool is_page_context_eligible);
+
   // Process the bitmap and creates all necessary data to initialize the
   // overlay. Happens on a separate thread to prevent main thread from hanging.
   void CreateInitializationData(const SkBitmap& screenshot,
@@ -717,10 +741,6 @@ class LensOverlayController : public lens::mojom::LensPageHandler,
   // Updates state of the ghost loader. |suppress_ghost_loader| is true when
   // the page bytes can't be uploaded.
   void SuppressGhostLoader();
-
-  // Enables/disables the background blur updating live. This should be used to
-  // save resources on blurring the background when not needed.
-  void SetLiveBlur(bool enabled);
 
   // Called when the UI needs to show the overlay via a view that is a child of
   // the tab contents view.
@@ -807,6 +827,11 @@ class LensOverlayController : public lens::mojom::LensPageHandler,
   // another side panel opens.
   void OnSidePanelDidOpen();
 
+  // Sets the top right or top left corner of the overlay to be rounded if the
+  // side panel is open and the tab is in a split, since SidePanelRoundedCorner
+  // will be hidden in that case.
+  void SetOverlayRoundedCorner();
+
   // Called to continue the screenshot process while opening lens overlay.
   void FinishedWaitingForReflow();
 
@@ -830,6 +855,7 @@ class LensOverlayController : public lens::mojom::LensPageHandler,
   void ActivityRequestedByOverlay(
       ui::mojom::ClickModifiersPtr click_modifiers) override;
   void AddBackgroundBlur() override;
+  void SetLiveBlur(bool enabled) override;
   void ClosePreselectionBubble() override;
   void CloseRequestedByOverlayCloseButton() override;
   void CloseRequestedByOverlayBackgroundClick() override;
@@ -921,6 +947,7 @@ class LensOverlayController : public lens::mojom::LensPageHandler,
   // Callback to run when the page context has been updated and the suggestion
   // query should now be issued.
   void OnPageContextUpdatedForSuggestion(
+      base::Time query_start_time,
       std::string query_text,
       std::map<std::string, std::string> additional_query_parameters,
       AutocompleteMatchType::Type match_type,
@@ -1153,11 +1180,10 @@ class LensOverlayController : public lens::mojom::LensPageHandler,
   // order.
   raw_ptr<views::View> preselection_widget_anchor_;
 
-#if BUILDFLAG(IS_MAC)
   // Register for adding observers to prefs the current profiles pref service.
-  // Currently only used to observe the immersive mode pref on Mac.
+  // Used to observe the immersive mode pref on Mac, and the side panel
+  // horizontal alignment pref.
   PrefChangeRegistrar pref_change_registrar_;
-#endif  // BUILDFLAG(IS_MAC)
 
   // --------------------Browser window scoped state: END---------------------
 

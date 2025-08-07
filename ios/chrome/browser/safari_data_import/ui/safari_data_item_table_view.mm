@@ -5,6 +5,7 @@
 #import "ios/chrome/browser/safari_data_import/ui/safari_data_item_table_view.h"
 
 #import "base/check_op.h"
+#import "base/notreached.h"
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/safari_data_import/public/safari_data_import_stage.h"
 #import "ios/chrome/browser/safari_data_import/public/safari_data_item.h"
@@ -139,10 +140,9 @@ NSString* GetDescriptionForImportedItemTypeWithCount(SafariDataItemType type,
 
 /// Returns a view with a spinning activity indicator.
 UIView* GetAnimatingActivityIndicator() {
-  UIActivityIndicatorView* activity_indicator =
-      [[UIActivityIndicatorView alloc] init];
+  UIActivityIndicatorView* activity_indicator = [[UIActivityIndicatorView alloc]
+      initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
   [activity_indicator startAnimating];
-  activity_indicator.translatesAutoresizingMaskIntoConstraints = NO;
   return activity_indicator;
 }
 
@@ -158,10 +158,6 @@ UIView* GetCheckmark() {
 }
 
 }  // namespace
-
-@interface SafariDataItemTableView () <UITableViewDelegate>
-
-@end
 
 @implementation SafariDataItemTableView {
   /// Safari data items to be displayed in the table. The dictionary key is an
@@ -185,7 +181,6 @@ UIView* GetCheckmark() {
     self.allowsSelection = NO;
     self.backgroundColor = [UIColor clearColor];
     self.separatorInset = UIEdgeInsetsMake(0, 60, 0, 0);
-    self.delegate = self;
     /// Remove extra space from UITableViewWrapperView.
     self.directionalLayoutMargins =
         NSDirectionalEdgeInsetsMake(0, CGFLOAT_MIN, 0, CGFLOAT_MIN);
@@ -196,6 +191,13 @@ UIView* GetCheckmark() {
     RegisterTableViewCell<TableViewDetailIconCell>(self);
   }
   return self;
+}
+
+- (void)notifyImportStart {
+  for (SafariDataItem* item in _itemDictionary.allValues) {
+    [item transitionToNextStatus];
+    [self updateCellForItem:item];
+  }
 }
 
 #pragma mark - Helpers
@@ -250,7 +252,7 @@ UIView* GetCheckmark() {
   CHECK(item);
   TableViewDetailIconCell* cell =
       DequeueTableViewCell<TableViewDetailIconCell>(self);
-  cell.backgroundColor = [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
+  cell.backgroundColor = [UIColor colorNamed:kSecondaryBackgroundColor];
   cell.textLabel.text = GetTextForItemType(item.type);
   [self setupDescriptionForItem:item forCell:cell];
   cell.textLayoutConstraintAxis = UILayoutConstraintAxisVertical;
@@ -348,8 +350,8 @@ UIView* GetCheckmark() {
       }
       return;
     case SafariDataItemImportStatus::kImporting:
-      [self updateCellForItem:item];
-      return;
+      NOTREACHED()
+          << "Transition to importing state is handled by -notifyImportStart";
     case SafariDataItemImportStatus::kImported:
       [self updateCellForItem:item];
       _importedCount++;
@@ -358,13 +360,6 @@ UIView* GetCheckmark() {
       }
       return;
   }
-}
-
-#pragma mark - UITableViewDelegate
-
-- (void)tableView:(UITableView*)tableView
-    accessoryButtonTappedForRowWithIndexPath:(NSIndexPath*)indexPath {
-  /// TODO(crbug.com/420703283): Show the list of un-imported passwords.
 }
 
 @end

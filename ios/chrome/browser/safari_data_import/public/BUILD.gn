@@ -6,6 +6,7 @@ source_set("public") {
   sources = [
     "password_import_item.h",
     "password_import_item.mm",
+    "password_import_item_favicon_data_source.h",
     "safari_data_import_stage.h",
     "safari_data_item.h",
     "safari_data_item.mm",
@@ -21,4 +22,13 @@ source_set("utils") {
     "utils.mm",
   ]
   frameworks = [ "Foundation.framework" ]
+}
+
+source_set("ui_utils") {
+  sources = [
+    "ui_utils.h",
+    "ui_utils.mm",
+  ]
+  deps = [ "//ios/chrome/common/ui/util" ]
+  frameworks = [ "UIKit.framework" ]
 }

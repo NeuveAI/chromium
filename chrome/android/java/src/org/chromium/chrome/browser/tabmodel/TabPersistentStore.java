@@ -57,6 +57,7 @@ import org.chromium.chrome.browser.tabpersistence.TabMetadataFileManager.TabMode
 import org.chromium.chrome.browser.tabpersistence.TabStateDirectory;
 import org.chromium.chrome.browser.tabpersistence.TabStateFileManager;
 import org.chromium.chrome.browser.tabwindow.TabWindowManager;
+import org.chromium.components.browser_ui.util.ConversionUtils;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.content_public.browser.LoadUrlParams;
 
@@ -143,6 +144,25 @@ public class TabPersistentStore {
         int NUM_ENTRIES = 6;
     }
 
+    @IntDef({
+        MetadataSaveMode.SAVING_ALLOWED,
+        MetadataSaveMode.PAUSED_AND_CLEAN,
+        MetadataSaveMode.PAUSED_AND_DIRTY
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface MetadataSaveMode {
+        /** Changes to the tab list are allowed to trigger saves. */
+        int SAVING_ALLOWED = 0;
+
+        /** Saving has been paused, but no changes have been seen. */
+        int PAUSED_AND_CLEAN = 1;
+
+        /**
+         * Saving has been paused and changes have been made, a save will be triggered on resume.
+         */
+        int PAUSED_AND_DIRTY = 2;
+    }
+
     /** Alerted at various stages of operation. */
     public interface TabPersistentStoreObserver {
         /**
@@ -226,7 +246,7 @@ public class TabPersistentStore {
     private TabModelObserver mTabModelObserver;
     private TabModelSelectorTabRegistrationObserver mTabRegistrationObserver;
     private int mDuplicateTabIdsSeen;
-    private boolean mSkipSaveTabList;
+    private @MetadataSaveMode int mMetadataSaveMode;
     private @Nullable TabBatchLoader mTabBatchLoader;
     private @Nullable SaveTabTask mSaveTabTask;
     private @Nullable MigrateTabTask mMigrateTabTask;
@@ -442,6 +462,8 @@ public class TabPersistentStore {
             // it looked when the SaveListTask was first created.
             if (mSaveListTask != null) mSaveListTask.cancel(true);
             try {
+                RecordHistogram.recordBooleanHistogram(
+                        "Tabs.Metadata.SyncSave." + mClientTag, true);
                 saveListToFile(extractTabMetadata());
             } catch (IOException e) {
                 Log.w(TAG, "Error while saving tabs state; will attempt to continue...", e);
@@ -458,9 +480,9 @@ public class TabPersistentStore {
             if (mSaveTabTask != null) {
                 // Cancel calls get() to wait for this to finish internally if it has to.
                 // The issue is it may assume it cancelled the task, but the task still actually
-                // wrote the state to disk.  That's why we have to check mStateSaved here.
+                // wrote the state to disk. That's why we have to check mStateSaved here.
                 if (mSaveTabTask.cancel(false) && !mSaveTabTask.mStateSaved) {
-                    // The task was successfully cancelled.  We should try to save this state again.
+                    // The task was successfully cancelled. We should try to save this state again.
                     Tab cancelledTab = mSaveTabTask.mTab;
                     addTabToSaveQueueIfApplicable(cancelledTab);
                 }
@@ -473,12 +495,17 @@ public class TabPersistentStore {
                 int id = tab.getId();
                 boolean incognito = tab.isIncognito();
                 try {
+                    if (ChromeFeatureList.sTabModelInitFixes.isEnabled()) {
+                        TabStateAttributes attributes = TabStateAttributes.from(tab);
+                        if (attributes != null) {
+                            attributes.clearTabStateDirtiness();
+                        }
+                    }
                     TabState state = TabStateExtractor.from(tab);
                     if (state != null) {
                         TabStateFileManager.saveState(
                                 getStateDirectory(), state, id, incognito, mCipherFactory);
                         if (!ChromeFeatureList.sLegacyTabStateDeprecation.isEnabled()
-                                && isFlatBufferSchemaEnabled()
                                 && TabStateFileManager.isMigrated(
                                         getStateDirectory(), id, incognito)) {
                             // Ensure parity between the FlatBuffer TabState file and legacy.
@@ -491,11 +518,9 @@ public class TabPersistentStore {
                         }
                     }
                 } catch (OutOfMemoryError e) {
-                    Log.e(TAG, "Out of memory error while attempting to save tab state.  Erasing.");
+                    Log.e(TAG, "Out of memory error while attempting to save tab state. Erasing.");
                     deleteTabState(id, incognito);
-                    if (isFlatBufferSchemaEnabled()) {
-                        TabStateFileManager.deleteMigratedFile(getStateDirectory(), id, incognito);
-                    }
+                    TabStateFileManager.deleteMigratedFile(getStateDirectory(), id, incognito);
                 }
             }
             // Now all pending saves (and migrations, if applicable) are complete we are ok to
@@ -671,12 +696,12 @@ public class TabPersistentStore {
     }
 
     /**
-     * Restore tab state.  Tab state is loaded asynchronously, other than the active tab which
-     * can be forced to load synchronously.
+     * Restore tab state. Tab state is loaded asynchronously, other than the active tab which can be
+     * forced to load synchronously.
      *
      * @param setActiveTab If true the last active tab given in the saved state is loaded
-     *                     synchronously and set as the current active tab. If false all tabs are
-     *                     loaded asynchronously.
+     *     synchronously and set as the current active tab. If false all tabs are loaded
+     *     asynchronously.
      */
     public void restoreTabs(boolean setActiveTab) {
         if (setActiveTab) {
@@ -947,7 +972,7 @@ public class TabPersistentStore {
     }
 
     /**
-     * Deletes all files in the tab state directory.  This will delete all files and not just those
+     * Deletes all files in the tab state directory. This will delete all files and not just those
      * owned by this TabPersistentStore.
      */
     public void clearState() {
@@ -960,7 +985,7 @@ public class TabPersistentStore {
                     if (baseStateFiles == null) return;
                     for (File baseStateFile : baseStateFiles) {
                         // In legacy scenarios (prior to migration, state files could reside in
-                        // the root state directory.  So, handle deleting direct child files as
+                        // the root state directory. So, handle deleting direct child files as
                         // well as those that reside in sub directories.
                         if (!baseStateFile.isDirectory()) {
                             if (!baseStateFile.delete()) {
@@ -1191,7 +1216,7 @@ public class TabPersistentStore {
 
         int maxId = 0;
         // Calculation of the max tab ID is done only once per user and is stored in
-        // SharedPreferences afterwards.  This is done on the UI thread because it is on the
+        // SharedPreferences afterwards. This is done on the UI thread because it is on the
         // critical patch to initializing the TabIdManager with the correct max tab ID.
         StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
         try {
@@ -1268,8 +1293,7 @@ public class TabPersistentStore {
         // - FlatBuffer schema flag is enabled
         // - We haven't hit the limit of sMaxMigrationsPerSave migrations per save yet
         // - Deferred startup is complete (to reduce the risk of jank).
-        if (!isFlatBufferSchemaEnabled()
-                || mTabsToMigrate.isEmpty()
+        if (mTabsToMigrate.isEmpty()
                 || numMigration > MAX_MIGRATIONS_PER_SAVE
                 || !sDeferredStartupComplete) {
             return;
@@ -1304,7 +1328,11 @@ public class TabPersistentStore {
 
     /** Kick off an AsyncTask to save the current list of Tabs. */
     public void saveTabListAsynchronously() {
-        if (ChromeFeatureList.sAndroidTabSkipSaveTabsKillswitch.isEnabled() && mSkipSaveTabList) {
+        if (ChromeFeatureList.sAndroidTabSkipSaveTabsKillswitch.isEnabled()
+                && mMetadataSaveMode != MetadataSaveMode.SAVING_ALLOWED) {
+            if (mMetadataSaveMode == MetadataSaveMode.PAUSED_AND_CLEAN) {
+                mMetadataSaveMode = MetadataSaveMode.PAUSED_AND_DIRTY;
+            }
             return;
         }
         if (mSaveListTask != null) mSaveListTask.cancel(true);
@@ -1317,7 +1345,9 @@ public class TabPersistentStore {
      * {@link TabModel}s.
      */
     public void pauseSaveTabList() {
-        mSkipSaveTabList = true;
+        if (mMetadataSaveMode == MetadataSaveMode.SAVING_ALLOWED) {
+            mMetadataSaveMode = MetadataSaveMode.PAUSED_AND_CLEAN;
+        }
     }
 
     /** See {@link #resumeSaveTabList(Runnable)}. */
@@ -1334,19 +1364,24 @@ public class TabPersistentStore {
      *     SaveListTask} has completed after resumption.
      */
     public void resumeSaveTabList(Runnable onSaveTabListRunnable) {
-        mSkipSaveTabList = false;
-
-        addObserver(
-                new TabPersistentStoreObserver() {
-                    @Override
-                    public void onMetadataSavedAsynchronously(
-                            TabModelSelectorMetadata modelSelectorMetadata) {
-                        onSaveTabListRunnable.run();
-                        removeObserver(this);
-                    }
-                });
-
-        saveTabListAsynchronously();
+        boolean shouldTriggerSave =
+                !ChromeFeatureList.sTabModelInitFixes.isEnabled()
+                        || mMetadataSaveMode == MetadataSaveMode.PAUSED_AND_DIRTY;
+        mMetadataSaveMode = MetadataSaveMode.SAVING_ALLOWED;
+        if (shouldTriggerSave) {
+            addObserver(
+                    new TabPersistentStoreObserver() {
+                        @Override
+                        public void onMetadataSavedAsynchronously(
+                                TabModelSelectorMetadata modelSelectorMetadata) {
+                            onSaveTabListRunnable.run();
+                            removeObserver(this);
+                        }
+                    });
+            saveTabListAsynchronously();
+        } else {
+            onSaveTabListRunnable.run();
+        }
     }
 
     private class SaveTabTask extends AsyncTask<Void> {
@@ -1454,6 +1489,7 @@ public class TabPersistentStore {
         @Override
         protected Void doInBackground() {
             if (mMetadata == null || isCancelled()) return null;
+            RecordHistogram.recordBooleanHistogram("Tabs.Metadata.SyncSave." + mClientTag, false);
             saveListToFile(mMetadata);
             return null;
         }
@@ -1506,8 +1542,7 @@ public class TabPersistentStore {
                     getStateDirectory(), state, tabId, encrypted, mCipherFactory);
             return true;
         } catch (OutOfMemoryError e) {
-            android.util.Log.e(
-                    TAG, "Out of memory error while attempting to save tab state.  Erasing.");
+            Log.e(TAG, "Out of memory error while attempting to save tab state. Erasing.");
             deleteTabState(tabId, encrypted);
         }
         return false;
@@ -1734,7 +1769,6 @@ public class TabPersistentStore {
                     }
                 });
         performPersistedTabDataMaintenance(null);
-        TabStateFileManager.cleanupUnusedFiles(getStateDirectory());
     }
 
     @VisibleForTesting
@@ -1916,7 +1950,11 @@ public class TabPersistentStore {
                 byte[] data;
                 try {
                     stream = new FileInputStream(stateFile);
-                    data = new byte[(int) stateFile.length()];
+                    int size = (int) stateFile.length();
+                    int sizeInKb = size / ConversionUtils.BYTES_PER_KILOBYTE;
+                    RecordHistogram.recordMemoryKBHistogram(
+                            "Tabs.Metadata.FileSizeOnRead." + mClientTag, sizeInKb);
+                    data = new byte[size];
                     stream.read(data);
                 } catch (IOException exception) {
                     Log.e(TAG, "Could not read state file.", exception);
@@ -2095,10 +2133,6 @@ public class TabPersistentStore {
 
     public static void onDeferredStartup() {
         sDeferredStartupComplete = true;
-    }
-
-    private static boolean isFlatBufferSchemaEnabled() {
-        return ChromeFeatureList.sTabStateFlatBuffer.isEnabled();
     }
 
     // Static and instanced ForTest/Testing functions:

@@ -51,7 +51,10 @@ ArchivableCredential* TestPasskeyCredential(NSString* username,
             privateKey:StringToData("privateKey")
              encrypted:StringToData("encrypted")
           creationTime:kJan1st2024
-          lastUsedTime:kJan1st2024];
+          lastUsedTime:kJan1st2024
+                hidden:NO
+            hiddenTime:kJan1st2024
+          editedByUser:NO];
 }
 
 }  // namespace
@@ -64,12 +67,7 @@ class PasskeyRequestDetailsTest : public PlatformTest {
   void TearDown() override;
 };
 
-void PasskeyRequestDetailsTest::SetUp() {
-  if (@available(iOS 17.0, *)) {
-  } else {
-    GTEST_SKIP() << "Does not apply on iOS 16 and below";
-  }
-}
+void PasskeyRequestDetailsTest::SetUp() {}
 
 void PasskeyRequestDetailsTest::TearDown() {}
 

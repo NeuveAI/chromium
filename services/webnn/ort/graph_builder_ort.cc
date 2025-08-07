@@ -85,12 +85,13 @@ constexpr base::cstring_view kOpTypeInstanceNormalization =
     "InstanceNormalization";
 constexpr base::cstring_view kOpTypeLayerNormalization = "LayerNormalization";
 constexpr base::cstring_view kOpTypeLeakyRelu = "LeakyRelu";
+constexpr base::cstring_view kOpTypeLstm = "LSTM";
 constexpr base::cstring_view kOpTypeMatMul = "MatMul";
 constexpr base::cstring_view kOpTypePad = "Pad";
 constexpr base::cstring_view kOpTypePRelu = "PRelu";
 constexpr base::cstring_view kOpTypeQuantizeLinear = "QuantizeLinear";
 constexpr base::cstring_view kOpTypeRelu = "Relu";
-constexpr base::cstring_view kOpTypeResample2d = "Resize";
+constexpr base::cstring_view kOpTypeResize = "Resize";
 constexpr base::cstring_view kOpTypeReshape = "Reshape";
 constexpr base::cstring_view kOpTypeScatterElements = "ScatterElements";
 constexpr base::cstring_view kOpTypeScatterND = "ScatterND";
@@ -156,11 +157,6 @@ constexpr base::cstring_view kAttrUpper = "upper";
 constexpr base::cstring_view kInserted = "Inserted";
 constexpr base::cstring_view kToEmulate = "ToEmulate";
 constexpr base::cstring_view kUnderscore = "_";
-
-base::unexpected<mojom::ErrorPtr> NewNotSupportedError(std::string message) {
-  return base::unexpected(mojom::Error::New(
-      mojom::Error::Code::kNotSupportedError, std::move(message)));
-}
 
 std::string GetOperandName(std::string_view name, OperandId id) {
   return base::JoinString({name, base::NumberToString(id.value())},
@@ -353,9 +349,7 @@ const base::cstring_view GetRecurrentNetworkDirection(
 }  // namespace
 
 // static
-[[nodiscard]] base::expected<std::unique_ptr<ModelEditor::ModelInfo>,
-                             mojom::ErrorPtr>
-GraphBuilderOrt::CreateAndBuild(
+std::unique_ptr<ModelEditor::ModelInfo> GraphBuilderOrt::CreateAndBuild(
     const mojom::GraphInfo& graph_info,
     ContextProperties context_properties,
     base::flat_map<OperandId, std::unique_ptr<WebNNConstantOperand>>
@@ -651,6 +645,38 @@ std::string GraphBuilderOrt::CreateExpandNode(
   const std::string output = GenerateOperandName();
 
   AddExpandNode(node_name, input, output, shape);
+  return output;
+}
+
+void GraphBuilderOrt::AddResizeNode(base::cstring_view node_name,
+                                    base::cstring_view input,
+                                    base::cstring_view scales,
+                                    base::cstring_view sizes,
+                                    base::cstring_view mode,
+                                    base::cstring_view output) {
+  // Skip the input roi, which only takes effect when the coordinate
+  // transformation mode is set to "tf_crop_and_resize". Currently WebNN only
+  // supports "half_pixel", which is the default mode.
+  const std::string roi;
+  std::array<const char*, 4> inputs = {input.c_str(), roi.c_str(),
+                                       scales.c_str(), sizes.c_str()};
+  std::array<const char*, 1> outputs = {output.c_str()};
+
+  std::array<ScopedOrtOpAttr, 1> attributes = {
+      model_editor_.CreateAttribute(kAttrMode, mode)};
+
+  model_editor_.AddNode(kOpTypeResize, node_name, inputs, outputs, attributes);
+}
+
+std::string GraphBuilderOrt::BlockwiseExpand(base::cstring_view input,
+                                             base::span<const uint32_t> shape) {
+  const std::string sizes = CreateInt64InitializerForUint32Array(shape);
+  const std::string node_name = GenerateNodeName(
+      base::JoinString({kInserted, kOpTypeResize}, kUnderscore));
+  const std::string output = GenerateOperandName();
+  AddResizeNode(node_name, input, /*scales=*/"", sizes,
+                /*mode=*/"nearest", output);
+
   return output;
 }
 
@@ -1069,13 +1095,10 @@ void GraphBuilderOrt::AddCumulativeSumOperation(
                         attributes);
 }
 
-// TODO(crbug.com/433055137): Remove the returned error once the emulation path
-// is implemented.
 template <typename T>
   requires(std::is_same_v<T, mojom::DequantizeLinear> ||
            std::is_same_v<T, mojom::QuantizeLinear>)
-[[nodiscard]] base::expected<void, mojom::ErrorPtr>
-GraphBuilderOrt::AddDequantizeOrQuantizeLinearOperation(
+void GraphBuilderOrt::AddDequantizeOrQuantizeLinearOperation(
     const T& operation,
     base::cstring_view op_type) {
   const std::string node_name = GenerateNodeName(operation.label);
@@ -1102,9 +1125,6 @@ GraphBuilderOrt::AddDequantizeOrQuantizeLinearOperation(
     }
   }
 
-  // TODO(crbug.com/433096244): Emulate multiple axes case, e.g. input shape is
-  // [2, 3, 4, 5] and scale shape is [1, 3, 4, 1]. The multiple axes per-axis
-  // case will be handled by multi-dimensions blockwise emulation below.
   bool is_per_axis =
       axis.has_value() && scale_not_size_one_dimension_count == 1;
 
@@ -1140,15 +1160,37 @@ GraphBuilderOrt::AddDequantizeOrQuantizeLinearOperation(
         axis = i;
         blockwise_axis_count++;
       }
+    }
 
-      // TODO(crbug.com/433096244): Emulate multi-dimensions blockwise
-      // quantization and dequantization.
-      if (blockwise_axis_count > 1) {
-        return NewNotSupportedError(
-            "For blockwise quantization and dequantization, scale should has "
-            "the same shape as the input or except for one dimension in which "
-            "blocking is performed");
+    if (blockwise_axis_count > 1) {
+      // The data type of zero point can be int4/uint4, which is not
+      // supported by `resize` operator. So cast it to int8/uint8 before
+      // `resize` and cast back to int4/uint4 after `resize`.
+      const OperandDataType zero_point_data_type =
+          GetOperand(operation.zero_point_operand_id).descriptor.data_type();
+      if (zero_point_data_type == OperandDataType::kInt4) {
+        zero_point =
+            CreateCastNode(zero_point, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8);
+      } else if (zero_point_data_type == OperandDataType::kUint4) {
+        zero_point =
+            CreateCastNode(zero_point, ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8);
       }
+
+      scale = BlockwiseExpand(scale, input_shape);
+      zero_point = BlockwiseExpand(zero_point, input_shape);
+
+      if (zero_point_data_type == OperandDataType::kInt4) {
+        zero_point =
+            CreateCastNode(zero_point, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT4);
+      } else if (zero_point_data_type == OperandDataType::kUint4) {
+        zero_point =
+            CreateCastNode(zero_point, ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT4);
+      }
+
+      // Reset the axis and block_size back to default values, because scale and
+      // zeroPoint now have the same shape as input.
+      axis = 0;
+      block_size = 1;
     }
   }
 
@@ -1168,46 +1210,22 @@ GraphBuilderOrt::AddDequantizeOrQuantizeLinearOperation(
   }
 
   model_editor_.AddNode(op_type, node_name, inputs, outputs, attributes);
-  return base::ok();
 }
 
 void GraphBuilderOrt::AddEluOperation(const mojom::Elu& elu) {
   const std::string node_name = GenerateNodeName(elu.label);
-  std::string input = GetOperandNameById(elu.input_operand_id);
+  const std::string input = GetOperandNameById(elu.input_operand_id);
   const std::string output = GetOperandNameById(elu.output_operand_id);
 
-  const OperandDescriptor& input_descriptor =
-      GetOperand(elu.input_operand_id).descriptor;
   CHECK(context_properties_.data_type_limits.elu_input.Supports(
-      input_descriptor));
-
-  // ONNX elu only supports 1-D input tensor, so we need to create a reshape
-  // node to convert the input tensor to 1-D tensor.
-  // TODO(crbug.com/430960849): Remove the workaround for elu's 1D input tensor
-  // limitation when the ONNX issue is fixed.
-  // https://github.com/onnx/onnx/issues/7119
-  bool need_reshape = input_descriptor.Rank() != 1;
-  std::vector<uint32_t> input_shape = input_descriptor.shape();
-  std::string elu_output = output;
-  if (need_reshape) {
-    std::array<uint32_t, 1> new_shape = {
-        base::checked_cast<uint32_t>(input_descriptor.NumberOfElements())};
-    input = CreateReshapeNode(input, new_shape);
-    elu_output = GenerateOperandName();
-  }
+      GetOperand(elu.input_operand_id).descriptor));
 
   std::array<ScopedOrtOpAttr, 1> attributes = {
       model_editor_.CreateAttribute(kAttrAlpha, elu.alpha)};
 
   std::array<const char*, 1> inputs = {input.c_str()};
-  std::array<const char*, 1> outputs = {elu_output.c_str()};
+  std::array<const char*, 1> outputs = {output.c_str()};
   model_editor_.AddNode(kOpTypeElu, node_name, inputs, outputs, attributes);
-
-  // Insert a reshape node to convert the output tensor back to the original
-  // shape.
-  if (need_reshape) {
-    InsertReshapeNode(elu_output, output, input_shape);
-  }
 }
 
 // TODO(crbug.com/426228071): Eliminate redundant cast ops for bool and uint8
@@ -2195,6 +2213,267 @@ void GraphBuilderOrt::AddLinearOperation(const mojom::Linear& linear) {
   model_editor_.AddNode(kOpTypeAdd, add_node_name, add_inputs, add_outputs);
 }
 
+// `LstmType` must be `mojom::Lstm` or `mojom::LstmCell`.
+template <typename LstmType>
+  requires(std::is_same_v<LstmType, mojom::Lstm> ||
+           std::is_same_v<LstmType, mojom::LstmCell>)
+void GraphBuilderOrt::AddLstmOperation(const LstmType& lstm) {
+  const std::string node_name = GenerateNodeName(lstm.label);
+  std::string input = GetOperandNameById(lstm.input_operand_id);
+  std::string weight = GetOperandNameById(lstm.weight_operand_id);
+  std::string recurrent_weight =
+      GetOperandNameById(lstm.recurrent_weight_operand_id);
+
+  const OperandDescriptor& input_descriptor =
+      GetOperand(lstm.input_operand_id).descriptor;
+  const OperandDescriptor& weight_descriptor =
+      GetOperand(lstm.weight_operand_id).descriptor;
+  const OperandDescriptor& recurrent_weight_descriptor =
+      GetOperand(lstm.recurrent_weight_operand_id).descriptor;
+
+  uint32_t num_directions = 1;
+  if constexpr (std::is_same_v<LstmType, mojom::Lstm>) {
+    CHECK(context_properties_.data_type_limits.lstm_input.Supports(
+        input_descriptor));
+    CHECK(context_properties_.data_type_limits.lstm_input.Supports(
+        weight_descriptor));
+    CHECK(context_properties_.data_type_limits.lstm_input.Supports(
+        recurrent_weight_descriptor));
+    num_directions =
+        lstm.direction == mojom::RecurrentNetworkDirection::kBoth ? 2 : 1;
+  } else {
+    CHECK(context_properties_.data_type_limits.lstm_cell_input.Supports(
+        input_descriptor));
+    CHECK(context_properties_.data_type_limits.lstm_cell_input.Supports(
+        weight_descriptor));
+    CHECK(context_properties_.data_type_limits.lstm_cell_input.Supports(
+        recurrent_weight_descriptor));
+
+    // Reshape the input into a 3-D tensor, since the LSTM of ONNX requires
+    // the input shape to be [seq_length, batch_size, input_size]. For
+    // lstmCell, `seq_length` is equal to 1.
+    const std::vector<uint32_t>& input_shape = input_descriptor.shape();
+    CHECK_EQ(input_shape.size(), 2u);
+    input = CreateReshapeNode(input, {1, input_shape[0], input_shape[1]});
+
+    // Reshape the weight into a 3-D tensor, since the LSTM of ONNX requires
+    // the weight shape to be [num_directions, 4*hidden_size, input_size].
+    // For lstmCell, `num_directions` is equal to 1.
+    const std::vector<uint32_t>& weight_shape = weight_descriptor.shape();
+    CHECK_EQ(weight_shape.size(), 2u);
+    weight = CreateReshapeNode(weight, {1, weight_shape[0], weight_shape[1]});
+
+    // Reshape the recurrent weight into a 3-D tensor, since the LSTM of ONNX
+    // requires the recurrent weight shape to be [num_directions,
+    // 4*hidden_size, hidden_size]. For lstmCell, `num_directions` is equal
+    // to 1.
+    const std::vector<uint32_t>& recurrent_weight_shape =
+        recurrent_weight_descriptor.shape();
+    CHECK_EQ(recurrent_weight_shape.size(), 2u);
+    recurrent_weight = CreateReshapeNode(
+        recurrent_weight,
+        {1, recurrent_weight_shape[0], recurrent_weight_shape[1]});
+  }
+
+  constexpr std::array<uint32_t, 4> kIfgoToIofgPermutation = {0, 3, 1, 2};
+  if (lstm.layout == mojom::LstmWeightLayout::kIfgo) {
+    weight = TransposeRnnWeightOrBiasLayout(weight, kIfgoToIofgPermutation);
+    recurrent_weight = TransposeRnnWeightOrBiasLayout(recurrent_weight,
+                                                      kIfgoToIofgPermutation);
+  }
+
+  std::vector<const char*> inputs = {input.c_str(), weight.c_str(),
+                                     recurrent_weight.c_str()};
+
+  const uint32_t hidden_size = lstm.hidden_size;
+  // Graph validation already checked that hidden_size * 4 would not overflow.
+  std::array<uint32_t, 2> bias_dims = {num_directions, hidden_size * 4};
+  std::string bias, recurrent_bias, concatenated_bias;
+  if (!lstm.bias_operand_id.has_value() &&
+      !lstm.recurrent_bias_operand_id.has_value()) {
+    // When both bias and recurrentBias are not present, set ONNX LSTM input "B"
+    // as not specified.
+    inputs.push_back("");
+  } else {
+    if (lstm.bias_operand_id.has_value()) {
+      bias = GetOperandNameById(*lstm.bias_operand_id);
+      if constexpr (std::is_same_v<LstmType, mojom::Lstm>) {
+        CHECK(context_properties_.data_type_limits.lstm_bias.Supports(
+            GetOperand(*lstm.bias_operand_id).descriptor));
+      } else {
+        CHECK(context_properties_.data_type_limits.lstm_cell_bias.Supports(
+            GetOperand(*lstm.bias_operand_id).descriptor));
+        // Reshape the bias into a 2-D tensor, since the LSTM of ONNX requires
+        // the bias shape to be [num_directions, 4*hidden_size]. For lstmCell,
+        // `num_directions` is equal to 1.
+        bias = CreateReshapeNode(bias, bias_dims);
+      }
+      if (lstm.layout == mojom::LstmWeightLayout::kIfgo) {
+        bias = TransposeRnnWeightOrBiasLayout(bias, kIfgoToIofgPermutation);
+      }
+    } else {
+      bias = CreateZeroInitializer(input_descriptor.data_type(), bias_dims);
+    }
+
+    if (lstm.recurrent_bias_operand_id.has_value()) {
+      recurrent_bias = GetOperandNameById(*lstm.recurrent_bias_operand_id);
+      if constexpr (std::is_same_v<LstmType, mojom::Lstm>) {
+        CHECK(context_properties_.data_type_limits.lstm_bias.Supports(
+            GetOperand(*lstm.recurrent_bias_operand_id).descriptor));
+      } else {
+        CHECK(context_properties_.data_type_limits.lstm_cell_bias.Supports(
+            GetOperand(*lstm.recurrent_bias_operand_id).descriptor));
+        // Reshape the recurrentBias into a 2-D tensor, since the LSTM of ONNX
+        // requires the recurrentBias shape to be [num_directions,
+        // 4*hidden_size]. For lstmCell, `num_directions` is equal to 1.
+        recurrent_bias = CreateReshapeNode(recurrent_bias, bias_dims);
+      }
+      if (lstm.layout == mojom::LstmWeightLayout::kIfgo) {
+        recurrent_bias = TransposeRnnWeightOrBiasLayout(recurrent_bias,
+                                                        kIfgoToIofgPermutation);
+      }
+    } else {
+      recurrent_bias =
+          CreateZeroInitializer(input_descriptor.data_type(), bias_dims);
+    }
+
+    // Concatenate bias and recurrent_bias to create the ONNX LSTM input "B".
+    concatenated_bias = GenerateOperandName();
+    std::array<const char*, 2> bias_inputs = {bias.c_str(),
+                                              recurrent_bias.c_str()};
+    std::array<const char*, 1> bias_outputs = {concatenated_bias.c_str()};
+    std::array<ScopedOrtOpAttr, 1> bias_attributes = {
+        model_editor_.CreateAttribute(kAttrAxis, static_cast<int64_t>(1))};
+    std::string concat_node_name = GenerateNodeName(
+        base::JoinString({kInserted, kOpTypeConcat}, kUnderscore));
+    model_editor_.AddNode(kOpTypeConcat, concat_node_name, bias_inputs,
+                          bias_outputs, bias_attributes);
+    inputs.push_back(concatenated_bias.c_str());
+  }
+
+  // "sequence_lens" is an optional tensor specifying lengths of the sequences
+  // in a batch.
+  inputs.push_back("");
+
+  std::string hidden_state, cell_state;
+  if constexpr (std::is_same_v<LstmType, mojom::Lstm>) {
+    if (lstm.initial_hidden_state_operand_id.has_value()) {
+      hidden_state = GetOperandNameById(*lstm.initial_hidden_state_operand_id);
+      CHECK(context_properties_.data_type_limits.lstm_input.Supports(
+          GetOperand(*lstm.initial_hidden_state_operand_id).descriptor));
+    }
+    if (lstm.initial_cell_state_operand_id.has_value()) {
+      cell_state = GetOperandNameById(*lstm.initial_cell_state_operand_id);
+      CHECK(context_properties_.data_type_limits.lstm_input.Supports(
+          GetOperand(*lstm.initial_cell_state_operand_id).descriptor));
+    }
+  } else {
+    hidden_state = GetOperandNameById(lstm.hidden_state_operand_id);
+    const OperandDescriptor& hidden_state_descriptor =
+        GetOperand(lstm.hidden_state_operand_id).descriptor;
+    CHECK(context_properties_.data_type_limits.lstm_cell_input.Supports(
+        hidden_state_descriptor));
+    cell_state = GetOperandNameById(lstm.cell_state_operand_id);
+    const OperandDescriptor& cell_state_descriptor =
+        GetOperand(lstm.cell_state_operand_id).descriptor;
+    CHECK(context_properties_.data_type_limits.lstm_cell_input.Supports(
+        cell_state_descriptor));
+
+    // Reshape the hidden/cell_state into a 3-D tensor, since the LSTM of ONNX
+    // requires the "initial_h"/"initial_c" shape to be [num_directions,
+    // batch_size, hidden_size]. For lstmCell, `num_directions` is equal to 1.
+    const std::vector<uint32_t>& hidden_state_shape =
+        hidden_state_descriptor.shape();
+    const std::vector<uint32_t>& cell_state_shape =
+        cell_state_descriptor.shape();
+    hidden_state = CreateReshapeNode(
+        hidden_state, {1, hidden_state_shape[0], hidden_state_shape[1]});
+    cell_state = CreateReshapeNode(
+        cell_state, {1, cell_state_shape[0], cell_state_shape[1]});
+  }
+  inputs.push_back(hidden_state.c_str());
+  inputs.push_back(cell_state.c_str());
+
+  std::string peephole_weight;
+  if (lstm.peephole_weight_operand_id.has_value()) {
+    peephole_weight = GetOperandNameById(*lstm.peephole_weight_operand_id);
+    if constexpr (std::is_same_v<LstmType, mojom::Lstm>) {
+      CHECK(context_properties_.data_type_limits.lstm_bias.Supports(
+          GetOperand(*lstm.peephole_weight_operand_id).descriptor));
+    } else {
+      const OperandDescriptor& peephole_weight_descriptor =
+          GetOperand(*lstm.peephole_weight_operand_id).descriptor;
+      CHECK(context_properties_.data_type_limits.lstm_cell_bias.Supports(
+          peephole_weight_descriptor));
+      // Reshape the peephole_weight into a 2-D tensor, since the LSTM of ONNX
+      // requires the peephole_weight shape to be [num_directions,
+      // 3*hidden_size]. For lstmCell, `num_directions` is equal to 1.
+      const std::vector<uint32_t>& peephole_weight_shape =
+          peephole_weight_descriptor.shape();
+      peephole_weight =
+          CreateReshapeNode(peephole_weight, {1, peephole_weight_shape[0]});
+    }
+  }
+  inputs.push_back(peephole_weight.c_str());
+
+  std::vector<ScopedOrtOpAttr> attributes;
+  attributes.reserve(3);
+  base::cstring_view direction = "forward";
+  if constexpr (std::is_same_v<LstmType, mojom::Lstm>) {
+    direction = GetRecurrentNetworkDirection(lstm.direction);
+  }
+  attributes.push_back(
+      model_editor_.CreateAttribute(kAttrDirection, direction));
+
+  const std::vector<base::cstring_view> activations =
+      GetRecurrentNetworkActivations(lstm.activations,
+                                     direction == "bidirectional");
+  std::vector<const char*> activations_c_str;
+  for (const auto& activation : activations) {
+    activations_c_str.push_back(activation.c_str());
+  }
+  attributes.push_back(
+      model_editor_.CreateAttribute(kAttrActivations, activations_c_str));
+
+  attributes.push_back(model_editor_.CreateAttribute(
+      kAttrHiddenSize, base::checked_cast<int64_t>(hidden_size)));
+
+  std::string output, output_hidden, output_cell;
+  if constexpr (std::is_same_v<LstmType, mojom::Lstm>) {
+    output_hidden = GetOperandNameById(lstm.output_operand_ids[0]);
+    output_cell = GetOperandNameById(lstm.output_operand_ids[1]);
+    if (lstm.return_sequence) {
+      output = GetOperandNameById(lstm.output_operand_ids[2]);
+    }
+  } else {
+    output_hidden = GenerateOperandName();
+    output_cell = GenerateOperandName();
+  }
+  std::array<const char*, 3> outputs = {output.c_str(), output_hidden.c_str(),
+                                        output_cell.c_str()};
+  model_editor_.AddNode(kOpTypeLstm, node_name, inputs, outputs, attributes);
+
+  if constexpr (std::is_same_v<LstmType, mojom::LstmCell>) {
+    // Reshape the output_hidden and output_cell back to 2-D tensors, since the
+    // LSTM of WebNN requires the "output_h"/"output_c" shape to be
+    // [batch_size, hidden_size].
+    const std::vector<uint32_t>& output_shape =
+        GetOperand(lstm.output_operand_ids[0]).descriptor.shape();
+    CHECK_EQ(output_shape.size(), 2u);
+    InsertReshapeNode(output_hidden,
+                      GetOperandNameById(lstm.output_operand_ids[0]),
+                      output_shape);
+    InsertReshapeNode(output_cell,
+                      GetOperandNameById(lstm.output_operand_ids[1]),
+                      output_shape);
+  }
+}
+
+template void GraphBuilderOrt::AddLstmOperation(const mojom::Lstm& lstm);
+
+template void GraphBuilderOrt::AddLstmOperation(
+    const mojom::LstmCell& lstm_cell);
+
 void GraphBuilderOrt::AddMatMulOperation(const mojom::Matmul& matmul) {
   const std::string node_name = GenerateNodeName(matmul.label);
   const std::string input_a = GetOperandNameById(matmul.a_operand_id);
@@ -2375,10 +2654,6 @@ void GraphBuilderOrt::AddResample2dOperation(
   CHECK(context_properties_.data_type_limits.resample2d_input.Supports(
       input_descriptor));
 
-  // Skip the input roi, which only takes effect when the coordinate
-  // transformation mode is set to "tf_crop_and_resize". Currently WebNN only
-  // supports "half_pixel", which is the default mode.
-  const std::string roi;
   std::string scales;
   std::string sizes;
   if (resample2d.scales) {
@@ -2394,9 +2669,6 @@ void GraphBuilderOrt::AddResample2dOperation(
     sizes = CreateInt64InitializerForUint32Array(
         GetOperand(resample2d.output_operand_id).descriptor.shape());
   }
-  std::array<const char*, 4> inputs = {input.c_str(), roi.c_str(),
-                                       scales.c_str(), sizes.c_str()};
-  std::array<const char*, 1> outputs = {output.c_str()};
 
   std::string mode;
   switch (resample2d.mode) {
@@ -2407,11 +2679,8 @@ void GraphBuilderOrt::AddResample2dOperation(
       mode = "nearest";
       break;
   }
-  std::array<ScopedOrtOpAttr, 1> attributes = {
-      model_editor_.CreateAttribute(kAttrMode, mode)};
 
-  model_editor_.AddNode(kOpTypeResample2d, node_name, inputs, outputs,
-                        attributes);
+  AddResizeNode(node_name, input, scales, sizes, mode, output);
 }
 
 void GraphBuilderOrt::AddReshapeOperation(const mojom::Reshape& reshape) {
@@ -2604,9 +2873,8 @@ void GraphBuilderOrt::AddPadOperation(const mojom::Pad& pad) {
   switch (pad.mode->which()) {
     case mojom::PaddingMode::Tag::kConstant: {
       mode = "constant";
-      constant = CreateScalarInitializer(
-          input_descriptor.data_type(),
-          MLNumber::FromFloat64(pad.mode->get_constant()->value));
+      constant = CreateScalarInitializer(input_descriptor.data_type(),
+                                         pad.mode->get_constant()->value);
       inputs.push_back(constant.c_str());
       break;
     }
@@ -2781,9 +3049,7 @@ void GraphBuilderOrt::AddWhereOperation(const mojom::Where& where) {
   model_editor_.AddNode(kOpTypeWhere, node_name, inputs, outputs);
 }
 
-[[nodiscard]] base::expected<std::unique_ptr<ModelEditor::ModelInfo>,
-                             mojom::ErrorPtr>
-GraphBuilderOrt::BuildModel() {
+std::unique_ptr<ModelEditor::ModelInfo> GraphBuilderOrt::BuildModel() {
   for (OperandId input_id : graph_info_->input_operands) {
     model_editor_.AddInput(GetOperandNameById(input_id), GetOperand(input_id));
   }
@@ -2832,8 +3098,8 @@ GraphBuilderOrt::BuildModel() {
         CHECK(data_type_limits.dequantize_linear_scale.Supports(
             GetOperand(operation->get_dequantize_linear()->scale_operand_id)
                 .descriptor));
-        RETURN_IF_ERROR(AddDequantizeOrQuantizeLinearOperation(
-            *operation->get_dequantize_linear(), kOpTypeDequantizeLinear));
+        AddDequantizeOrQuantizeLinearOperation(
+            *operation->get_dequantize_linear(), kOpTypeDequantizeLinear);
         break;
       }
       case mojom::Operation::Tag::kElu: {
@@ -2922,6 +3188,14 @@ GraphBuilderOrt::BuildModel() {
         AddLinearOperation(*operation->get_linear());
         break;
       }
+      case mojom::Operation::Tag::kLstm: {
+        AddLstmOperation(*operation->get_lstm());
+        break;
+      }
+      case mojom::Operation::Tag::kLstmCell: {
+        AddLstmOperation(*operation->get_lstm_cell());
+        break;
+      }
       case mojom::Operation::Tag::kMatmul: {
         AddMatMulOperation(*operation->get_matmul());
         break;
@@ -2947,8 +3221,8 @@ GraphBuilderOrt::BuildModel() {
         CHECK(data_type_limits.quantize_linear_zero_point.Supports(
             GetOperand(operation->get_quantize_linear()->zero_point_operand_id)
                 .descriptor));
-        RETURN_IF_ERROR(AddDequantizeOrQuantizeLinearOperation(
-            *operation->get_quantize_linear(), kOpTypeQuantizeLinear));
+        AddDequantizeOrQuantizeLinearOperation(
+            *operation->get_quantize_linear(), kOpTypeQuantizeLinear);
         break;
       }
       case mojom::Operation::Tag::kRelu: {
@@ -3035,9 +3309,6 @@ GraphBuilderOrt::BuildModel() {
         AddWhereOperation(*operation->get_where());
         break;
       }
-      case mojom::Operation::Tag::kLstm:
-      case mojom::Operation::Tag::kLstmCell:
-        NOTREACHED() << "[WebNN] Unsupported operation.";
     }
   }
 

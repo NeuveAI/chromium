@@ -118,7 +118,6 @@ Prova d'esperar uns quants minuts abans de tancar la sessió. Si tanques la sess
 <translation id="3863841106411295595">Afegeix a la llista de lectura de Chrome els URL introduïts.</translation>
 <translation id="3901001113120561395">Treu el màxim profit de Chrome.</translation>
 <translation id="3913386780052199712">Sessió iniciada a Chrome</translation>
-<translation id="3932250749914183695">Consell de Chrome: verifica la teva identitat</translation>
 <translation id="3984746313391923992">La teva organització requereix que mantinguis la sessió tancada a Chrome.</translation>
 <translation id="3988789688219830639">Google Chrome no té accés als vostres vídeos o fotos. Permeteu-li l'accés a iOS, a Configuració &gt; Privadesa &gt; Fotos.</translation>
 <translation id="4064699917955374540">Per utilitzar i desar les dades de Chrome al teu Compte de Google, verifica la teva identitat.</translation>
@@ -133,6 +132,7 @@ Prova d'esperar uns quants minuts abans de tancar la sessió. Si tanques la sess
 <translation id="4636900170638246267">Inicia la sessió en aquest lloc web i a Chrome.</translation>
 <translation id="4647910807533196601">Obre la meva darrera pestanya a Chrome.</translation>
 <translation id="4693084815234024320">Estàs en el mode d'incògnit de Chrome</translation>
+<translation id="4713740144985377441">Torna a Chrome per penjar el fitxer</translation>
 <translation id="4713907610796204963">Aprèn els conceptes bàsics útils sobre Chrome per començar</translation>
 <translation id="4724297637870447613">Utilitza Chrome a tot arreu</translation>
 <translation id="4738647308035481133">Pàgina de Google Chrome</translation>
@@ -200,6 +200,7 @@ Espera uns quants minuts abans de canviar de compte. Si canvies de compte ara, a
 <translation id="6238746320622508509">Deixa que Chrome bloquegi les teves pestanyes d'incògnit.</translation>
 <translation id="6247557882553405851">Gestor de contrasenyes de Google</translation>
 <translation id="6272822675004864999">Per rebre notificacions de Chrome, activa-les a la configuració d'iOS.</translation>
+<translation id="6299253454218177732">Consell de Chrome: obtén les teves contrasenyes</translation>
 <translation id="630693926528731525">La contrasenya no s'ha compartit. Comprova la connexió a Internet i assegura't que tens la sessió iniciada a Chrome. Després, torna-ho a provar.</translation>
 <translation id="6348855835728304880">Accedeix a les teves contrasenyes de Chrome i a altres aplicacions en aquest dispositiu.</translation>
 <translation id="6373751563207403289">Comprovació de seguretat et protegeix de violacions de les dades, de llocs web no segurs i més. Rep alertes sobre qualsevol problema de privadesa o de seguretat que Chrome detecti.</translation>
@@ -230,6 +231,7 @@ Per veure més opcions de configuració que utilitzin dades per millorar la teva
 <translation id="6922332667202044570">Suprimeix les dades de navegació a Chrome.</translation>
 <translation id="6924922227983877439">Obre els enllaços a Chrome de manera predeterminada</translation>
 <translation id="6975725306479268850">Tria Chrome a Emplenament automàtic</translation>
+<translation id="7038674195294813388">Obre la configuració d'aplicacions predeterminades a iOS, toca Aplicació de navegador i selecciona Chrome.</translation>
 <translation id="7056826488869329999">Obre i executa la comprovació de seguretat a Chrome.</translation>
 <translation id="7061455974939528301">Mantén premuda la icona de Chrome i fes clic a Edita la pantalla d'inici</translation>
 <translation id="7124339256045485976">Mantén Chrome actualitzat</translation>

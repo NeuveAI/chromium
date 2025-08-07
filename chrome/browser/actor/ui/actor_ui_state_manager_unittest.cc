@@ -23,6 +23,7 @@
 
 namespace actor::ui {
 namespace {
+
 using ::actor::mojom::ActionResultPtr;
 using ::tabs::MockTabInterface;
 using ::tabs::TabFeatures;
@@ -32,6 +33,14 @@ using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
 using ::testing::ValuesIn;
+
+using enum HandoffButtonState::ControlOwnership;
+
+base::TimeDelta CompletedTaskExpiryDelay() {
+  return base::Seconds(
+      features::kGlicActorUiCompletedTaskExpiryDelaySeconds.Get());
+}
+
 class ActorUiStateManagerFake : public ActorUiStateManager {
  public:
   explicit ActorUiStateManagerFake(ActorKeyedService& actor_service)
@@ -86,10 +95,13 @@ class ActorUiStateManagerTest : public testing::Test {
 
   std::unique_ptr<KeyedService> BuildActorKeyedService(
       content::BrowserContext* context) {
-    auto actor_keyed_service =
-        std::make_unique<ActorKeyedServiceFake>(static_cast<Profile*>(context));
-    std::unique_ptr<ActorUiStateManagerInterface> actor_ui_state_manager_fake =
+    Profile* profile = Profile::FromBrowserContext(context);
+    auto actor_keyed_service = std::make_unique<ActorKeyedServiceFake>(profile);
+    actor_keyed_service_fake_ = actor_keyed_service.get();
+
+    auto actor_ui_state_manager_fake =
         std::make_unique<ActorUiStateManagerFake>(*actor_keyed_service);
+    actor_ui_state_manager_fake_ = actor_ui_state_manager_fake.get();
     actor_keyed_service->SetActorUiStateManagerForTesting(
         std::move(actor_ui_state_manager_fake));
     return std::move(actor_keyed_service);
@@ -106,13 +118,11 @@ class ActorUiStateManagerTest : public testing::Test {
   }
 
   ActorUiStateManagerFake* actor_ui_state_manager() {
-    return static_cast<ActorUiStateManagerFake*>(
-        ActorKeyedService::Get(profile())->GetActorUiStateManager());
+    return actor_ui_state_manager_fake_;
   }
 
   ActorKeyedServiceFake* actor_keyed_service() {
-    return static_cast<ActorKeyedServiceFake*>(
-        ActorKeyedService::Get(profile()));
+    return actor_keyed_service_fake_;
   }
 
   content::BrowserTaskEnvironment& task_environment() {
@@ -124,11 +134,15 @@ class ActorUiStateManagerTest : public testing::Test {
   // TODO(crbug.com/424495020): Refactor the actor_keyed_service_fake to set
   // Active/Inactive tasks correct from ActorTask states and then remove manual
   // setting of task states in the below tests.
-  void PauseActorTask(TaskId task_id) {
-    actor_keyed_service()->GetTask(task_id)->Pause();
-    TaskStateChanged pause_task_event(task_id,
-                                      ActorTask::State::kPausedByClient);
-    actor_ui_state_manager()->OnUiEvent(pause_task_event);
+  void PauseActorTask(TaskId task_id, bool from_actor) {
+    actor_keyed_service()->GetTask(task_id)->Pause(from_actor);
+    if (from_actor) {
+      actor_ui_state_manager()->OnUiEvent(
+          TaskStateChanged(task_id, ActorTask::State::kPausedByActor));
+    } else {
+      actor_ui_state_manager()->OnUiEvent(
+          TaskStateChanged(task_id, ActorTask::State::kPausedByUser));
+    }
   }
 
   void ResumeActorTask(TaskId task_id) {
@@ -138,10 +152,15 @@ class ActorUiStateManagerTest : public testing::Test {
     actor_ui_state_manager()->OnUiEvent(reflecting_task_event);
   }
 
-  void StopActorTask(TaskId task_id) {
-    actor_keyed_service()->StopTask(task_id);
-    TaskStateChanged finished_task_event(task_id, ActorTask::State::kFinished);
-    actor_ui_state_manager()->OnUiEvent(finished_task_event);
+  void StopActorTask(TaskId task_id, bool success) {
+    actor_keyed_service()->StopTask(task_id, success);
+    if (success) {
+      actor_ui_state_manager()->OnUiEvent(
+          TaskStateChanged(task_id, ActorTask::State::kFinished));
+    } else {
+      actor_ui_state_manager()->OnUiEvent(
+          TaskStateChanged(task_id, ActorTask::State::kCancelled));
+    }
   }
 
   MockBrowserWindowInterface* browser_window_interface() {
@@ -151,6 +170,8 @@ class ActorUiStateManagerTest : public testing::Test {
  private:
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestingProfile> profile_;
+  raw_ptr<ActorKeyedServiceFake> actor_keyed_service_fake_;
+  raw_ptr<ActorUiStateManagerFake> actor_ui_state_manager_fake_;
   base::test::ScopedFeatureList scoped_feature_list_;
   std::unique_ptr<MockBrowserWindowInterface> browser_window_interface_;
 };
@@ -164,16 +185,19 @@ TEST_F(ActorUiStateManagerTest, GlicUpdateFloatyState_NotifiesSubscribers) {
       actor_ui_state_manager()->RegisterFloatyTaskStateChange(
           base::BindRepeating(
               [](ActorUiStateManager::UiState actual_ui_state,
-                 glic::GlicWindowController::State actual_glic_state) {
+                 glic::GlicWindowController::State actual_glic_state,
+                 glic::mojom::CurrentView actual_glic_view) {
                 EXPECT_EQ(actual_ui_state,
                           ActorUiStateManager::UiState::kCheckTasks);
                 EXPECT_EQ(actual_glic_state,
                           glic::GlicWindowController::State::kOpen);
+                EXPECT_EQ(actual_glic_view,
+                          glic::mojom::CurrentView::kConversation);
               })));
   actor_ui_state_manager()->OnGlicUpdateFloatyState(
-      glic::GlicWindowController::State::kOpen, browser_window_interface());
+      glic::GlicWindowController::State::kOpen,
+      glic::mojom::CurrentView::kConversation);
 }
-
 #endif
 
 TEST_F(ActorUiStateManagerTest, NoTask_ReturnsInactiveUiState) {
@@ -189,8 +213,9 @@ TEST_F(ActorUiStateManagerTest, SingleTask_ReturnsCorrectUiState) {
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kActive);
 
-  // Pause the task.
-  PauseActorTask(task_id);
+  // Pause the task, since it's paused from the actor we want to notify the
+  // user.
+  PauseActorTask(task_id, /*from_actor=*/true);
   task_environment().FastForwardBy(kProfileScopedUiUpdateDebounceDelay);
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kCheckTasks);
@@ -201,12 +226,38 @@ TEST_F(ActorUiStateManagerTest, SingleTask_ReturnsCorrectUiState) {
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kActive);
 
-  // Stop the task.
-  StopActorTask(task_id);
+  // Pause the task, since it's paused from the user, we shouldn't notify.
+  PauseActorTask(task_id, /*from_actor=*/false);
   task_environment().FastForwardBy(kProfileScopedUiUpdateDebounceDelay);
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
-            ActorUiStateManager::UiState::kCheckTasks);
-  task_environment().FastForwardBy(kCompletedTaskExpiryDelay);
+            ActorUiStateManager::UiState::kActive);
+
+  ResumeActorTask(task_id);
+  task_environment().FastForwardBy(kProfileScopedUiUpdateDebounceDelay);
+  EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
+            ActorUiStateManager::UiState::kActive);
+
+  // Stop the task.
+  StopActorTask(task_id, /*success=*/true);
+  task_environment().FastForwardBy(kProfileScopedUiUpdateDebounceDelay);
+  EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
+            ActorUiStateManager::UiState::kCompleteTasks);
+  task_environment().FastForwardBy(CompletedTaskExpiryDelay());
+  EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
+            ActorUiStateManager::UiState::kInactive);
+}
+
+TEST_F(ActorUiStateManagerTest, SingleTaskCancelled_ChangesStateToInactive) {
+  // Create a task.
+  TaskId task_id = actor_keyed_service()->CreateTaskForTesting();
+  StartTask start_task_event(task_id);
+  actor_ui_state_manager()->OnUiEvent(start_task_event);
+  EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
+            ActorUiStateManager::UiState::kActive);
+
+  // Stop the task.
+  StopActorTask(task_id, /*success=*/false);
+  task_environment().FastForwardBy(kProfileScopedUiUpdateDebounceDelay);
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kInactive);
 }
@@ -218,7 +269,7 @@ TEST_F(ActorUiStateManagerTest, SingleTask_RapidStateChanges_Debounced) {
   actor_ui_state_manager()->OnUiEvent(start_task_event);
 
   // Immediately pause and resume without waiting for the debounce delay.
-  PauseActorTask(task_id);
+  PauseActorTask(task_id, /*from_actor=*/true);
   ResumeActorTask(task_id);
 
   // The debounce delay timer has not yet fired so we should still be in the
@@ -241,7 +292,7 @@ TEST_F(ActorUiStateManagerTest, MultiTask_OneTaskPaused_ReturnsCorrectUiState) {
             ActorUiStateManager::UiState::kActive);
 
   // Pause the first task, the state should now be in kCheckTasks.
-  PauseActorTask(task_id);
+  PauseActorTask(task_id, /*from_actor=*/true);
   task_environment().FastForwardBy(kProfileScopedUiUpdateDebounceDelay);
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kCheckTasks);
@@ -254,9 +305,22 @@ TEST_F(ActorUiStateManagerTest, MultiTask_OneTaskPaused_ReturnsCorrectUiState) {
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kCheckTasks);
 
-  // Resume the first task, the state should now be in kActive.
+  // Stop the second task, the state should still be in kCheckTasks.
+  StopActorTask(task_id2, /*success=*/true);
+  task_environment().FastForwardBy(kProfileScopedUiUpdateDebounceDelay);
+  EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
+            ActorUiStateManager::UiState::kCheckTasks);
+
+  // Resume the first task, the state should now be in kCompleteTasks due to the
+  // second task.
   ResumeActorTask(task_id);
   task_environment().FastForwardBy(kProfileScopedUiUpdateDebounceDelay);
+  EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
+            ActorUiStateManager::UiState::kCompleteTasks);
+
+  // After the completed task delay, the state should be
+  // kActive due to the first task still being active.
+  task_environment().FastForwardBy(CompletedTaskExpiryDelay());
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kActive);
 }
@@ -270,26 +334,26 @@ TEST_F(ActorUiStateManagerTest,
             ActorUiStateManager::UiState::kActive);
 
   // Stop first task.
-  StopActorTask(task_id);
+  StopActorTask(task_id, /*success=*/true);
   task_environment().FastForwardBy(kProfileScopedUiUpdateDebounceDelay);
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
-            ActorUiStateManager::UiState::kCheckTasks);
+            ActorUiStateManager::UiState::kCompleteTasks);
 
   // Create another task.
   TaskId task_id2 = actor_keyed_service()->CreateTaskForTesting();
   StartTask start_task_event2(task_id2);
   actor_ui_state_manager()->OnUiEvent(start_task_event2);
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
-            ActorUiStateManager::UiState::kCheckTasks);
+            ActorUiStateManager::UiState::kCompleteTasks);
 
   // The state should still be active due to task2 after the expiry period.
-  task_environment().FastForwardBy(kCompletedTaskExpiryDelay);
+  task_environment().FastForwardBy(CompletedTaskExpiryDelay());
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kActive);
 
   // When both tasks stop, then the state should be inactive.
-  StopActorTask(task_id2);
-  task_environment().FastForwardBy(kCompletedTaskExpiryDelay);
+  StopActorTask(task_id2, /*success=*/true);
+  task_environment().FastForwardBy(CompletedTaskExpiryDelay());
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kInactive);
 }
@@ -311,21 +375,21 @@ TEST_F(ActorUiStateManagerTest,
 
   // Stop both tasks within delay of each other.
   base::Time task1_finish_time = base::Time::Now();
-  StopActorTask(task_id);
-  task_environment().FastForwardBy(base::Minutes(1));
-  StopActorTask(task_id2);
+  StopActorTask(task_id, /*success=*/true);
+  task_environment().FastForwardBy(base::Seconds(1));
+  StopActorTask(task_id2, /*success=*/true);
 
   base::TimeDelta delay =
-      kCompletedTaskExpiryDelay - (base::Time::Now() - task1_finish_time);
+      CompletedTaskExpiryDelay() - (base::Time::Now() - task1_finish_time);
   task_environment().FastForwardBy((delay.is_positive()) ? delay
                                                          : base::TimeDelta());
   // Even though the first task expired, we should still be in the correct
   // state.
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
-            ActorUiStateManager::UiState::kCheckTasks);
+            ActorUiStateManager::UiState::kCompleteTasks);
 
   // After both tasks expire, the state should be inactive.
-  task_environment().FastForwardBy(kCompletedTaskExpiryDelay);
+  task_environment().FastForwardBy(CompletedTaskExpiryDelay());
   EXPECT_EQ(actor_ui_state_manager()->GetUiState(),
             ActorUiStateManager::UiState::kInactive);
 }
@@ -365,24 +429,44 @@ const auto kActorTaskTestValues =
         {ActorTask::State::kActing,
          UiTabState{
              .actor_overlay = ActorOverlayState(/*is_active=*/true),
-             .handoff_button =
-                 {.is_active = true,
-                  .controller = HandoffButtonState::ControlOwnership::kAgent}}},
+             .handoff_button = {.is_active = true, .controller = kActor},
+             .tab_indicator_visible = true,
+             .border_glow_visible = true,
+         }},
         {ActorTask::State::kReflecting,
          UiTabState{
              .actor_overlay = ActorOverlayState(/*is_active=*/true),
-             .handoff_button =
-                 {.is_active = true,
-                  .controller = HandoffButtonState::ControlOwnership::kAgent}}},
-        {ActorTask::State::kPausedByClient,
-         UiTabState{.actor_overlay = ActorOverlayState(/*is_active=*/false),
-                    .handoff_button =
-                        {.is_active = true,
-                         .controller =
-                             HandoffButtonState::ControlOwnership::kClient}}},
+             .handoff_button = {.is_active = true, .controller = kActor},
+             .tab_indicator_visible = true,
+             .border_glow_visible = true,
+         }},
+        {ActorTask::State::kPausedByActor,
+         UiTabState{
+             .actor_overlay = ActorOverlayState(/*is_active=*/false),
+             .handoff_button = {.is_active = true, .controller = kClient},
+             .tab_indicator_visible = false,
+             .border_glow_visible = false,
+         }},
+        {ActorTask::State::kPausedByUser,
+         UiTabState{
+             .actor_overlay = ActorOverlayState(/*is_active=*/false),
+             .handoff_button = {.is_active = true, .controller = kClient},
+             .tab_indicator_visible = false,
+             .border_glow_visible = false,
+         }},
+        {ActorTask::State::kCancelled,
+         UiTabState{
+             .actor_overlay = ActorOverlayState(/*is_active=*/false),
+             .handoff_button = {.is_active = false},
+             .tab_indicator_visible = false,
+         }},
         {ActorTask::State::kFinished,
-         UiTabState{.actor_overlay = ActorOverlayState(/*is_active=*/false),
-                    .handoff_button = {.is_active = false}}}};
+         UiTabState{
+             .actor_overlay = ActorOverlayState(/*is_active=*/false),
+             .handoff_button = {.is_active = false},
+             .tab_indicator_visible = false,
+             .border_glow_visible = false,
+         }}};
 
 INSTANTIATE_TEST_SUITE_P(ActorUiStateManagerActorTaskUiTabScopedTest,
                          ActorUiStateManagerActorTaskUiTabScopedTest,
@@ -409,9 +493,10 @@ TEST_F(ActorUiStateManagerUiEventUiTabScopedTest,
        OnStartingToActOnTab_UpdatesUiCorrectly) {
   UiTabState expected_ui_tab_state{
       .actor_overlay = ActorOverlayState(/*is_active=*/true),
-      .handoff_button = {
-          .is_active = true,
-          .controller = HandoffButtonState::ControlOwnership::kAgent}};
+      .handoff_button = {.is_active = true, .controller = kActor},
+      .tab_indicator_visible = true,
+      .border_glow_visible = true,
+  };
   VerifyUiEvent(StartingToActOnTab{mock_tab_.GetHandle(), TaskId(123)},
                 expected_ui_tab_state);
 }
@@ -420,7 +505,10 @@ TEST_F(ActorUiStateManagerUiEventUiTabScopedTest,
        OnStoppedActingOnTab_UpdatesUiCorrectly) {
   UiTabState expected_ui_tab_state{
       .actor_overlay = ActorOverlayState(/*is_active=*/false),
-      .handoff_button = {.is_active = false}};
+      .handoff_button = {.is_active = false},
+      .tab_indicator_visible = false,
+      .border_glow_visible = false,
+  };
   VerifyUiEvent(StoppedActingOnTab{mock_tab_.GetHandle()},
                 expected_ui_tab_state);
 }
@@ -431,9 +519,10 @@ TEST_F(ActorUiStateManagerUiEventUiTabScopedTest,
   UiTabState expected_ui_tab_state{
       .actor_overlay = ActorOverlayState(
           /*is_active=*/true, /*mouse_down=*/false, page_target),
-      .handoff_button = {
-          .is_active = true,
-          .controller = HandoffButtonState::ControlOwnership::kAgent}};
+      .handoff_button = {.is_active = true, .controller = kActor},
+      .tab_indicator_visible = true,
+      .border_glow_visible = true,
+  };
   VerifyUiEvent(MouseMove{mock_tab_.GetHandle(), page_target},
                 expected_ui_tab_state);
 }
@@ -443,9 +532,10 @@ TEST_F(ActorUiStateManagerUiEventUiTabScopedTest,
   UiTabState expected_ui_tab_state{
       .actor_overlay =
           ActorOverlayState(/*is_active=*/true, /*mouse_down=*/true),
-      .handoff_button = {
-          .is_active = true,
-          .controller = HandoffButtonState::ControlOwnership::kAgent}};
+      .handoff_button = {.is_active = true, .controller = kActor},
+      .tab_indicator_visible = true,
+      .border_glow_visible = true,
+  };
   VerifyUiEvent(MouseClick{mock_tab_.GetHandle(), MouseClickType::kLeft,
                            MouseClickCount::kSingle},
                 expected_ui_tab_state);

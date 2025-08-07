@@ -713,6 +713,16 @@ content::WebContents* ExtensionBrowserTest::GetActiveWebContents() const {
   return chrome_test_utils::GetActiveWebContents(this);
 }
 
+content::WebContents* ExtensionBrowserTest::GetWebContentsAt(int index) const {
+#if !BUILDFLAG(IS_ANDROID)
+  // Some tests may not immediately open a browser. Handle this gracefully.
+  if (!browser()) {
+    return nullptr;
+  }
+#endif
+  return chrome_test_utils::GetWebContentsAt(this, index);
+}
+
 base::FilePath ExtensionBrowserTest::PackExtension(
     const base::FilePath& dir_path,
     int extra_run_flags) {
@@ -773,15 +783,26 @@ base::FilePath ExtensionBrowserTest::PackExtensionWithOptions(
   return crx_path;
 }
 
-bool ExtensionBrowserTest::NavigateToURL(const GURL& url) {
-  content::WebContents* web_contents = GetActiveWebContents();
+bool ExtensionBrowserTest::NavigateToURL(content::WebContents* web_contents,
+                                         const GURL& url) {
   content::TestNavigationObserver observer(web_contents);
   // The return value is ignored because some tests load URLs that cause
   // redirects, or are blocked URLs, which make NavigateToURL return false.
   (void)content::NavigateToURL(web_contents, url);
-  // Ensure the navigation happened.
+  // Wait for load to stop.
   observer.Wait();
   return observer.last_navigation_succeeded();
+}
+
+bool ExtensionBrowserTest::NavigateToURL(BrowserWindowInterface* browser_window,
+                                         const GURL& url) {
+#if BUILDFLAG(IS_ANDROID)
+  NOTREACHED() << "Not supported on Android.";
+#else
+  auto* web_contents =
+      browser_window->GetTabStripModel()->GetActiveWebContents();
+  return NavigateToURL(web_contents, url);
+#endif
 }
 
 bool ExtensionBrowserTest::GetCurrentTabTitle(std::u16string* title) {
@@ -1026,6 +1047,14 @@ Profile* ExtensionBrowserTest::profile() {
 
 content::WebContents* ExtensionBrowserTest::web_contents() {
   return web_contents_.get();
+}
+
+BrowserWindowInterface* ExtensionBrowserTest::browser_window_interface() {
+#if BUILDFLAG(IS_ANDROID)
+  return nullptr;
+#else
+  return browser();
+#endif
 }
 
 ExtensionService* ExtensionBrowserTest::extension_service() {

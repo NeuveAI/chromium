@@ -85,6 +85,7 @@
 <translation id="2091012649849228750">भविष्यातील Google Chrome अपडेट मिळवण्यासाठी, तुमच्याकडे Windows 10 किंवा त्यापुढील आवृत्ती असणे आवश्यक आहे. हा कॉंप्युटर Windows 8 वापरत आहे.</translation>
 <translation id="2094648590148273905">ChromeOS Flex अटी</translation>
 <translation id="2094919256425865063">तरीही Chrome बंद करायचे?</translation>
+<translation id="2096213354152647998">तुम्ही अलीकडे भेट दिलेली नाही. Chrome ने <ph name="PERMISSION" /> परवानगी काढून टाकली आहे.</translation>
 <translation id="2106831557840787829">ChromeOS Flex हे <ph name="BEGIN_LINK_LINUX_OSS" />Linux डेव्हलपमेंट पद्धत<ph name="END_LINK_LINUX_OSS" /> यासारख्या अतिरिक्त <ph name="BEGIN_LINK_CROS_OSS" />मुक्त स्रोत सॉफ्टवेअर<ph name="END_LINK_CROS_OSS" /> याद्वारे तयार करण्यात आले आहे.</translation>
 <translation id="2108778574543343055">अ‍ॅप्ससाठी बॅकग्राउंडमध्ये रन होणारे Chrome बंद करा</translation>
 <translation id="2120620239521071941">हे या डिव्‍हाइस मधून <ph name="ITEMS_COUNT" /> आयटम हटवेल. नंतर तुमचा डेटा पुनर्प्राप्त करण्‍यासाठी Chrome मध्ये <ph name="USER_EMAIL" /> म्हणून साइन इन करा.</translation>
@@ -220,7 +221,6 @@
 <translation id="3595784445906693824">नवीन प्रोफाइलमध्ये Chrome मध्ये साइन इन करायचे आहे का?</translation>
 <translation id="3596080736082218006">{COUNT,plural, =0{अपडेट लागू करता यावे यासाठी तुम्ही Chrome पुन्हा लाँच करण्याची तुमच्या ॲडमिनिस्ट्रेटरला गरज आहे}=1{अपडेट लागू करता यावे यासाठी तुम्ही Chrome पुन्हा लाँच करण्याची तुमच्या ॲडमिनिस्ट्रेटरला गरज आहे. तुमची गुप्त विंडो पुन्हा उघडणार नाही.}other{अपडेट लागू करता यावे यासाठी तुम्ही Chrome पुन्हा लाँच करण्याची तुमच्या ॲडमिनिस्ट्रेटरला गरज आहे. तुमच्या # गुप्त विंडो पुन्हा उघडणार नाहीत.}}</translation>
 <translation id="3597003331831379823">वाढीव विशेषाधिकारांसह सेटअप रन करता आला नाही. <ph name="METAINSTALLER_ERROR" /></translation>
-<translation id="3609788354808247807">तुम्ही अलीकडे भेट दिलेली नाही. Chrome ने <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" />, <ph name="PERMISSION_3" /> परवानग्या काढून टाकल्या</translation>
 <translation id="3622716124581627104">गोष्टी किंवा ठिकाणे ओळखा आणि मजकूर कॉपी किंवा भाषांतरित करा. तुम्ही Google Lens वापरता, तेव्हा पेजचा स्क्रीनशॉट Google ला पाठवला जातो. <ph name="LEARN_MORE" /></translation>
 <translation id="3622797965165704966">आता आपल्या Google खात्यावर आणि शेअर केलेल्या संगणकांवर Chrome वापरणे अधिक सुलभ आहे.</translation>
 <translation id="3635073343384702370">तुम्ही तुमचे पासवर्ड सेव्ह केल्यावर Chrome ते तपासू शकते</translation>
@@ -270,6 +270,7 @@
 <translation id="4205939740494406371">Chrome तुमचे पासवर्ड तपासू शकत नाही. २४ तासांनंतर पुन्हा प्रयत्न करा किंवा <ph name="BEGIN_LINK" />तुमच्या Google खाते मध्ये पासवर्ड तपासा<ph name="END_LINK" />.</translation>
 <translation id="4222932583846282852">रद्द करत आहे...</translation>
 <translation id="4224210481850767180">इंस्टॉलेशन रद्द केले गेले आहे.</translation>
+<translation id="4230631012078055975">तुम्ही Chrome मध्ये साइन इन केलेले असताना आणखी बरेच काही मिळवा</translation>
 <translation id="4242034826641750751">Chrome ला या साइटसाठी कॅमेरा आणि मायक्रोफोनची परवानगी आवश्यक आहे</translation>
 <translation id="424864128008805179">Chrome मधून साइन आउट करायचे?</translation>
 <translation id="4251615635259297716">या खात्यावर तुमच्या Chrome डेटा लिंक करायचा?</translation>
@@ -313,6 +314,7 @@
 <translation id="4747730611090640388">Chrome तुमच्या स्वारस्यांबाबतचे अंदाज लावू शकते.  त्यानंतर, तुम्ही पाहता त्या जाहिराती पर्सनलाइझ करण्यासाठी तुम्ही भेट देता ती साइट Chrome कडे तुमची स्वारस्ये पाहण्याची अनुमती मागू शकते.</translation>
 <translation id="475321580758063259">तुमच्या <ph name="ACCOUNT_EMAIL" /> Google खाते मध्ये Chrome डेटा वापरणे कायम ठेवण्यासाठी Chrome अपडेट करा</translation>
 <translation id="4754614261631455953">Google Chrome कॅनरी (mDNS-मध्ये)</translation>
+<translation id="4756182432527369254">Chrome चे V8 इंजीन साइटचा वेग वाढवते, पण त्यामुळे Chrome ची हल्ले रोखण्याची क्षमता किंचित कमी होते</translation>
 <translation id="479167709087336770">Google Search मध्ये वापरत असेलेले समान स्पेल चेकर हे वापरते. तुम्ही ब्राउझरमध्ये टाइप करत असलेला मजकूर Google कडे पाठवला जातो. तुम्ही हे वर्तन कधीही सेटिंग्ज मध्ये बदलू शकता.</translation>
 <translation id="4793679854893018356">Chrome तुम्हाला सुरक्षित कसे ठेवते याबद्दल जाणून घ्या</translation>
 <translation id="4828579605166583682">Google Chrome सध्याचे पासवर्ड बदलण्याचा प्रयत्न करत आहे. यासाठी अनुमती देण्यासाठी तुमचा Windows पासवर्ड टाइप करा.</translation>
@@ -400,10 +402,11 @@ Google Chrome तुमची सेटिंग्ज पुन्हा मि
 <translation id="5941711191222866238">कमी करा</translation>
 <translation id="5941830788786076944">Google Chromeला डीफॉल्ट ब्राउझर बनवा</translation>
 <translation id="5947104538377036631">Chrome शॉर्टकट</translation>
-<translation id="5953954252731207958">तुम्ही अलीकडे भेट दिलेली नाही. Chrome ने <ph name="PERMISSION" /> परवानगी काढून टाकली</translation>
+<translation id="5968400720580217226">AI मोड</translation>
 <translation id="5980111191913430208">अज्ञात स्रोतांकडील एक्स्टेंशन, अ‍ॅप्स आणि थीम तुमच्या डिव्हाइसला हानी पोहोचवू शकतात. Chrome फक्त <ph name="IDS_EXTENSION_WEB_STORE_TITLE" /> मधून ते इंस्टॉल करण्याची शिफारस करते</translation>
 <translation id="6003112304606738118">डाउनलोड करत आहे... <ph name="HOURS" /> तास शिल्लक आहे(आहेत)</translation>
 <translation id="6008161919456049856">तुम्ही तुमच्या Google खाते मध्ये सेव्ह केलेले तुमचे पासवर्ड, पेमेंट पद्धती आणि ॲड्रेस हे या डिव्हाइसवरून काढून टाकले जातील. ते Chrome मध्ये पुन्हा वापरण्यासाठी, पुन्हा साइन इन करा.</translation>
+<translation id="6009821354356307391">फॉलो अपची विनंती करा</translation>
 <translation id="6014316319780893079">तुम्ही <ph name="BEGIN_LINK" />Chrome ची टूल<ph name="END_LINK" /> वापरून सुरक्षितरीत्या ब्राउझ करू शकता आणि तुमचा डेटा नियंत्रित करू शकता</translation>
 <translation id="6022659036123304283">Chrome ला तुमच्या आवडीनुसार बनवा</translation>
 <translation id="6025087594896450715"><ph name="REMAINING_TIME" /> मध्ये Google Chrome रीस्टार्ट होईल</translation>
@@ -425,7 +428,6 @@ Google Chrome तुमची सेटिंग्ज पुन्हा मि
 <translation id="6173637689840186878"><ph name="PAGE_TITLE" /> - Google Chrome बीटा</translation>
 <translation id="6180522807229584611">हा टॅब अतिरिक्त स्रोत वापरत आहे. तुमच्या परफॉर्मन्समध्ये सुधारणा करण्यासाठी, Chrome ला तो इनॅक्टिव्ह करू द्या.</translation>
 <translation id="6182736845697986886">अपडेट सर्व्हरच्या अंतर्गत एररमुळे इंस्टॉलेशन यशस्वी झाले नाही.</translation>
-<translation id="6200139057479872438">तुम्ही अलीकडे भेट दिलेली नाही. Chrome ने <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> परवानग्या काढून टाकल्या</translation>
 <translation id="6235018212288296708">mDNS रहदारीस अनुमती देण्यासाठी Google Chrome साठी अंतर्गामी नियम.</translation>
 <translation id="624230925347970731">Chrome लवकरच बंद होईल</translation>
 <translation id="6247557882553405851">Google Password Manager</translation>
@@ -463,6 +465,7 @@ Google Chrome तुमची सेटिंग्ज पुन्हा मि
 <translation id="6696915334902295848">Chrome ला या साइटसाठी मायक्रोफोनची परवानगी आवश्यक आहे</translation>
 <translation id="6712881677154121168">डाउनलोडशी संबंधित एरर: <ph name="DOWNLOAD_ERROR" />.</translation>
 <translation id="6718739135284199302">Chrome ला आणखी जलद बनवा</translation>
+<translation id="6734827584173583205">तुम्ही अलीकडे भेट दिलेली नाही. Chrome ने <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> आणि आणखी <ph name="COUNT" /> परवानग्या काढून टाकल्या आहेत.</translation>
 <translation id="6735387454586646204">ChromeOS Flex सिस्टीम</translation>
 <translation id="6750954913813541382">शब्दलेखनाच्या चुकांमध्ये सुधारणा करण्यासाठी, तुम्ही ब्राउझरमध्ये टाइप करता तो मजकूर Chrome Google ला पाठवते</translation>
 <translation id="6760235774835597023">Chrome चे V8 इंजीन साइटचा वेग वाढवते, पण त्यामुळे Chrome ची हल्ले रोखण्याची क्षमता किंचित कमी होते. हे सेटिंग सुरू आहे.</translation>
@@ -488,6 +491,7 @@ Google Chrome तुमची सेटिंग्ज पुन्हा मि
 <translation id="7024536598735240744">उघडण्याशी संबंधित एरर: <ph name="UNPACK_ERROR" />.</translation>
 <translation id="7025789849649390912">इंस्टॉलेशन थांबवले</translation>
 <translation id="7025800014283535195">तुम्ही Chrome प्रोफाइलदरम्यान येथे स्विच करू शकता</translation>
+<translation id="7051685429025310665">तुम्ही अलीकडे भेट दिलेली नाही. Chrome ने <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" />, <ph name="PERMISSION_3" /> या परवानग्या काढून टाकल्या आहेत.</translation>
 <translation id="7059914902409643750">Chrome ला तुमचे हक्काचे ठिकाण बनवा</translation>
 <translation id="7060643578009939353">Google Lens वापरून हा व्हिडिओ शोधा</translation>
 <translation id="7071827361006050863">Chrome लवकरच ब्राउझिंग डेटा हटवेल</translation>
@@ -543,13 +547,13 @@ Google Chrome तुमची सेटिंग्ज पुन्हा मि
 <translation id="7655455401911432608">तुमचा ब्राउझिंग इतिहास, ज्यामध्ये या डिव्हाइसवर तुम्ही Chrome वापरून भेट दिलेल्या साइटची नोंद असते.</translation>
 <translation id="7655472416356262023">Chrome मधून खाते काढून टाका</translation>
 <translation id="7658239707568436148">रद्द करा</translation>
-<translation id="7661924425853052955">तुम्ही अलीकडे भेट दिलेली नाही. Chrome ने <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> आणि आणखी <ph name="COUNT" /> परवानग्या काढून टाकल्या</translation>
 <translation id="7670287553302121848">Chrome खात्यासाठी री-ऑथेंटिकेशन आवश्यक आहे</translation>
 <translation id="769538538642757151">तुम्ही एखाद्या गोष्टीचे पुनरावलोकन करणे आवश्यक असल्यास, Chrome तुम्हाला कळवेल</translation>
 <translation id="7716950018788545737">टास्क संपले आहे (संपली आहेत).</translation>
 <translation id="77283119132245232"><ph name="BROWSER_NAME" /> साठी सिस्टीम ट्रेसिंगची सेवा पुरवते. ही सेवा बंद केली असल्यास, ब्राउझरद्वारे तयार केलेल्या परफॉर्मन्स ट्रेसमध्ये आशय स्विच आणि तयार थ्रेड इव्हेंट यांसारख्या संपूर्ण सिस्टीममधील इव्हेंटचा समावेश होणार नाही.</translation>
 <translation id="7736869414036750079">तुमच्या संस्थेनुसार तुम्ही Chrome मध्ये साइन इन करणे आवश्यक आहे</translation>
 <translation id="7747138024166251722">इन्स्टॉलर तात्पुरती डिरेक्टरी तयार करू शकत नाही. कृपया सॉफ्टवेअर इंस्टॉल करण्यासाठी रिक्त डिस्क स्थान आणि परवानगी पहा.</translation>
+<translation id="7748969056734910029">तुम्ही अलीकडे भेट दिलेली नाही. Chrome ने <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> परवानग्या काढून टाकल्या आहेत.</translation>
 <translation id="7761834446675418963">Chrome उघडण्यासाठी तुमचे नाव क्लिक करा आणि ब्राउझिंग सुरू करा.</translation>
 <translation id="7777080907402804672">इमेजचे उपयोगी वर्णन नसल्यास, Chrome तुमच्यासाठी ते देण्याचा प्रयत्न करेल. वर्णने तयार करण्यासाठी, इमेज Google ला पाठवल्या जातात. तुम्ही हे सेटिंग्जमध्ये कधीही बंद करू शकता.</translation>
 <translation id="778331955594035129">Chrome ला या साइटसाठी स्थानाशी संबंधित परवानगी आवश्यक आहे</translation>
@@ -595,7 +599,9 @@ Google Chrome तुमची सेटिंग्ज पुन्हा मि
 <translation id="8321888067342493336">इमेज म्हणून सेव्ह करा</translation>
 <translation id="8336463659890584292">साइटने त्यांच्या पेजवरील लिंक खाजगीरीत्या प्रीलोड करण्यास सांगितल्यास, Chrome हे Google सर्व्हर वापरते. हे प्रीलोड केलेल्या साइटपासून तुमची ओळख लपवते, पण कोणत्या साइट प्रीलोड केल्या जातात हे Google ला समजते.</translation>
 <translation id="8342675569599923794">ही फाइल धोकादायक आहे, त्यामुळे Chrome ने ती ब्लॉक केली आहे.</translation>
+<translation id="8349094670477064572">तुम्ही Chrome मध्ये साइन इन केलेले असताना, तुमचे Google खाते यामध्ये तुमचे पासवर्ड सेव्ह करू व वापरू शकता आणि आणखी बरेच काही करू शकता. <ph name="LEARN_MORE" /></translation>
 <translation id="8362914115861174987">यामध्ये भाषांतर करा</translation>
+<translation id="8366770919198174997">परफॉर्मन्स कमी करते, पण त्यामुळे Chrome ची हल्ले रोखण्याची क्षमता वाढते</translation>
 <translation id="8370517070665726704">कॉपीराइट <ph name="YEAR" /> Google LLC. सर्व हक्क राखीव.</translation>
 <translation id="8387459386171870978">Chrome वापरणे पुढे सुरू ठेवा</translation>
 <translation id="8394720698884623075">Chrome मध्ये स्टोअर केलेल्या असुरक्षित साइटच्या सूचीसह URLs तपासते</translation>
@@ -633,7 +639,6 @@ Google Chrome तुमची सेटिंग्ज पुन्हा मि
 <translation id="8781673607513845160">तुमचा कॅमेरा वापरण्यासाठी, Chrome ला <ph name="BEGIN_LINK" />सिस्टीम सेटिंग्ज<ph name="END_LINK" /> मध्ये अ‍ॅक्सेस द्या</translation>
 <translation id="878572486461146056">इंस्टॉलसंबंधित एरर: तुमच्या नेटवर्क अ‍ॅडमिनिस्ट्रेटरने गट धोरण लागू केले आहे, जे इंस्टॉलेशन प्रतिबंधित करते: <ph name="INSTALL_ERROR" /></translation>
 <translation id="8798550110818026746">तुमचे बुकमार्क, इतिहास आणि पासवर्ड यांसारखा ब्राउझिंग डेटा तुमची संस्था पाहू व व्यवस्थापित करू शकते. ती इतर Chrome प्रोफाइलमधील ब्राउझिंग डेटा पाहू शकत नाही</translation>
-<translation id="8801657293260363985">V8 हे Chrome चे JavaScript आणि WebAssembly इंजिन आहे, जे साइट परफॉर्मन्समध्ये सुधारणा करण्यासाठी वापरले जाते</translation>
 <translation id="8821043148920470810">भविष्यातील Google Chrome अपडेट मिळवण्यासाठी, तुमच्याकडे Windows 10 किंवा त्यापुढील आवृत्ती असणे आवश्यक आहे. हा कॉंप्युटर Windows 7 वापरत आहे.</translation>
 <translation id="8823341990149967727">Chrome कालबाह्य आहे</translation>
 <translation id="8825634023950448068">तुमच्या गोपनीयतेचे संरक्षण करण्यासाठी, आम्ही तुमची चार आठवड्यांपेक्षा जुनी स्वारस्ये ऑटो-डिलीट करतो. तुम्ही ब्राउझ करत राहाल, तसे सूचीमध्ये स्वारस्य पुन्हा दिसू शकते. आणि Chrome ने एखादे स्वारस्य चुकून जोडल्यास किंवा तुम्हाला विशिष्ट जाहिराती पाहायच्या नसल्यास, तुम्ही ते स्वारस्य काढून टाकू शकता.</translation>

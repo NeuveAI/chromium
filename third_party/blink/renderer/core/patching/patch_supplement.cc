@@ -19,7 +19,7 @@
 #include "third_party/blink/renderer/core/html/html_template_element.h"
 #include "third_party/blink/renderer/core/html/parser/html_document_parser.h"
 #include "third_party/blink/renderer/core/html/parser/parser_synchronization_policy.h"
-#include "third_party/blink/renderer/core/patching/dom_patch_status.h"
+#include "third_party/blink/renderer/core/patching/patch.h"
 #include "third_party/blink/renderer/core/streams/underlying_sink_base.h"
 #include "third_party/blink/renderer/core/streams/writable_stream.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_piece.h"
@@ -61,8 +61,8 @@ ExtractBytesOrStringFromChunk(ScriptValue chunk,
 
 class SinglePatchSink : public UnderlyingSinkBase {
  public:
-  explicit SinglePatchSink(ContainerNode& target)
-      : patch_(DOMPatchStatus::Create(target)) {}
+  explicit SinglePatchSink(ContainerNode& target, Node* a, Node* b)
+      : patch_(Patch::Create(target, nullptr, KURL(), a, b)) {}
   void Trace(Visitor* visitor) const override {
     visitor->Trace(patch_);
     UnderlyingSinkBase::Trace(visitor);
@@ -113,7 +113,7 @@ class SinglePatchSink : public UnderlyingSinkBase {
     return ToResolvedUndefinedPromise(script_state);
   }
 
-  Member<DOMPatchStatus> patch_;
+  Member<Patch> patch_;
 };
 }  // namespace
 
@@ -219,7 +219,7 @@ PatchSupplement* PatchSupplement::From(Document& document) {
   return supplement;
 }
 
-DOMPatchStatus* PatchSupplement::CurrentPatchFor(const Node& target) {
+Patch* PatchSupplement::CurrentPatchFor(const Node& target) {
   if (auto index = IndexOfPatch(target)) {
     return patches_.at(*index);
   } else {
@@ -236,7 +236,7 @@ std::optional<size_t> PatchSupplement::IndexOfPatch(const Node& target) {
   return std::nullopt;
 }
 
-void PatchSupplement::DidStart(Node& target, DOMPatchStatus* status) {
+void PatchSupplement::DidStart(Node& target, Patch* status) {
   patches_.push_back(status);
   if (Element* element = DynamicTo<Element>(target)) {
     element->PatchStateChanged();
@@ -254,8 +254,10 @@ void PatchSupplement::DidComplete(Node& target) {
 
 WritableStream* PatchSupplement::CreateSinglePatchStream(
     ScriptState* script_state,
-    ContainerNode& target) {
-  DOMPatchStatus* previous = CurrentPatchFor(target);
+    ContainerNode& target,
+    Node* previous_child,
+    Node* next_child) {
+  Patch* previous = CurrentPatchFor(target);
   if (previous) {
     previous->Terminate(ScriptValue::From(
         script_state, MakeGarbageCollected<DOMException>(
@@ -263,7 +265,9 @@ WritableStream* PatchSupplement::CreateSinglePatchStream(
                           "Patch aborted by another patch call")));
   };
   return WritableStream::CreateWithCountQueueingStrategy(
-      script_state, MakeGarbageCollected<SinglePatchSink>(target), 1);
+      script_state,
+      MakeGarbageCollected<SinglePatchSink>(target, previous_child, next_child),
+      1);
 }
 
 WritableStream* PatchSupplement::CreateSubtreePatchStream(

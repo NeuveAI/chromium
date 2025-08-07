@@ -105,6 +105,9 @@ class TabCollectionTabModelImpl {
   jint GetTabGroupColor(JNIEnv* env, const base::Token& tab_group_id);
   bool GetTabGroupCollapsed(JNIEnv* env, const base::Token& tab_group_id);
 
+  // Checks if a detached tab group exists.
+  bool DetachedTabGroupExists(JNIEnv* env, const base::Token& tab_group_id);
+
   // Closes a detached tab group.
   void CloseDetachedTabGroup(JNIEnv* env, const base::Token& tab_group_id);
 
@@ -124,6 +127,9 @@ class TabCollectionTabModelImpl {
 
   // Gets the last shown tab for a group.
   TabAndroid* GetLastShownTabForGroup(JNIEnv* env, const base::Token& group_id);
+
+  // Returns the index of the first non-pinned tab.
+  int GetIndexOfFirstNonPinnedTab(JNIEnv* env);
 
  private:
   // Returns a safe index for adding or moving a tab or tab group.

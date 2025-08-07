@@ -11,10 +11,8 @@
 
 #include "base/containers/heap_array.h"
 #include "base/containers/span.h"
-#include "base/feature_list.h"
 #include "base/notreached.h"
 #include "components/signin/internal/identity_manager/account_capabilities_constants.h"
-#include "components/signin/public/base/signin_switches.h"
 #include "components/signin/public/identity_manager/tribool.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -38,8 +36,14 @@ AccountCapabilities& AccountCapabilities::operator=(
 base::span<const std::string_view>
 AccountCapabilities::GetSupportedAccountCapabilityNames() {
   static constexpr auto kCapabilityNames = std::to_array<std::string_view>({
+#if BUILDFLAG(IS_IOS)
+#define ACCOUNT_CAPABILITY_TEMPORARY_NOT_IOS(cpp_label, java_label, name)
+#else
+#define ACCOUNT_CAPABILITY_TEMPORARY_NOT_IOS ACCOUNT_CAPABILITY
+#endif
 #define ACCOUNT_CAPABILITY(cpp_label, java_label, value) cpp_label,
 #include "components/signin/internal/identity_manager/account_capabilities_list.h"
+#undef ACCOUNT_CAPABILITY_TEMPORARY_NOT_IOS
 #undef ACCOUNT_CAPABILITY
   });
   return kCapabilityNames;
@@ -75,7 +79,7 @@ signin::Tribool AccountCapabilities::GetCapabilityByName(
 }
 
 // clang-format off
-// keep-sorted start newline_separated=yes sticky_prefixes=#if group_prefixes=#endif,can,has,is,must,AccountCapabilities:: block=yes
+// keep-sorted start newline_separated=yes sticky_prefixes=#if group_prefixes=#endif,can,has,is,must block=yes
 // clang-format on
 signin::Tribool AccountCapabilities::can_fetch_family_member_info() const {
   return GetCapabilityByName(kCanFetchFamilyMemberInfoCapabilityName);
@@ -156,45 +160,27 @@ signin::Tribool AccountCapabilities::is_opted_in_to_parental_supervision()
 }
 
 signin::Tribool AccountCapabilities::
+    is_subject_to_account_level_enterprise_policies() const {
+#if BUILDFLAG(IS_IOS)
+  return signin::Tribool::kUnknown;
+#else
+  return GetCapabilityByName(
+      kIsSubjectToAccountLevelEnterprisePoliciesCapabilityName);
+#endif
+}
+
+signin::Tribool AccountCapabilities::
     is_subject_to_chrome_privacy_sandbox_restricted_measurement_notice() const {
   return GetCapabilityByName(
       kIsSubjectToChromePrivacySandboxRestrictedMeasurementNotice);
 }
 
-signin::Tribool AccountCapabilities::is_subject_to_enterprise_policies() const {
+signin::Tribool AccountCapabilities::is_subject_to_enterprise_features() const {
   return GetCapabilityByName(kIsSubjectToEnterprisePoliciesCapabilityName);
 }
 
 signin::Tribool AccountCapabilities::is_subject_to_parental_controls() const {
   return GetCapabilityByName(kIsSubjectToParentalControlsCapabilityName);
-}
-
-signin::Tribool
-AccountCapabilities::should_be_addressed_in_feminine_grammatical_gender()
-    const {
-  return base::FeatureList::IsEnabled(switches::kGrammaticalGenderCapabilities)
-             ? GetCapabilityByName(
-                   kShouldBeAddressedInFeminineGrammaticalGender)
-             : signin::Tribool::kUnknown;
-}
-
-signin::Tribool
-AccountCapabilities::should_be_addressed_in_masculine_grammatical_gender()
-    const {
-  return base::FeatureList::IsEnabled(switches::kGrammaticalGenderCapabilities)
-             ? GetCapabilityByName(
-                   kShouldBeAddressedInMasculineGrammaticalGender)
-             : signin::Tribool::kUnknown;
-}
-
-signin::Tribool
-AccountCapabilities::should_be_addressed_in_neuter_grammatical_gender() const {
-  return base::FeatureList::IsEnabled(
-             switches::kGrammaticalGenderCapabilities) &&
-                 base::FeatureList::IsEnabled(
-                     switches::kNeuterGrammaticalGenderCapability)
-             ? GetCapabilityByName(kShouldBeAddressedInNeuterGrammaticalGender)
-             : signin::Tribool::kUnknown;
 }
 
 // keep-sorted end

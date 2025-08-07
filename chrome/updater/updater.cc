@@ -53,6 +53,7 @@
 #include "base/win/windows_version.h"
 #include "chrome/updater/app/server/win/updater_service_delegate.h"
 #include "chrome/updater/util/win_util.h"
+#include "partition_alloc/page_allocator.h"
 #endif
 
 // Instructions For Windows.
@@ -110,11 +111,6 @@ int HandleUpdaterCommands(UpdaterScope updater_scope,
   StartCrashReporter(updater_scope, kUpdaterVersion);
 
   InitializeCrashReporting(updater_scope);
-
-  // Make the process more resilient to memory allocation issues.
-  base::EnableTerminationOnHeapCorruption();
-  base::EnableTerminationOnOutOfMemory();
-  logging::RegisterAbslAbortHook();
 
   InitializeThreadPool("updater");
   const base::ScopedClosureRunner shutdown_thread_pool(base::BindOnce([] {
@@ -299,8 +295,16 @@ void EnableLoggingByDefault() {
 int UpdaterMain(int argc, const char* const* argv) {
 #if BUILDFLAG(IS_WIN)
   CHECK(EnableSecureDllLoading());
-  EnableProcessHeapMetadataProtection();
 #endif
+
+  // Make the process more resilient to memory allocation issues.
+#if BUILDFLAG(IS_WIN)
+  EnableProcessHeapMetadataProtection();
+  partition_alloc::SetRetryOnCommitFailure(true);
+#endif
+  base::EnableTerminationOnHeapCorruption();
+  base::EnableTerminationOnOutOfMemory();
+  logging::RegisterAbslAbortHook();
 
   base::PlatformThread::SetName("UpdaterMain");
   base::AtExitManager exit_manager;

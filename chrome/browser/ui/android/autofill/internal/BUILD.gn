@@ -32,6 +32,8 @@ android_library("java") {
     ":java_resources",
     "//base:base_java",
     "//build/android:build_java",
+    "//chrome/browser/profiles/android:java",
+    "//chrome/browser/ui/android/ephemeraltab:java",
     "//components/autofill/android:main_autofill_java",
     "//content/public/android:content_full_java",
     "//third_party/androidx:androidx_annotation_annotation_java",
@@ -48,7 +50,7 @@ android_library("java") {
 generate_jni("jni_headers") {
   visibility = [
     ":*",
-    "//chrome/browser/ui:ui",
+    "//chrome/browser/ui",
   ]
   sources = [
     "java/src/org/chromium/chrome/browser/ui/autofill/AuthenticatorSelectionDialogBridge.java",
@@ -75,6 +77,8 @@ robolectric_library("junit") {
     "//base:base_java_test_support",
     "//base:base_junit_test_support",
     "//base/test:test_support_java",
+    "//chrome/browser/profiles/android:java",
+    "//chrome/browser/ui/android/ephemeraltab:java",
     "//chrome/test/android:chrome_java_test_support_common",
     "//components/autofill/android:main_autofill_java",
     "//content/public/android:content_full_java",
@@ -85,10 +89,11 @@ robolectric_library("junit") {
     "//third_party/androidx:androidx_test_runner_java",
     "//third_party/google-truth:google_truth_java",
     "//third_party/jni_zero:jni_zero_java",
-    "//third_party/junit:junit",
+    "//third_party/junit",
     "//third_party/mockito:mockito_java",
     "//ui/android:ui_full_java",
     "//ui/android:ui_java_test_support",
+    "//url:url_java",
   ]
 }
 

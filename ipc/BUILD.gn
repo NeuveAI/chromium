@@ -53,10 +53,6 @@ component("ipc") {
       "ipc_sender.h",
       "ipc_sync_channel.cc",
       "ipc_sync_channel.h",
-      "message_filter.cc",
-      "message_filter.h",
-      "message_filter_router.cc",
-      "message_filter_router.h",
       "trace_ipc_message.cc",
       "trace_ipc_message.h",
       "urgent_message_observer.h",
@@ -249,7 +245,6 @@ if (use_blink) {
   test("ipc_tests") {
     sources = [
       "ipc_channel_mojo_unittest.cc",
-      "ipc_channel_proxy_unittest.cc",
       "ipc_fuzzing_tests.cc",
       "ipc_message_protobuf_utils_unittest.cc",
       "ipc_message_unittest.cc",
@@ -264,9 +259,6 @@ if (use_blink) {
 
     if (is_posix || is_fuchsia) {
       sources += [ "ipc_message_attachment_set_posix_unittest.cc" ]
-      if (!is_ios) {
-        sources += [ "ipc_send_fds_test.cc" ]
-      }
     }
 
     if (is_win) {

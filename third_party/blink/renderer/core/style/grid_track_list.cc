@@ -144,9 +144,12 @@ bool GridTrackList::AddRepeater(
       break;
     case GridTrackRepeater::RepeatType::kAutoFill:
     case GridTrackRepeater::RepeatType::kAutoFit:  // Intentional Fallthrough.
-      has_auto_sized_repeater_ =
-          std::find(repeater_track_sizes.begin(), repeater_track_sizes.end(),
-                    Length::Auto()) != repeater_track_sizes.end();
+      track_count_before_auto_repeat_ = track_count_without_auto_repeat_;
+      has_intrinsic_sized_repeater_ =
+          std::find_if(repeater_track_sizes.begin(), repeater_track_sizes.end(),
+                       [](const GridTrackSize& track_size) {
+                         return track_size.IsTrackDefinitionIntrinsic();
+                       }) != repeater_track_sizes.end();
       if (HasAutoRepeater() || repeat_size > AvailableTrackCount()) {
         return false;
       }
@@ -198,9 +201,10 @@ void GridTrackList::operator=(const GridTrackList& other) {
   repeater_track_sizes_ = other.repeater_track_sizes_;
   auto_repeater_index_ = other.auto_repeater_index_;
   track_count_without_auto_repeat_ = other.track_count_without_auto_repeat_;
+  track_count_before_auto_repeat_ = other.track_count_before_auto_repeat_;
   non_auto_repeat_line_count_ = other.non_auto_repeat_line_count_;
   axis_type_ = other.axis_type_;
-  has_auto_sized_repeater_ = other.has_auto_sized_repeater_;
+  has_intrinsic_sized_repeater_ = other.has_intrinsic_sized_repeater_;
 }
 
 bool GridTrackList::operator==(const GridTrackList& other) const {
@@ -211,7 +215,7 @@ bool GridTrackList::operator==(const GridTrackList& other) const {
          repeater_track_sizes_ == other.repeater_track_sizes_ &&
          non_auto_repeat_line_count_ == other.non_auto_repeat_line_count_ &&
          axis_type_ == other.axis_type_ &&
-         has_auto_sized_repeater_ == other.has_auto_sized_repeater_;
+         has_intrinsic_sized_repeater_ == other.has_intrinsic_sized_repeater_;
 }
 
 }  // namespace blink

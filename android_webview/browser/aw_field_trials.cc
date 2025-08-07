@@ -22,6 +22,7 @@
 #include "components/viz/common/features.h"
 #include "content/public/common/content_features.h"
 #include "gpu/config/gpu_finch_features.h"
+#include "media/audio/audio_features.h"
 #include "media/base/media_switches.h"
 #include "mojo/public/cpp/bindings/features.h"
 #include "net/base/features.h"
@@ -63,10 +64,6 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   aw_feature_overrides.DisableFeature(
       blink::features::kEnforceNoopenerOnBlobURLNavigation);
 
-  // TODO(crbug.com/421547429): Temporarily disabled to address crashes.
-  aw_feature_overrides.DisableFeature(
-      network::features::kMaskedDomainListFlatbufferImpl);
-
 #if BUILDFLAG(ENABLE_VALIDATING_COMMAND_DECODER)
   // Disable the passthrough on WebView.
   aw_feature_overrides.DisableFeature(
@@ -75,6 +72,9 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
 
   // HDR does not support webview yet. See crbug.com/1493153 for an explanation.
   aw_feature_overrides.DisableFeature(ui::kAndroidHDR);
+
+  // Disable launch_handler on WebView.
+  aw_feature_overrides.DisableFeature(::features::kAndroidWebAppLaunchHandler);
 
   // Disable Reducing User Agent minor version on WebView.
   aw_feature_overrides.DisableFeature(
@@ -152,8 +152,6 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // on WebView.
   aw_feature_overrides.DisableFeature(::features::kDigitalGoodsApi);
 
-  aw_feature_overrides.DisableFeature(::features::kDynamicColorGamut);
-
   // COOP is not supported on WebView yet. See:
   // https://groups.google.com/a/chromium.org/forum/#!topic/blink-dev/XBKAGb2_7uAi.
   aw_feature_overrides.DisableFeature(
@@ -205,11 +203,9 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // enabling site isolation. See crbug.com/356170748.
   aw_feature_overrides.DisableFeature(blink::features::kPaintHoldingForIframes);
 
-  // Since Default Nav Transition does not support WebView yet, disable the
-  // LocalSurfaceId increment flag. TODO(crbug.com/361600214): Re-enable for
-  // WebView when we start introducing this feature.
-  aw_feature_overrides.DisableFeature(
-      blink::features::kIncrementLocalSurfaceIdForMainframeSameDocNavigation);
+  // Default Nav Transition does not support WebView.
+  // TODO(crbug.com/434928245): cleanup this feature gate in M141.
+  aw_feature_overrides.DisableFeature(blink::features::kBackForwardTransitions);
 
   // Disabling this feature for WebView, since it can switch focus when scrolled
   // in cases with multiple views which can trigger HTML focus changes that
@@ -293,4 +289,8 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // Document Picture-in-Picture API is not supported on WebView.
   aw_feature_overrides.DisableFeature(
       blink::features::kDocumentPictureInPictureAPI);
+
+  // AAudio per-stream device selection is not supported on WebView.
+  aw_feature_overrides.DisableFeature(
+      features::kAAudioPerStreamDeviceSelection);
 }

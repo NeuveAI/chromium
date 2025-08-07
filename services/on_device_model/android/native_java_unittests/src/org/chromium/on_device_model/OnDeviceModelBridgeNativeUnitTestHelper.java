@@ -3,9 +3,16 @@
 // found in the LICENSE file.
 package org.chromium.on_device_model;
 
+import static org.junit.Assert.assertEquals;
+
 import org.jni_zero.CalledByNative;
 
 import org.chromium.base.ServiceLoaderUtil;
+import org.chromium.components.optimization_guide.proto.ModelExecutionProto.ModelExecutionFeature;
+import org.chromium.on_device_model.mojom.GenerateOptions;
+import org.chromium.on_device_model.mojom.InputPiece;
+import org.chromium.on_device_model.mojom.SessionParams;
+import org.chromium.on_device_model.mojom.Token;
 
 /**
  * Helper class to verify the JNI bridge. Invoked by native unit tests:
@@ -16,60 +23,179 @@ public class OnDeviceModelBridgeNativeUnitTestHelper {
      * A mock implementation of AiCoreSession. Parses the input to a string and echoes the input
      * back as the response.
      */
-    public static class MockAiCoreSession implements AiCoreSession {
+    public static class MockAiCoreSessionBackend implements AiCoreSessionBackend {
+        // If true, the onComplete callback will be called asynchronously through
+        // resumeOnCompleteCallback. This field should be set before generate() is called.
+        private boolean mCompleteAsync;
+        private @GenerateResult int mGenerateResult;
+        private boolean mNativeDestroyed;
+        // Below are the params received in the generate() call.
+        private SessionResponder mResponder;
+        private GenerateOptions mGenerateOptions;
+        // Below are the params received in the constructor.
+        private final ModelExecutionFeature mFeature;
+        private final SessionParams mParams;
+
+        public MockAiCoreSessionBackend(ModelExecutionFeature feature, SessionParams params) {
+            mFeature = feature;
+            mParams = params;
+            mGenerateResult = GenerateResult.SUCCESS;
+        }
+
         @Override
-        public void generate(long nativeBackendSession, InputPiece[] inputPieces) {
+        public void generate(
+                GenerateOptions generateOptions,
+                InputPiece[] inputPieces,
+                SessionResponder responder) {
+            mGenerateOptions = generateOptions;
             StringBuilder sb = new StringBuilder();
-            for (InputPiece piece : inputPieces) {
-                if (piece.isText()) {
-                    sb.append(piece.getText());
-                } else if (piece.isToken()) {
-                    switch (piece.getTokenId()) {
-                        case InputPiece.Token.SYSTEM:
-                            sb.append("<system>");
-                            break;
-                        case InputPiece.Token.MODEL:
-                            sb.append("<model>");
-                            break;
-                        case InputPiece.Token.USER:
-                            sb.append("<user>");
-                            break;
-                        case InputPiece.Token.END:
-                            sb.append("<end>");
-                            break;
-                    }
+            for (InputPiece inputPiece : inputPieces) {
+                switch (inputPiece.which()) {
+                    case InputPiece.Tag.Token:
+                        switch (inputPiece.getToken()) {
+                            case Token.SYSTEM:
+                                sb.append("<system>");
+                                break;
+                            case Token.MODEL:
+                                sb.append("<model>");
+                                break;
+                            case Token.USER:
+                                sb.append("<user>");
+                                break;
+                            case Token.END:
+                                sb.append("<end>");
+                                break;
+                        }
+                        break;
+                    case InputPiece.Tag.Text:
+                        sb.append(inputPiece.getText());
+                        break;
                 }
             }
-            AiCoreSessionJni.get().onResponse(nativeBackendSession, sb.toString());
-            AiCoreSessionJni.get().onComplete(nativeBackendSession);
-        }
-    }
-
-    /** A mock implementation of AiCoreSessionFactory. */
-    public static class MockAiCoreSessionFactory implements AiCoreSessionFactory {
-        MockAiCoreSession mSession;
-
-        public MockAiCoreSessionFactory() {
-            mSession = new MockAiCoreSession();
+            responder.onResponse(sb.toString());
+            if (mCompleteAsync) {
+                mResponder = responder;
+            } else {
+                responder.onComplete(mGenerateResult);
+            }
         }
 
         @Override
-        public AiCoreSession createSession() {
-            return mSession;
+        public void onNativeDestroyed() {
+            mNativeDestroyed = true;
+        }
+
+        public void resumeOnCompleteCallback() {
+            assert mCompleteAsync;
+            if (mNativeDestroyed) {
+                return;
+            }
+            mResponder.onComplete(mGenerateResult);
         }
     }
 
-    private MockAiCoreSessionFactory mMockAiCoreSessionFactory;
+    /**
+     * A mock implementation of AiCoreModelDownloaderBackend. Call onAvailable() or onUnavailable()
+     * to simulate the download status change.
+     */
+    public static class MockAiCoreModelDownloader implements AiCoreModelDownloaderBackend {
+        private DownloaderResponder mResponder;
+        private boolean mNativeDestroyed;
 
-    @CalledByNative
-    public void setMockAiCoreSessionFactory() {
-        mMockAiCoreSessionFactory = new MockAiCoreSessionFactory();
-        ServiceLoaderUtil.setInstanceForTesting(
-                AiCoreSessionFactory.class, mMockAiCoreSessionFactory);
+        @Override
+        public void startDownload(DownloaderResponder responder) {
+            mResponder = responder;
+        }
+
+        @Override
+        public void onNativeDestroyed() {
+            mNativeDestroyed = true;
+        }
+
+        public void onAvailable() {
+            if (!mNativeDestroyed) {
+                mResponder.onAvailable();
+            }
+        }
+
+        public void onUnavailable() {
+            if (!mNativeDestroyed) {
+                mResponder.onUnavailable();
+            }
+        }
     }
+
+    /** A mock implementation of AiCoreFactory. */
+    public static class MockAiCoreFactory implements AiCoreFactory {
+        MockAiCoreSessionBackend mSessionBackend;
+        MockAiCoreModelDownloader mDownloader;
+
+        public MockAiCoreFactory() {}
+
+        @Override
+        public AiCoreSessionBackend createSessionBackend(
+                ModelExecutionFeature feature, SessionParams params) {
+            mSessionBackend = new MockAiCoreSessionBackend(feature, params);
+            return mSessionBackend;
+        }
+
+        @Override
+        public AiCoreModelDownloaderBackend createModelDownloader(ModelExecutionFeature feature) {
+            mDownloader = new MockAiCoreModelDownloader();
+            return mDownloader;
+        }
+    }
+
+    private MockAiCoreFactory mMockAiCoreFactory;
 
     @CalledByNative
     public static OnDeviceModelBridgeNativeUnitTestHelper create() {
         return new OnDeviceModelBridgeNativeUnitTestHelper();
+    }
+
+    @CalledByNative
+    public void verifySessionParams(int feature, int topK, float temperature) {
+        ModelExecutionFeature modelExecutionFeatureId = ModelExecutionFeature.forNumber(feature);
+        assertEquals(modelExecutionFeatureId, mMockAiCoreFactory.mSessionBackend.mFeature);
+        SessionParams params = mMockAiCoreFactory.mSessionBackend.mParams;
+        assertEquals(topK, params.topK);
+        assertEquals(temperature, params.temperature, 0.01f);
+    }
+
+    @CalledByNative
+    public void verifyGenerateOptions(int maxOutputTokens) {
+        GenerateOptions generateOptions = mMockAiCoreFactory.mSessionBackend.mGenerateOptions;
+        assertEquals(maxOutputTokens, generateOptions.maxOutputTokens);
+    }
+
+    @CalledByNative
+    public void setMockAiCoreFactory() {
+        mMockAiCoreFactory = new MockAiCoreFactory();
+        ServiceLoaderUtil.setInstanceForTesting(AiCoreFactory.class, mMockAiCoreFactory);
+    }
+
+    @CalledByNative
+    public void setCompleteAsync() {
+        mMockAiCoreFactory.mSessionBackend.mCompleteAsync = true;
+    }
+
+    @CalledByNative
+    public void resumeOnCompleteCallback() {
+        mMockAiCoreFactory.mSessionBackend.resumeOnCompleteCallback();
+    }
+
+    @CalledByNative
+    public void setGenerateResult(int generateResult) {
+        mMockAiCoreFactory.mSessionBackend.mGenerateResult = generateResult;
+    }
+
+    @CalledByNative
+    public void triggerDownloaderOnAvailable() {
+        mMockAiCoreFactory.mDownloader.onAvailable();
+    }
+
+    @CalledByNative
+    public void triggerDownloaderOnUnavailable() {
+        mMockAiCoreFactory.mDownloader.onUnavailable();
     }
 }

@@ -262,15 +262,14 @@ export class ReadAnythingToolbarElement extends ReadAnythingToolbarElementBase {
 
   private hideElement_(element: HTMLElement, keepSpace: boolean) {
     if (keepSpace) {
-      element.style.visibility = 'hidden';
+      element.classList.add('visibility-hidden');
     } else {
-      element.style.display = 'none';
+      element.classList.add('hidden');
     }
   }
 
   private showElement_(element: HTMLElement) {
-    element.style.visibility = 'visible';
-    element.style.display = 'inline-block';
+    element.classList.remove('hidden', 'visibility-hidden');
   }
 
 
@@ -365,6 +364,14 @@ export class ReadAnythingToolbarElement extends ReadAnythingToolbarElementBase {
       return loadTimeData.getString('voiceHighlightLabel');
   }
 
+  protected getFormattedSpeechRate_(): string {
+    const includeSuffix = this.speechRate_ % 1 === 0;
+    return includeSuffix ?
+        loadTimeData.getStringF(
+            'voiceSpeedOptionTitle', this.speechRate_.toLocaleString()) :
+        this.speechRate_.toLocaleString();
+  }
+
   // Loading the fonts stylesheet can take a while, especially with slow
   // Internet connections. Since we don't want this to block the rest of
   // Reading Mode from loading, we load this stylesheet asynchronously
@@ -436,6 +443,7 @@ export class ReadAnythingToolbarElement extends ReadAnythingToolbarElementBase {
     this.restoreFontMenu_();
 
     this.updateLinkToggleButton();
+    this.updateImagesToggleButton();
 
     if (this.isReadAloudEnabled_) {
       this.speechRate_ = getCurrentSpeechRate();

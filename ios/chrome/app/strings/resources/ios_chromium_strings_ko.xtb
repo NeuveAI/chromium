@@ -108,17 +108,18 @@ Chromium 환경을 개선하는 데 데이터를 사용하는 설정을 더 보�
 <translation id="3581385059720151202">Chromium에서 시각적 검색 수행</translation>
 <translation id="3582640969619785896">Chromium에서 비밀번호 저장을 제안합니다.</translation>
 <translation id="3594315078412605236">Chromium에서 결제 수단 관리</translation>
+<translation id="3617143087229977194">iOS에서 기본 앱 설정을 열고 '브라우저 앱'을 탭한 다음 Chromium을 선택합니다</translation>
 <translation id="3634039384458740619">Chromium 설정 열기</translation>
 <translation id="3639997914391704523">Google 계정으로 로그인하면 Chromium에서 비밀번호를 확인할 수 있습니다.</translation>
 <translation id="372658070733623520">Google 계정에서 Chromium 데이터를 사용하고 저장하려면 본인 확인 절차를 거치세요.</translation>
 <translation id="3728124580182886854">맞춤설정 등의 목적으로 Chromium과 기타 Google 서비스를 연결합니다</translation>
 <translation id="377649297473651452">Chromium 자동 완성 펼쳐 보기</translation>
 <translation id="3780779443901618967">표준 보호 모드보다 더 많은 사이트에서 데이터를 분석하여 위험한 사이트에 관해 경고합니다. Google이 이전에 몰랐던 사이트도 여기에 포함됩니다. Chromium 경고를 건너뛸 수 있습니다.</translation>
-<translation id="3804124559081428680">Chromium 도움말: 본인 인증</translation>
 <translation id="3805899903892079518">Chromium에서 사진 또는 동영상에 액세스할 수 없습니다. 'iOS 설정 &gt; 개인 정보 보호 &gt; 사진'에서 액세스를 허용하세요.</translation>
 <translation id="3816686541346279443">Chromium에서 비밀번호 저장을 제안합니다.</translation>
 <translation id="3827545470516145620">이 기기에 표준 보안 보호 조치가 적용되고 있습니다.</translation>
 <translation id="3833326979834193417">Chromium은 매일 자동으로 안전 확인을 실행하여 정보 유출 및 안전하지 않은 웹사이트 등으로부터 사용자를 보호합니다. 설정에서 안전 확인에 관해 자세히 알아볼 수 있습니다.</translation>
+<translation id="3845223911364528001">파일을 업로드하려면 Chromium으로 돌아가세요.</translation>
 <translation id="3855938650519180865">Chromium의 새로운 기능</translation>
 <translation id="3886689467633467988">이 사이트 및 Chromium에 로그인하여 모든 기기에서 북마크 등을 사용하세요.</translation>
 <translation id="3949514465204582407">Chromium 도움말: 모든 앱에서 비밀번호 사용하기</translation>
@@ -179,6 +180,7 @@ Chromium 환경을 개선하는 데 데이터를 사용하는 설정을 더 보�
 <translation id="5383251701169024761">저장된 비밀번호를 다른 앱에서 손쉽게 사용하려면 Chromium 자동 완성을 선택하세요.</translation>
 <translation id="538767207339317086">Chromium 로그인 허용</translation>
 <translation id="5389058611415066188">Chromium으로 안전하게 보호하기</translation>
+<translation id="5414059596208264343">Chromium 도움말: 비밀번호 가져오기</translation>
 <translation id="5415273218238091735">Chromium 도움말</translation>
 <translation id="5427571867875391349">Chromium을 기본 브라우저로 설정</translation>
 <translation id="5434562575369834882">Chromium 시크릿 모드에서 열기</translation>

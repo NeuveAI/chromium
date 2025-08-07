@@ -742,7 +742,8 @@ class DiceBrowserTest : public InProcessBrowserTest,
     // Fill in the required account capabilities for the sign in intercept.
     AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
     mutator.set_is_subject_to_parental_controls(false);
-    mutator.set_is_subject_to_enterprise_policies(false);
+    mutator.set_is_subject_to_enterprise_features(false);
+    mutator.set_is_subject_to_account_level_enterprise_policies(false);
 
     CHECK(account_info.IsValid());
     signin::UpdateAccountInfoForAccount(GetIdentityManager(), account_info);
@@ -1482,6 +1483,7 @@ IN_PROC_BROWSER_TEST_P(DiceAddAccountTabBrowserTest,
       PrimaryAccountSettingGaiaIntegrationState::kOnSyncHeaderReceived,
       /*expected_count=*/IsFixGaiaIntegrationEnabled() ? 1 : 0);
 }
+
 class DiceBrowserTestWithSyncOptinScreen : public DiceBrowserTest {
  public:
   DiceBrowserTestWithSyncOptinScreen() {
@@ -1500,14 +1502,8 @@ class DiceBrowserTestWithSyncOptinScreen : public DiceBrowserTest {
 // after Sync an ENABLE_SYNC response and the user is not syncing
 // history. Accepting the dialog results in enabling the history
 // sync preference.
-// TODO(crbug.com/422982233): Flaky on Linux.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
-#define MAYBE_EnableHistorySyncOptin DISABLED_EnableHistorySyncOptin
-#else
-#define MAYBE_EnableHistorySyncOptin EnableHistorySyncOptin
-#endif
 IN_PROC_BROWSER_TEST_F(DiceBrowserTestWithSyncOptinScreen,
-                       MAYBE_EnableHistorySyncOptin) {
+                       EnableHistorySyncOptin) {
   base::HistogramTester histogram_tester;
   EXPECT_EQ(0, reconcilor_started_count_);
 
@@ -1527,22 +1523,39 @@ IN_PROC_BROWSER_TEST_F(DiceBrowserTestWithSyncOptinScreen,
 
   EXPECT_EQ(GetMainAccountID(), GetIdentityManager()->GetPrimaryAccountId(
                                     signin::ConsentLevel::kSignin));
-  ASSERT_FALSE(SyncServiceFactory::GetForProfile(browser()->profile())
-                   ->GetUserSettings()
-                   ->GetSelectedTypes()
-                   .Has(syncer::UserSelectableType::kHistory));
+
+  // Disable all user selectable types.
+  auto* sync_service = SyncServiceFactory::GetForProfile(browser()->profile());
+  sync_service->GetUserSettings()->SetSelectedTypes(
+      /*sync_everything=*/false, syncer::UserSelectableTypeSet());
+  ASSERT_FALSE(sync_service->GetUserSettings()->GetSelectedTypes().Has(
+      syncer::UserSelectableType::kHistory));
+  ASSERT_FALSE(sync_service->GetUserSettings()->GetSelectedTypes().Has(
+      syncer::UserSelectableType::kTabs));
+  ASSERT_FALSE(sync_service->GetUserSettings()->GetSelectedTypes().Has(
+      syncer::UserSelectableType::kSavedTabGroups));
   histogram_tester.ExpectUniqueSample("Signin.SignIn.Completed", access_point,
                                       1);
   EXPECT_EQ(1, reconcilor_blocked_count_);
   WaitForReconcilorUnblockedCount(1);
   EXPECT_EQ(1, reconcilor_started_count_);
 
+  // Wait until the next modal screen (history sync optin) is present.
+  base::test::RunUntil([&] {
+    return browser()
+        ->GetFeatures()
+        .signin_view_controller()
+        ->ShowsModalDialog();
+  });
+
   // Dismiss the History Sync Optin UI.
   EXPECT_TRUE(login_ui_test_utils::ConfirmHistorySyncOptinDialog(browser()));
-  EXPECT_TRUE(SyncServiceFactory::GetForProfile(browser()->profile())
-                  ->GetUserSettings()
-                  ->GetSelectedTypes()
-                  .Has(syncer::UserSelectableType::kHistory));
+  EXPECT_TRUE(sync_service->GetUserSettings()->GetSelectedTypes().Has(
+      syncer::UserSelectableType::kHistory));
+  EXPECT_TRUE(sync_service->GetUserSettings()->GetSelectedTypes().Has(
+      syncer::UserSelectableType::kTabs));
+  EXPECT_TRUE(sync_service->GetUserSettings()->GetSelectedTypes().Has(
+      syncer::UserSelectableType::kSavedTabGroups));
 }
 
 class DiceExplicitSigninBrowserTest : public InProcessBrowserTest {

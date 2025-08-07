@@ -34,6 +34,7 @@
 <translation id="1982637982196732906">Flytt til inaktiv del</translation>
 <translation id="2050597508048557928">{TABS_COUNT,plural, =1{Sett <ph name="TABS_COUNT_ONE" /> valgt fane som bokmerke}other{Sett <ph name="TABS_COUNT_MANY" /> valgte faner som bokmerker}}</translation>
 <translation id="2055057176188061528">Velg en fanegruppe, eller opprett en ny fanegruppe</translation>
+<translation id="2074527029802029717">Løsne fanen</translation>
 <translation id="2118649612461486615">Butikkinformasjon</translation>
 <translation id="2123073051266141035">{INCOGNITO_TABS_COUNT,plural, =1{Du kan gjenåpne de lukkede fanene og gruppene dine via Nylige faner-delen og Fanegrupper-delen. Inkognitofanen din kommer ikke til å være tilgjengelig.}other{Du kan gjenåpne de lukkede fanene og gruppene dine via Nylige faner-delen og Fanegrupper-delen. De # inkognitofanene dine kommer ikke til å være tilgjengelige.}}</translation>
 <translation id="2162620598375156287">Nå <ph name="CURRENT_PRICE" /> på <ph name="SOURCE_WEBSITE" /></translation>
@@ -44,7 +45,6 @@
 <translation id="2359808026110333948">Fortsett</translation>
 <translation id="2371084566192454134">Faner og fanegrupper</translation>
 <translation id="2375257132547014176">{TABS_COUNT,plural, =1{Skjul <ph name="TITLE_OF_GROUP" /> fanegruppe med <ph name="TABS_COUNT_ONE" /> fane.}other{Skjul <ph name="TITLE_OF_GROUP" /> fanegruppe med <ph name="TABS_COUNT_MANY" /> faner.}}</translation>
-<translation id="2479148705183875116">Gå til Innstillinger</translation>
 <translation id="2498435670446402865">Gi fanegruppen nytt navn</translation>
 <translation id="2536366509642644298">Fanegruppene «<ph name="TAB_GROUP_NAME_1" />» og «<ph name="TAB_GROUP_NAME_2" />» er ikke tilgjengelige mer</translation>
 <translation id="2539705006853443997">{TABS_COUNT,plural, =1{Skjul <ph name="TABS_COUNT_ONE" /> fane.}other{Skjul fanegruppe med <ph name="TABS_COUNT_MANY" /> faner.}}</translation>
@@ -61,6 +61,7 @@
 <translation id="2801787514987684416">Vil du se informasjon om butikken?</translation>
 <translation id="2883875523421277445">{NUMBER_OF_TABS_CLOSED,plural, =1{<ph name="ONE_CLOSED" /> fane er lukket}other{<ph name="MANY_CLOSED" /> faner er lukket}}</translation>
 <translation id="2894757982205307093">Ny fane i gruppen</translation>
+<translation id="2918484639460781603">Gå til Innstillinger</translation>
 <translation id="2928243913527329289">Google | Om denne butikken</translation>
 <translation id="3008554597174452548">Slutt å spore produktet</translation>
 <translation id="3026391124054406831">Opprett grupper for å organisere fanene dine.</translation>

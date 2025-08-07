@@ -32,4 +32,13 @@ id<BWGGatewayProtocol> CreateBWGGateway() {
 void CheckGeminiEligibility(AuthenticationService* auth_service,
                             BWGEligibilityCallback completion) {}
 
+void ResetGemini() {}
+
+void UpdatePageAttachmentState(
+    BWGPageContextAttachmentState bwg_attachment_state) {}
+
+bool IsProtectedUrl(std::string url) {
+  return false;
+}
+
 }  // namespace ios::provider

@@ -99,10 +99,7 @@ source_set("client_info") {
 
 # Used by the Chrome installer, which doesn't need the whole metrics library.
 source_set("metrics_pref_names") {
-  sources = [
-    "metrics_pref_names.cc",
-    "metrics_pref_names.h",
-  ]
+  sources = [ "metrics_pref_names.h" ]
   configs += [
     "//build/config/compiler:wexit_time_destructors",
     "//build/config/compiler:wglobal_constructors",
@@ -282,7 +279,7 @@ if (!is_cronet_build || is_ios) {
       "//components/prefs",
       "//components/variations",
       "//components/variations/field_trial_config",
-      "//components/version_info:version_info",
+      "//components/version_info",
       "//components/webui/flags:switches",
       "//crypto",
       "//extensions/buildflags",
@@ -442,8 +439,8 @@ if (!is_cronet_build) {
 
     deps = [
       "//base",
+      "//components/encrypted_messages",
       "//components/encrypted_messages:encrypted_message_proto",
-      "//components/encrypted_messages:encrypted_messages",
       "//components/variations",
       "//net",
       "//services/network/public/cpp",
@@ -507,7 +504,7 @@ if (!is_cronet_build) {
     ]
 
     deps = [
-      "//base:base",
+      "//base",
       "//components/sampling_profiler:profile_params",
       "//third_party/metrics_proto",
     ]
@@ -652,7 +649,7 @@ if (!is_cronet_build) {
       "//mojo/public/cpp/bindings",
       "//net:test_support",
       "//services/network:test_support",
-      "//services/network/public/cpp:cpp",
+      "//services/network/public/cpp",
       "//services/service_manager/public/cpp",
       "//testing/gmock",
       "//testing/gtest",

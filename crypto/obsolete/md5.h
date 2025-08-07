@@ -39,6 +39,10 @@ namespace cachetool {
 crypto::obsolete::Md5 MakeMd5HasherForCachetools();
 }
 
+namespace drive {
+crypto::obsolete::Md5 MakeMd5HasherForDriveFsAccount();
+}
+
 namespace drive::util {
 crypto::obsolete::Md5 MakeMd5HasherForDriveApi();
 }
@@ -69,6 +73,7 @@ crypto::obsolete::Md5 MakeMd5HasherForVisitedLink();
 
 namespace web_app::internals {
 crypto::obsolete::Md5 MakeMd5HasherForWebAppShortcutIcon();
+std::wstring Md5AsHexForUninstall(const std::wstring& data);
 }
 
 namespace crypto::obsolete {
@@ -105,6 +110,7 @@ class CRYPTO_EXPORT Md5 {
   // compatibility with existing specs, on-disk data, or similar.
   friend Md5 android_tools::MakeMd5HasherForMd5sumTool();
   friend Md5 policy::MakeMd5HasherForPolicyEventId();
+  friend Md5 drive::MakeMd5HasherForDriveFsAccount();
   friend Md5 drive::util::MakeMd5HasherForDriveApi();
   friend Md5 extensions::image_writer::MakeMd5HasherForImageWriter();
   friend Md5 cachetool::MakeMd5HasherForCachetools();
@@ -136,6 +142,8 @@ class CRYPTO_EXPORT Md5 {
 
   // TODO(https://crbug.com/416304903): get rid of this.
   friend Md5 web_app::internals::MakeMd5HasherForWebAppShortcutIcon();
+  friend std::wstring web_app::internals::Md5AsHexForUninstall(
+      const std::wstring& key);
 
   Md5();
   static std::array<uint8_t, kSize> Hash(std::string_view data);

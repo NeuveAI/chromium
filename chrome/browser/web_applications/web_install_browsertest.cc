@@ -2,10 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/command_line.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "chrome/browser/banners/test_app_banner_manager_desktop.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
@@ -32,7 +34,16 @@
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features_generated.h"
+#include "third_party/blink/public/mojom/use_counter/metrics/webdx_feature.mojom.h"
+#include "ui/views/test/dialog_test.h"
+#include "ui/views/test/widget_test.h"
 #include "ui/views/widget/any_widget_observer.h"
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "ash/constants/ash_switches.h"
+#include "chrome/test/base/testing_profile.h"
+#include "components/user_manager/user_names.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace {
 constexpr webapps::WebappInstallSource kInstallSource =
@@ -43,16 +54,8 @@ constexpr char kNotAllowedError[] = "NotAllowedError";
 constexpr char kTypeError[] = "TypeError";
 }  // namespace
 
-enum class APISignature {
-  kZeroParameter,
-  kOneParameter,
-  kTwoParameter,
-};
-
 namespace web_app {
-class WebInstallCurrentDocumentBrowserTest
-    : public WebAppBrowserTestBase,
-      public ::testing::WithParamInterface<APISignature> {
+class WebInstallCurrentDocumentBrowserTest : public WebAppBrowserTestBase {
  public:
   WebInstallCurrentDocumentBrowserTest() = default;
 
@@ -62,7 +65,7 @@ class WebInstallCurrentDocumentBrowserTest
   }
 
   // 0 parameter navigator.install()
-  bool TryInstallApp() {
+  bool TryInstallApp(bool with_gesture = true) {
     const std::string script =
         "navigator.install()"
         ".then(result => {"
@@ -70,35 +73,6 @@ class WebInstallCurrentDocumentBrowserTest
         "}).catch(error => {"
         "  webInstallError = error;"
         "});";
-
-    return ExecJs(web_contents(), script);
-  }
-
-  // 1 param navigator.install(install_url)
-  bool TryInstallApp(std::string install_url) {
-    const std::string script = "navigator.install('" + install_url +
-                               "').then(result => {"
-                               "  webInstallResult = result;"
-                               "}).catch(error => {"
-                               "  webInstallError = error;"
-                               "});";
-
-    return ExecJs(web_contents(), script);
-  }
-
-  // 2 param navigator.install(install_url, manifest_id)
-  // `with_gesture` behavior handling is identical for all 3 signatures, so
-  // only test with the 2 param signature to avoid redundancy.
-  bool TryInstallApp(std::string install_url,
-                     std::string manifest_id,
-                     bool with_gesture = true) {
-    const std::string script = "navigator.install('" + install_url + "', '" +
-                               manifest_id +
-                               "').then(result => {"
-                               "  webInstallResult = result;"
-                               "}).catch(error => {"
-                               "  webInstallError = error;"
-                               "});";
 
     if (with_gesture) {
       return ExecJs(web_contents(), script);
@@ -166,7 +140,7 @@ class WebInstallCurrentDocumentBrowserTest
       blink::features::kWebAppInstallation};
 };
 
-IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest, Install) {
+IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTest, Install_NoParams) {
   GURL current_doc_url =
       https_server()->GetURL("/banners/manifest_with_id_test_page.html");
   const std::string manifest_id =
@@ -184,17 +158,7 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest, Install) {
   ui_test_utils::BrowserChangeObserver wait_for_web_app(
       nullptr, ui_test_utils::BrowserChangeObserver::ChangeType::kAdded);
 
-  switch (GetParam()) {
-    case APISignature::kZeroParameter:
-      ASSERT_TRUE(TryInstallApp());
-      break;
-    case APISignature::kOneParameter:
-      ASSERT_TRUE(TryInstallApp(current_doc_url.spec()));
-      break;
-    case APISignature::kTwoParameter:
-      ASSERT_TRUE(TryInstallApp(current_doc_url.spec(), manifest_id));
-      break;
-  }
+  ASSERT_TRUE(TryInstallApp());
 
   // Verify that the app was installed.
   EXPECT_TRUE(install_future.Wait());
@@ -210,6 +174,9 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest, Install) {
   // Validate JS results.
   EXPECT_TRUE(ResultExists(app_web_contents));
   EXPECT_FALSE(ErrorExists(app_web_contents));
+  histograms.ExpectBucketCount("Blink.UseCounter.WebDXFeatures",
+                               blink::mojom::WebDXFeature::kDRAFT_WebInstallAPI,
+                               1);
 
   histograms.ExpectUniqueSample("WebApp.Install.Source.Success", kInstallSource,
                                 1);
@@ -237,7 +204,7 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest, Install) {
                       webapps::WebappInstallSource::WEB_INSTALL, 1))));
 }
 
-IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
+IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTest,
                        UserAcceptsOpenDialog) {
   GURL current_doc_url =
       https_server()->GetURL("/banners/manifest_with_id_test_page.html");
@@ -264,17 +231,7 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
       nullptr, ui_test_utils::BrowserChangeObserver::ChangeType::kAdded);
 
   // Call navigator.install() to trigger the intent picker.
-  switch (GetParam()) {
-    case APISignature::kZeroParameter:
-      ASSERT_TRUE(TryInstallApp());
-      break;
-    case APISignature::kOneParameter:
-      ASSERT_TRUE(TryInstallApp(current_doc_url.spec()));
-      break;
-    case APISignature::kTwoParameter:
-      ASSERT_TRUE(TryInstallApp(current_doc_url.spec(), manifest_id));
-      break;
-  }
+  ASSERT_TRUE(TryInstallApp());
 
   // Verify the app was launched again after accepting the intent picker.
   auto* launched_app_browser = wait_for_launch_app.Wait();
@@ -290,7 +247,7 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
                                 apps::LaunchSource::kFromReparenting, 2);
 }
 
-IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
+IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTest,
                        UserCancelsOpenDialog) {
   GURL current_doc_url =
       https_server()->GetURL("/banners/manifest_with_id_test_page.html");
@@ -313,29 +270,12 @@ IN_PROC_BROWSER_TEST_P(WebInstallCurrentDocumentBrowserTest,
   auto auto_cancel_intent_picker =
       IntentPickerBubbleView::SetAutoCancelIntentPickerBubbleForTesting();
 
-  // Call navigator.install() to trigger the intent picker.
-  switch (GetParam()) {
-    case APISignature::kZeroParameter:
-      ASSERT_TRUE(TryInstallApp());
-      break;
-    case APISignature::kOneParameter:
-      ASSERT_TRUE(TryInstallApp(current_doc_url.spec()));
-      break;
-    case APISignature::kTwoParameter:
-      ASSERT_TRUE(TryInstallApp(current_doc_url.spec(), manifest_id));
-      break;
-  }
+  ASSERT_TRUE(TryInstallApp());
 
   // Validate JS results.
   EXPECT_FALSE(ResultExists());
   EXPECT_TRUE(ErrorExists());
 }
-
-INSTANTIATE_TEST_SUITE_P(,
-                         WebInstallCurrentDocumentBrowserTest,
-                         testing::Values(APISignature::kZeroParameter,
-                                         APISignature::kOneParameter,
-                                         APISignature::kTwoParameter));
 
 IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTest,
                        IntentPickerAfterTabSwitching) {
@@ -386,6 +326,151 @@ IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTest,
   EXPECT_EQ(GetErrorName(), kAbortError);
 }
 
+// Tests for WebAppInstallNotSupportedDialog appearing in Incognito and Guest
+// modes since web app installs are not supported in these modes. The dialog
+// appears for all current and background document installs.
+
+IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTest,
+                       NotSupportedDialogInIncognito) {
+  // Open incognito window and navigate to a valid URL.
+  GURL test_url = https_server()->GetURL("/simple.html");
+  Browser* incognito_browser =
+      OpenURLOffTheRecord(browser()->profile(), test_url);
+
+  views::NamedWidgetShownWaiter widget_waiter(
+      views::test::AnyWidgetTestPasskey{}, "WebAppInstallNotSupportedDialog");
+  content::WebContents* incognito_web_contents =
+      incognito_browser->tab_strip_model()->GetActiveWebContents();
+
+  // Trigger the Install Not Supported dialog by initiating an install request.
+  ExecuteScriptAsync(incognito_web_contents,
+                     "navigator.install()"
+                     ".then(result => {"
+                     "  webInstallResult = result;"
+                     "}).catch(error => {"
+                     "  webInstallError = error;"
+                     "});");
+
+  // Wait for the dialog to show.
+  views::Widget* widget = widget_waiter.WaitIfNeededAndGet();
+  ASSERT_NE(widget, nullptr);
+  views::test::WidgetDestroyedWaiter destroyed(widget);
+
+  // Verify dialog title for Incognito mode.
+  EXPECT_EQ(
+      widget->widget_delegate()->AsBubbleDialogDelegate()->GetWindowTitle(),
+      u"Web app installs aren't supported in Incognito mode");
+
+  // Simulate the user accepting the dialog.
+  views::test::AcceptDialog(widget);
+  destroyed.Wait();
+
+  // Validate JS results.
+  EXPECT_FALSE(ResultExists(incognito_web_contents));
+  EXPECT_TRUE(ErrorExists(incognito_web_contents));
+  EXPECT_EQ(GetErrorName(incognito_web_contents), kAbortError);
+}
+
+IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTest,
+                       NotSupportedDialogAfterTabSwitching) {
+  // Open incognito window and navigate to a valid URL.
+  GURL test_url = https_server()->GetURL("/simple.html");
+  Browser* incognito_browser =
+      OpenURLOffTheRecord(browser()->profile(), test_url);
+
+  views::NamedWidgetShownWaiter widget_waiter(
+      views::test::AnyWidgetTestPasskey{}, "WebAppInstallNotSupportedDialog");
+  content::WebContents* incognito_web_contents =
+      incognito_browser->tab_strip_model()->GetActiveWebContents();
+
+  // Trigger the Install Not Supported dialog by initiating an install request.
+  ExecuteScriptAsync(incognito_web_contents,
+                     "navigator.install()"
+                     ".then(result => {"
+                     "  webInstallResult = result;"
+                     "}).catch(error => {"
+                     "  webInstallError = error;"
+                     "});");
+
+  // Wait for the dialog to show.
+  views::Widget* widget = widget_waiter.WaitIfNeededAndGet();
+  ASSERT_NE(widget, nullptr);
+
+  // Change focus to a new tab.
+  chrome::NewTab(incognito_browser);
+
+  // Validate JS results.
+  EXPECT_FALSE(ResultExists(incognito_web_contents));
+  EXPECT_TRUE(ErrorExists(incognito_web_contents));
+  EXPECT_EQ(GetErrorName(incognito_web_contents), kAbortError);
+}
+
+class WebInstallGuestModeTest : public WebInstallCurrentDocumentBrowserTest {
+ public:
+  WebInstallGuestModeTest() = default;
+  WebInstallGuestModeTest(const WebInstallGuestModeTest&) = delete;
+  WebInstallGuestModeTest& operator=(const WebInstallGuestModeTest&) = delete;
+
+#if BUILDFLAG(IS_CHROMEOS)
+  // To create a guest session in ChromeOS, CreateGuestBrowser() cannot be used
+  // and proper switches to commandline need to be set.
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    command_line->AppendSwitch(ash::switches::kGuestSession);
+    command_line->AppendSwitchASCII(ash::switches::kLoginUser,
+                                    user_manager::kGuestUserName);
+    command_line->AppendSwitchASCII(ash::switches::kLoginProfile,
+                                    TestingProfile::kTestUserProfileDir);
+  }
+#endif  // BUILDFLAG(IS_CHROMEOS)
+};
+
+IN_PROC_BROWSER_TEST_F(WebInstallGuestModeTest, NotSupportedDialogInGuestMode) {
+  // Open a new guest mode window.
+#if BUILDFLAG(IS_CHROMEOS)
+  Browser* guest_browser = browser();
+#else
+  Browser* guest_browser = CreateGuestBrowser();
+#endif  // BUILDFLAG(IS_CHROMEOS)
+  ASSERT_TRUE(guest_browser->profile()->IsGuestSession());
+
+  // Navigate to a valid URL in the guest browser.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      guest_browser, https_server()->GetURL("/simple.html")));
+
+  views::NamedWidgetShownWaiter widget_waiter(
+      views::test::AnyWidgetTestPasskey{}, "WebAppInstallNotSupportedDialog");
+  content::WebContents* guest_web_contents =
+      guest_browser->tab_strip_model()->GetActiveWebContents();
+
+  // Trigger the Install Not Supported dialog by initiating an install request.
+  ExecuteScriptAsync(guest_web_contents,
+                     "navigator.install()"
+                     ".then(result => {"
+                     "  webInstallResult = result;"
+                     "}).catch(error => {"
+                     "  webInstallError = error;"
+                     "});");
+
+  // Confirm Install Not Supported Dialog shows.
+  views::Widget* widget = widget_waiter.WaitIfNeededAndGet();
+  ASSERT_NE(widget, nullptr);
+  views::test::WidgetDestroyedWaiter destroyed(widget);
+
+  // Verify dialog title for Guest mode.
+  EXPECT_EQ(
+      widget->widget_delegate()->AsBubbleDialogDelegate()->GetWindowTitle(),
+      u"Web app installs aren't supported in Guest mode");
+
+  // Simulate the user accepting the dialog.
+  views::test::AcceptDialog(widget);
+  destroyed.Wait();
+
+  // Validate JS results.
+  EXPECT_FALSE(ResultExists(guest_web_contents));
+  EXPECT_TRUE(ErrorExists(guest_web_contents));
+  EXPECT_EQ(GetErrorName(guest_web_contents), kAbortError);
+}
+
 // Manifest validation for current document installs.
 using WebInstallCurrentDocumentBrowserTestManifestErrors =
     WebInstallCurrentDocumentBrowserTest;
@@ -397,7 +482,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTestManifestErrors,
 
   NavigateAndConfigureCurrentDocumentForInstall(current_doc_url);
 
-  ASSERT_TRUE(TryInstallApp(current_doc_url.spec()));
+  ASSERT_TRUE(TryInstallApp());
 
   EXPECT_FALSE(ResultExists());
   EXPECT_TRUE(ErrorExists());
@@ -410,24 +495,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTestManifestErrors,
 
   NavigateAndConfigureCurrentDocumentForInstall(current_doc_url);
 
-  ASSERT_TRUE(TryInstallApp(current_doc_url.spec()));
-
-  EXPECT_FALSE(ResultExists());
-  EXPECT_TRUE(ErrorExists());
-  EXPECT_EQ(GetErrorName(), kDataError);
-}
-
-IN_PROC_BROWSER_TEST_F(WebInstallCurrentDocumentBrowserTestManifestErrors,
-                       IdMismatch) {
-  // Has "id": "some_id"
-  GURL current_doc_url =
-      https_server()->GetURL("/banners/manifest_with_id_test_page.html");
-  const std::string manifest_id =
-      https_server()->GetURL("/incorrect_id").spec();
-
-  NavigateAndConfigureCurrentDocumentForInstall(current_doc_url);
-
-  ASSERT_TRUE(TryInstallApp(current_doc_url.spec(), manifest_id));
+  ASSERT_TRUE(TryInstallApp());
 
   EXPECT_FALSE(ResultExists());
   EXPECT_TRUE(ErrorExists());
@@ -444,7 +512,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallServiceImplBrowserTestBadInput,
 
   std::string install_url = GetInstallableAppURL().spec();
   std::string manifest_id = install_url;
-  ASSERT_TRUE(TryInstallApp(install_url, manifest_id, /*with_gesture=*/false));
+  ASSERT_TRUE(TryInstallApp(/*with_gesture=*/false));
 
   EXPECT_FALSE(ResultExists());
   EXPECT_TRUE(ErrorExists());

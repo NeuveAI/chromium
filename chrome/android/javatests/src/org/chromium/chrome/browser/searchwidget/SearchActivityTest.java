@@ -8,7 +8,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -31,6 +30,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
@@ -79,6 +79,7 @@ import org.chromium.chrome.test.util.OmniboxTestUtils;
 import org.chromium.components.browser_ui.edge_to_edge.EdgeToEdgeSystemBarColorHelper;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
+import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.AutocompleteMatchBuilder;
 import org.chromium.components.omnibox.AutocompleteResult;
@@ -341,7 +342,7 @@ public class SearchActivityTest {
 
         // Suggestions requests are always delayed. Rather than check for the request itself
         // confirm that any prior requests have been canceled.
-        verify(mAutocompleteController, times(1)).resetSession();
+        verify(mAutocompleteController).resetSession();
 
         waitForChromeTabbedActivityToStart(
                 () -> {
@@ -428,7 +429,7 @@ public class SearchActivityTest {
         Assert.assertNotNull(mTestDelegate.onSearchEngineFinalizedCallback);
         Assert.assertEquals(0, mTestDelegate.onFinishDeferredInitializationCallback.getCallCount());
         // Native initialization is finished, but we don't have a DSE elected yet.
-        verify(mAutocompleteController, times(1)).addOnSuggestionsReceivedListener(any());
+        verify(mAutocompleteController).addOnSuggestionsReceivedListener(any());
 
         // Set some text in the search box, then continue startup.
         mOmnibox.requestFocus();
@@ -447,12 +448,12 @@ public class SearchActivityTest {
         mTestDelegate.onFinishDeferredInitializationCallback.waitForCallback(0);
 
         // Omnibox suggestions should be requested now.
-        verify(mAutocompleteController, times(1))
-                .startZeroSuggest(
-                        eq(""),
-                        any(/* DSE URL */ ),
-                        eq(PageClassification.ANDROID_SEARCH_WIDGET_VALUE),
-                        any());
+        var captor = ArgumentCaptor.forClass(AutocompleteInput.class);
+        verify(mAutocompleteController).startZeroSuggest(captor.capture());
+        Assert.assertEquals("", captor.getValue().getUserText());
+        Assert.assertEquals(
+                PageClassification.ANDROID_SEARCH_WIDGET_VALUE,
+                captor.getValue().getPageClassification());
     }
 
     @Test

@@ -27,6 +27,7 @@ class TabStripModelAdapterImpl : public TabStripModelAdapter {
   void RemoveObserver(TabStripModelObserver* observer) override;
   std::vector<tabs::TabHandle> GetTabs() const override;
   TabRendererData GetTabRendererData(int index) const override;
+  const ui::ColorProvider& GetColorProvider() const override;
   void CloseTab(size_t tab_index) override;
   std::optional<int> GetIndexForHandle(tabs::TabHandle tab_handle) override;
   void ActivateTab(size_t index) override;
@@ -35,7 +36,9 @@ class TabStripModelAdapterImpl : public TabStripModelAdapter {
   mojom::TabCollectionContainerPtr GetTabStripTopology() override;
   std::optional<const tab_groups::TabGroupId> FindGroupIdFor(
       const tabs::TabCollection::Handle& collection_handle) override;
-
+  void UpdateTabGroupVisuals(
+      const tab_groups::TabGroupId& group,
+      const tab_groups::TabGroupVisualData& visual_data) override;
   // TabStripModelAdapterImpl uses passkeys to access experimental API methods
   // in TabStripModel or TabCollections.
   // PassKeyForTesting provides a passkey for testing purposes. Note that by

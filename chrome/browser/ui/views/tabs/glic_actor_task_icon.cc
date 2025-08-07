@@ -92,16 +92,28 @@ void GlicActorTaskIcon::SetTaskIconToDefault() {
   SetDefaultTooltipText();
 }
 
-void GlicActorTaskIcon::ShowTaskNeedsAssistanceLabel() {
+void GlicActorTaskIcon::ShowCheckTasksLabel() {
   // TODO(crbug.com/431015299): Replace with finalized strings when ready.
   const std::u16string glic_actor_task_icon_check_task_label =
-      u"Check your task";
+      u"Your task needs attention";
   const std::u16string glic_actor_task_icon_check_task_tooltip_text =
-      u"Your task needs assistance";
+      u"Your task needs attention";
 
   HighlightTaskIcon();
   SetText(glic_actor_task_icon_check_task_label);
   SetTooltipText(glic_actor_task_icon_check_task_tooltip_text);
+}
+
+void GlicActorTaskIcon::ShowCompleteTasksLabel() {
+  // TODO(crbug.com/431015299): Replace with finalized strings when ready.
+  const std::u16string glic_actor_task_icon_complete_task_label =
+      u"Task complete";
+  const std::u16string glic_actor_task_icon_complete_task_tooltip_text =
+      u"Task complete";
+
+  HighlightTaskIcon();
+  SetText(glic_actor_task_icon_complete_task_label);
+  SetTooltipText(glic_actor_task_icon_complete_task_tooltip_text);
 }
 
 GlicActorTaskIcon::~GlicActorTaskIcon() = default;

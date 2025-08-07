@@ -12,14 +12,15 @@
 #include "base/path_service.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/actor/ui/actor_ui_state_manager_interface.h"
 #include "chrome/browser/glic/glic_enabling.h"
-#include "chrome/browser/glic/glic_keyed_service.h"
-#include "chrome/browser/glic/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/host/glic_cookie_synchronizer.h"
 #include "chrome/browser/glic/host/glic_page_handler.h"
 #include "chrome/browser/glic/host/host.h"
+#include "chrome/browser/glic/public/glic_keyed_service.h"
+#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
 #include "chrome/browser/glic/test_support/interactive_test_util.h"
@@ -32,6 +33,7 @@
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/glic_actor_task_icon_controller.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
@@ -120,8 +122,13 @@ class InteractiveGlicTestT : public T {
     Test::embedded_test_server()->ServeFilesFromDirectory(
         base::PathService::CheckedGet(base::DIR_ASSETS)
             .AppendASCII("gen/chrome/test/data/webui/glic/"));
+    Test::embedded_https_test_server().ServeFilesFromDirectory(
+        base::PathService::CheckedGet(base::DIR_ASSETS)
+            .AppendASCII("gen/chrome/test/data/webui/glic/"));
 
     Test::embedded_test_server()->ServeFilesFromSourceDirectory(
+        "chrome/test/data/webui/glic/");
+    Test::embedded_https_test_server().ServeFilesFromSourceDirectory(
         "chrome/test/data/webui/glic/");
 
     ASSERT_TRUE(test_server_handle_ =
@@ -418,6 +425,16 @@ class InteractiveGlicTestT : public T {
 
   glic::GlicTestEnvironmentService& glic_test_service() {
     return *glic_test_environment_.GetService(browser()->GetProfile());
+  }
+
+  // Send a task state update to show the actor task icon in the tab strip.
+  void StartTaskAndShowActorTaskIcon() {
+    auto* task_icon_controller =
+        browser()->browser_window_features()->glic_actor_task_icon_controller();
+    task_icon_controller->OnStateUpdate(
+        actor::ui::ActorUiStateManagerInterface::UiState::kActive,
+        glic::GlicWindowController::State::kClosed,
+        mojom::CurrentView::kConversation);
   }
 
  protected:

@@ -61,6 +61,24 @@ enum class DisplayPosition {
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:DisplayPosition)
 
+// LINT.IfChange(PercentOverlap)
+enum class PercentOverlap {
+  k0 = 0,
+  k10 = 1,
+  k20 = 2,
+  k30 = 3,
+  k40 = 4,
+  k50 = 5,
+  k60 = 6,
+  k70 = 7,
+  k80 = 8,
+  k90 = 9,
+  k100 = 10,
+  kNoVisibleChromeBrowser = 11,
+  kMaxValue = kNoVisibleChromeBrowser,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:PercentOverlap)
+
 // LINT.IfChange(Error)
 enum class Error {
   kResponseStartWithoutInput = 0,
@@ -133,7 +151,15 @@ enum class ResponseSegmentation {
   kAfterSignInAttachedAudio = 42,
   kAfterSignInDetachedText = 43,
   kAfterSignInDetachedAudio = 44,
-  kMaxValue = kAfterSignInDetachedAudio,
+  kSharedTabAttachedText = 45,
+  kSharedTabAttachedAudio = 46,
+  kSharedTabDetachedText = 47,
+  kSharedTabDetachedAudio = 48,
+  kActorTaskIconAttachedText = 49,
+  kActorTaskIconAttachedAudio = 50,
+  kActorTaskIconDetachedText = 51,
+  kActorTaskIconDetachedAudio = 52,
+  kMaxValue = kActorTaskIconDetachedAudio,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicResponseSegmentation)
 
@@ -172,6 +198,18 @@ enum class GlicRequestEvent {
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicRequestEvent)
 
+// LINT.IfChange(GlicGetContextFromFocusedTabError)
+enum class GlicGetContextFromFocusedTabError {
+  kUnknown = 0,
+  kPermissionDeniedWindowNotShowing = 1,
+  kTabNotFound = 2,
+  kPermissionDeniedContextPermissionNotEnabled = 3,
+  kPermissionDenied = 4,
+  kWebContentsChanged = 5,
+  kMaxValue = kWebContentsChanged,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicGetContextFromFocusedTabError)
+
 // The different states of active tab sharing.
 // LINT.IfChange(ActiveTabSharingState)
 enum class ActiveTabSharingState {
@@ -204,6 +242,7 @@ class GlicMetrics {
     virtual bool IsWindowAttached() const = 0;
     virtual content::WebContents* GetContents() = 0;
     virtual ActiveTabSharingState GetActiveTabSharingState() = 0;
+    virtual int32_t GetNumPinnedTabs() const = 0;
   };
 
   GlicMetrics(Profile* profile, GlicEnabling* enabling);
@@ -232,7 +271,7 @@ class GlicMetrics {
   // Called just after the the glic window has been loaded into the UI.
   void OnGlicWindowShown(Browser* browser,
                          std::optional<display::Display> glic_display,
-                         const gfx::Point& glic_center_point);
+                         const gfx::Rect& glic_bounds);
   // Called when the glic window has been opened and is ready.
   void OnGlicWindowOpenAndReady();
   // Called when the glic window is resized.
@@ -242,9 +281,9 @@ class GlicMetrics {
   // Called when the glic window stops being resized by the user.
   void OnWidgetUserResizeEnded();
   // Called when the glic window finishes closing.
-  void OnGlicWindowClose(Browser* browser,
+  void OnGlicWindowClose(Browser* last_active_browser,
                          std::optional<display::Display> display,
-                         const gfx::Point& glic_center_point);
+                         const gfx::Rect& glic_bounds);
   // Called when glic requests a scroll.
   void OnGlicScrollAttempt();
   // Called when scrolling starts (after glic requests to scroll) or if
@@ -254,6 +293,14 @@ class GlicMetrics {
 
   // Called when a response is received with closed captions showing.
   void LogClosedCaptionsShown();
+
+  // Logs an error that occurred while trying to get context from the focused
+  // tab.
+  void LogGetContextFromFocusedTabError(
+      GlicGetContextFromFocusedTabError error);
+
+  // See `last_input_mode_` for details.
+  mojom::WebClientMode last_input_mode() const { return last_input_mode_; }
 
   // Must be called immediately after constructor before any calls from
   // glic.mojom.
@@ -300,6 +347,11 @@ class GlicMetrics {
   ChromeRelativePosition GetChromeRelativePositionOfPoint(
       Browser* browser,
       const gfx::Point& glic_center_point);
+
+  // Returns the percent overlap of the given glic bounds and the given chrome
+  // browser.
+  PercentOverlap GetPercentOverlapWithBrowser(Browser* browser,
+                                              const gfx::Rect& glic_bounds);
 
   base::TimeTicks fre_accepted_time_;
 
@@ -370,6 +422,12 @@ class GlicMetrics {
   // `input_mode_`.
   base::TimeTicks scroll_input_submitted_time_;
   mojom::WebClientMode scroll_input_mode_;
+
+  // The last input mode used by the user. This is not cleared when the response
+  // is finished, so it can be used to attribute events that happen after the
+  // response has completed to the input mode that triggered them.
+  mojom::WebClientMode last_input_mode_ = mojom::WebClientMode::kUnknown;
+
   std::unique_ptr<internal::BrowserActivityObserver> browser_activity_observer_;
 };
 

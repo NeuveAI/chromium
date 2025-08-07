@@ -118,7 +118,6 @@ Prøv å vente i noen minutter før du logger av. Hvis du logger av nå, blir di
 <translation id="3863841106411295595">Legger til de angitte nettadressene på leselisten i Chrome.</translation>
 <translation id="3901001113120561395">Få mest mulig ut av Chrome.</translation>
 <translation id="3913386780052199712">Pålogget Chrome</translation>
-<translation id="3932250749914183695">Chrome-tips: Bekreft at det er deg</translation>
 <translation id="3984746313391923992">Organisasjonen din krever at du forblir logget av Chrome.</translation>
 <translation id="3988789688219830639">Google Chrome har ikke tilgang til bildene eller videoene dine. Slå på tilgangen i iOS-innstillingene &gt; Personvern &gt; Bilder.</translation>
 <translation id="4064699917955374540">For å bruke og lagre Chrome-data i Google-kontoen din, bekreft at det er deg.</translation>
@@ -133,6 +132,7 @@ Prøv å vente i noen minutter før du logger av. Hvis du logger av nå, blir di
 <translation id="4636900170638246267">Logg på dette nettstedet og Chrome.</translation>
 <translation id="4647910807533196601">Åpne den nyligste fanen min i Chrome.</translation>
 <translation id="4693084815234024320">Du er i Chrome Inkognito</translation>
+<translation id="4713740144985377441">Gå tilbake til Chrome for å laste opp filen</translation>
 <translation id="4713907610796204963">Lær deg det grunnleggende om Chrome for å komme i gang</translation>
 <translation id="4724297637870447613">Bruk Chrome overalt</translation>
 <translation id="4738647308035481133">Google Chrome-side</translation>
@@ -200,6 +200,7 @@ Prøv å vente i noen minutter før du bytter konto. Hvis du bytter konto nå, b
 <translation id="6238746320622508509">La Chrome låse inkognitofanene dine.</translation>
 <translation id="6247557882553405851">Google Passordlagring</translation>
 <translation id="6272822675004864999">For å motta varsler fra Chrome, slå på varsler i iOS-innstillingene.</translation>
+<translation id="6299253454218177732">Chrome-tips: Få tilgang til passordene dine</translation>
 <translation id="630693926528731525">Passordet ble ikke delt. Sjekk internettilkoblingen, og kontroller at du er logget på Chrome. Prøv deretter på nytt.</translation>
 <translation id="6348855835728304880">Få tilgang til Chrome-passord med mer i andre apper på denne enheten.</translation>
 <translation id="6373751563207403289">Sikkerhetssjekken beskytter deg mot databrudd, utrygge nettsteder med mer. Motta varsler om eventuelle personvern- eller sikkerhetsproblemer som Chrome oppdager for deg.</translation>
@@ -230,6 +231,7 @@ For å se flere innstillinger som bruker data for å forbedre Chrome-opplevelsen
 <translation id="6922332667202044570">Slett nettlesingsdata i Chrome.</translation>
 <translation id="6924922227983877439">Åpne linker i Chrome som standard</translation>
 <translation id="6975725306479268850">Velg Chrome for autofyll</translation>
+<translation id="7038674195294813388">Åpne innstillingene for standardapper i iOS, trykk på «Nettleserapp», og velg Chrome.</translation>
 <translation id="7056826488869329999">Åpner og kjører sikkerhetssjekken i Chrome.</translation>
 <translation id="7061455974939528301">Trykk og hold på Chrome-ikonet, og klikk på «Endre Hjem-skjermen»</translation>
 <translation id="7124339256045485976">Hold Chrome oppdatert</translation>

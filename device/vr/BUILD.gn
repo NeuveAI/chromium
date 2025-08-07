@@ -103,7 +103,6 @@ if (enable_vr) {
     deps = [
       "//base",
       "//device/vr/public/mojom:isolated_xr_service",
-      "//device/vr/public/mojom:vr_service",
       "//ui/gfx",
     ]
 
@@ -136,7 +135,7 @@ if (enable_vr) {
       ":vr_base",
       ":vr_util",
       "//base",
-      "//components/ukm:ukm",
+      "//components/ukm",
       "//device/base",
       "//device/vr/buildflags",
       "//device/vr/public/mojom:isolated_xr_service",
@@ -227,6 +226,8 @@ if (enable_vr) {
         "openxr/openxr_stage_bounds_provider.h",
         "openxr/openxr_stage_bounds_provider_basic.cc",
         "openxr/openxr_stage_bounds_provider_basic.h",
+        "openxr/openxr_swapchain_info.cc",
+        "openxr/openxr_swapchain_info.h",
         "openxr/openxr_unbounded_space_provider.cc",
         "openxr/openxr_unbounded_space_provider.h",
         "openxr/openxr_util.cc",
@@ -240,7 +241,7 @@ if (enable_vr) {
       if (is_win) {
         libs = [
           "d3d11.lib",
-          "DXGI.lib",
+          "dxgi.lib",
         ]
 
         sources += [
@@ -277,8 +278,6 @@ if (enable_vr) {
           "openxr/android/openxr_platform_helper_android_statics.cc",
           "openxr/android/openxr_scene_understanding_manager_android.cc",
           "openxr/android/openxr_scene_understanding_manager_android.h",
-          "openxr/android/openxr_stage_bounds_provider_android.cc",
-          "openxr/android/openxr_stage_bounds_provider_android.h",
           "openxr/android/openxr_unbounded_space_provider_android.cc",
           "openxr/android/openxr_unbounded_space_provider_android.h",
         ]
@@ -357,7 +356,7 @@ if (enable_vr) {
 
       libs = [
         "d3d11.lib",
-        "DXGI.lib",
+        "dxgi.lib",
       ]
 
       deps = [ "//base" ]
@@ -434,7 +433,7 @@ if (enable_openxr) {
         sources += [ "openxr/test/openxr.def" ]
         libs = [
           "d3d11.lib",
-          "DXGI.lib",
+          "dxgi.lib",
         ]
       } else if (is_android) {
         configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]

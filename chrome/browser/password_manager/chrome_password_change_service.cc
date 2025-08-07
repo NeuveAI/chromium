@@ -10,6 +10,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
+#include "chrome/browser/password_manager/password_change/model_quality_logs_uploader.h"
 #include "chrome/browser/password_manager/password_change_delegate.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/affiliations/core/browser/affiliation_service.h"
@@ -32,22 +33,28 @@ namespace {
 
 // Returns whether chrome switch for change password URLs is used.
 bool HasChangePasswordUrlOverride() {
-  return password_manager::GetChangePasswordUrlOverride().is_valid();
+  return !password_manager::GetChangePasswordUrlOverrides().empty();
 }
 
 // Returns whether overridden change password URL matches with `url`.
-bool IsUrlMatchingOverride(const GURL& url) {
+GURL GetChangePasswordURLOverride(const GURL& url) {
   if (!HasChangePasswordUrlOverride()) {
-    return false;
+    return GURL();
   }
 
-  GURL change_password_url = password_manager::GetChangePasswordUrlOverride();
-  if (!url.is_valid() || !change_password_url.is_valid()) {
-    return false;
+  if (!url.is_valid()) {
+    return GURL();
   }
 
-  return affiliations::IsExtendedPublicSuffixDomainMatch(
-      url, change_password_url, {});
+  for (auto& override_url : password_manager::GetChangePasswordUrlOverrides()) {
+    if (!override_url.is_valid() ||
+        !affiliations::IsExtendedPublicSuffixDomainMatch(url, override_url,
+                                                         {})) {
+      continue;
+    }
+    return std::move(override_url);
+  }
+  return GURL();
 }
 
 std::string GetVariationConfigCountryCode() {
@@ -127,6 +134,21 @@ bool ChromePasswordChangeService::IsPasswordChangeAvailable() const {
 #endif  // BUILDFLAG(IS_ANDROID)
 }
 
+void ChromePasswordChangeService::RecordLoginAttemptQuality(
+    password_manager::LogInWithChangedPasswordOutcome login_outcome,
+    const GURL& page_url) const {
+#if BUILDFLAG(IS_ANDROID)
+  return;
+#else
+  optimization_guide::ModelQualityLogsUploaderService* mqls_service =
+      optimization_keyed_service_->GetModelQualityLogsUploaderService();
+  if (mqls_service) {
+    ModelQualityLogsUploader::RecordLoginAttemptQuality(mqls_service, page_url,
+                                                        login_outcome);
+  }
+#endif  // BUILDFLAG(IS_ANDROID)
+}
+
 bool ChromePasswordChangeService::IsPasswordChangeSupported(
     const GURL& url,
     const autofill::LanguageCode& page_language) const {
@@ -134,7 +156,7 @@ bool ChromePasswordChangeService::IsPasswordChangeSupported(
     return false;
   }
 
-  if (IsUrlMatchingOverride(url)) {
+  if (GetChangePasswordURLOverride(url).is_valid()) {
     return true;
   }
 
@@ -153,11 +175,12 @@ bool ChromePasswordChangeService::IsPasswordChangeSupported(
   return has_change_url;
 }
 
-bool ChromePasswordChangeService::ShouldShowEntryInSettings() const {
+bool ChromePasswordChangeService::UserIsActivePasswordChangeUser() const {
   // The feature becomes enabled when user accepts to change a compromised
   // password.
-  if (GetFeatureState(pref_service_) !=
-      optimization_guide::prefs::FeatureOptInState::kEnabled) {
+  if (!pref_service_ ||
+      (GetFeatureState(pref_service_) !=
+       optimization_guide::prefs::FeatureOptInState::kEnabled)) {
     return false;
   }
   return IsPasswordChangeAvailable();
@@ -169,9 +192,11 @@ void ChromePasswordChangeService::OfferPasswordChangeUi(
     const std::u16string& password,
     content::WebContents* web_contents) {
 #if !BUILDFLAG(IS_ANDROID)
-  GURL change_pwd_url = IsUrlMatchingOverride(url)
-                            ? password_manager::GetChangePasswordUrlOverride()
-                            : affiliation_service_->GetChangePasswordURL(url);
+  GURL change_pwd_url = GetChangePasswordURLOverride(url);
+  if (!change_pwd_url.is_valid()) {
+    change_pwd_url = affiliation_service_->GetChangePasswordURL(url);
+  }
+
   CHECK(change_pwd_url.is_valid());
 
   std::unique_ptr<PasswordChangeDelegate> delegate =

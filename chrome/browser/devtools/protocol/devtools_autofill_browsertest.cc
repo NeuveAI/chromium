@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "base/check_deref.h"
+#include "base/containers/to_vector.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
@@ -492,11 +493,6 @@ IN_PROC_BROWSER_TEST_F(DevToolsAutofillTest, AddressFormFilled) {
   form_structure->field(1)->SetHtmlType(HtmlFieldType::kUnspecified,
                                         HtmlFieldMode::kShipping);
 
-  // Fake a that the fields were filled.
-  form_structure->field(0)->set_value(u"value_1");
-  form_structure->field(1)->set_value(u"value_2");
-  test_api(form).field(0).set_value(u"value_1");
-  test_api(form).field(1).set_value(u"value_2");
   const std::vector<FormFieldData> filled_fields_by_autofill = {
       {form.fields()[0], form.fields()[1]}};
 
@@ -547,13 +543,18 @@ IN_PROC_BROWSER_TEST_F(DevToolsAutofillTest, AddressFormFilled) {
     const FormFieldData& ffd = filled_fields_by_autofill[i];
     const AutofillField* af = fs.GetFieldById(ffd.global_id());
 
+    std::vector<std::string_view> field_type_strings =
+        base::ToVector(af->Type().GetTypes(),
+                       &autofill::FieldTypeToDeveloperRepresentationString);
+    std::erase(field_type_strings, "");
+
     EXPECT_THAT(ff,
                 FilledFieldHasAttributeWithValue16("id", af->id_attribute()));
-    EXPECT_THAT(ff, FilledFieldHasAttributeWithValue(
-                        "autofillType",
-                        std::string(FieldTypeToDeveloperRepresentationString(
-                            af->Type().GetStorableType()))));
-    EXPECT_THAT(ff, FilledFieldHasAttributeWithValue16("value", af->value()));
+    EXPECT_THAT(
+        ff, FilledFieldHasAttributeWithValue(
+                "autofillType", base::JoinString(field_type_strings, ", ")));
+    EXPECT_THAT(ff, FilledFieldHasAttributeWithValue16(
+                        "value", profile.GetInfo(af->Type(), "en-us")));
     EXPECT_THAT(ff, FilledFieldHasAttributeWithValue16(
                         "frameId",
                         base::UTF8ToUTF16(

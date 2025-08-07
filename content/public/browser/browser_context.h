@@ -52,9 +52,6 @@ class ExternalMountPoints;
 namespace media {
 class VideoDecodePerfHistory;
 class WebrtcVideoPerfHistory;
-namespace learning {
-class LearningSession;
-}
 }  // namespace media
 
 namespace storage {
@@ -264,12 +261,15 @@ class CONTENT_EXPORT BrowserContext : public base::SupportsUserData {
       const std::string& uuid);
 
   // Delivers a push message with |data| to the Service Worker identified by
-  // |origin| and |service_worker_registration_id|.
+  // |origin| and |service_worker_registration_id|. |record_network_requests|
+  // indicates whether network request urls should be recorded during the push
+  // event.
   void DeliverPushMessage(
       const GURL& origin,
       int64_t service_worker_registration_id,
       const std::string& message_id,
       std::optional<std::string> payload,
+      bool record_network_requests,
       base::OnceCallback<void(blink::mojom::PushEventStatus)> callback);
 
   // Fires a push subscription change event to the Service Worker identified by
@@ -334,14 +334,6 @@ class CONTENT_EXPORT BrowserContext : public base::SupportsUserData {
   // have similar encode/decode performance and stats are not exposed to the web
   // directly, so privacy is not compromised.
   media::WebrtcVideoPerfHistory* GetWebrtcVideoPerfHistory();
-
-  // Returns a LearningSession associated with |this|. Used as the central
-  // source from which to retrieve LearningTaskControllers for media machine
-  // learning.
-  // Exposed here rather than StoragePartition because learnings will cover
-  // general media trends rather than SiteInstance specific behavior. The
-  // learnings are not exposed to the web.
-  virtual media::learning::LearningSession* GetLearningSession();
 
   // Retrieves the InProgressDownloadManager associated with this object if
   // available
@@ -505,7 +497,7 @@ class CONTENT_EXPORT BrowserContext : public base::SupportsUserData {
 #if BUILDFLAG(IS_ANDROID)
   // Returns extra request headers to be set when navigation happens for `url`.
   // This function is designed for the headers provided by WebView.loadUrl().
-  virtual std::string GetExtraHeadersForUrl(const GURL& url);
+  virtual net::HttpRequestHeaders GetExtraHeadersForUrl(const GURL& url);
 #endif  // BUILDFLAG(IS_ANDROID)
 
  private:

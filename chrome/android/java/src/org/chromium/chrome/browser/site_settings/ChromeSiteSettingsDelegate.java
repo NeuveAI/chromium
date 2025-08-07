@@ -183,6 +183,11 @@ public class ChromeSiteSettingsDelegate implements SiteSettingsDelegate {
     }
 
     @Override
+    public boolean isIncognito() {
+        return mProfile.isIncognitoBranded();
+    }
+
+    @Override
     public boolean isQuietNotificationPromptsFeatureEnabled() {
         return ChromeFeatureList.isEnabled(ChromeFeatureList.QUIET_NOTIFICATION_PROMPTS);
     }
@@ -395,12 +400,6 @@ public class ChromeSiteSettingsDelegate implements SiteSettingsDelegate {
     // notifyPageOpened(String className).
     public void notifyRequestDesktopSiteSettingsPageOpened() {
         RequestDesktopUtils.notifyRequestDesktopSiteSettingsPageOpened(mProfile);
-    }
-
-    @Override
-    public boolean shouldShowPrivacySandboxRwsUi() {
-        return ChromeFeatureList.isEnabled(
-                ChromeFeatureList.PRIVACY_SANDBOX_RELATED_WEBSITE_SETS_UI);
     }
 
     @Override

@@ -118,11 +118,12 @@ SelectionInDOMTree Editor::SelectionForCommand(Event* event) {
     return selection;
   // If the target is a text control, and the current selection is outside of
   // its shadow tree, then use the saved selection for that text control.
-  if (!IsTextControl(*event->target()->ToNode()))
+  if (!IsTextControl(*event->RawTarget()->ToNode())) {
     return selection;
+  }
   auto* text_control_of_selection_start =
       EnclosingTextControl(selection.Anchor());
-  auto* text_control_of_target = ToTextControl(event->target()->ToNode());
+  auto* text_control_of_target = ToTextControl(event->RawTarget()->ToNode());
   if (!selection.IsNone() &&
       text_control_of_target == text_control_of_selection_start)
     return selection;
@@ -184,7 +185,8 @@ bool Editor::HandleTextEvent(TextEvent* event) {
     if (event->PastingFragment()) {
       ReplaceSelectionWithFragment(
           event->PastingFragment(), false, event->ShouldSmartReplace(),
-          event->ShouldMatchStyle(), InputEvent::InputType::kInsertFromPaste);
+          event->ShouldMatchStyle(), InputEvent::InputType::kInsertFromPaste,
+          event->GetDataTransfer());
     } else {
       ReplaceSelectionWithText(event->data(), false,
                                event->ShouldSmartReplace(),
@@ -297,7 +299,8 @@ void Editor::ReplaceSelectionWithFragment(DocumentFragment* fragment,
                                           bool select_replacement,
                                           bool smart_replace,
                                           bool match_style,
-                                          InputEvent::InputType input_type) {
+                                          InputEvent::InputType input_type,
+                                          DataTransfer* data_transfer) {
   DCHECK(!GetFrame().GetDocument()->NeedsLayoutTreeUpdate());
   const VisibleSelection& selection =
       GetFrameSelection().ComputeVisibleSelectionInDOMTree();
@@ -314,8 +317,8 @@ void Editor::ReplaceSelectionWithFragment(DocumentFragment* fragment,
   if (match_style)
     options |= ReplaceSelectionCommand::kMatchStyle;
   DCHECK(GetFrame().GetDocument());
-  MakeGarbageCollected<ReplaceSelectionCommand>(*GetFrame().GetDocument(),
-                                                fragment, options, input_type)
+  MakeGarbageCollected<ReplaceSelectionCommand>(
+      *GetFrame().GetDocument(), fragment, options, input_type, data_transfer)
       ->Apply();
   RevealSelectionAfterEditingOperation();
 }
@@ -571,7 +574,7 @@ static void CountEditingEvent(ExecutionContext* execution_context,
                               WebFeature feature_on_text_area,
                               WebFeature feature_on_content_editable,
                               WebFeature feature_on_non_node) {
-  EventTarget* event_target = event.target();
+  EventTarget* event_target = event.RawTarget();
   Node* node = event_target->ToNode();
   if (!node) {
     UseCounter::Count(execution_context, feature_on_non_node);

@@ -84,7 +84,7 @@ import java.util.Set;
  */
 @NullMarked
 public class MultiWindowUtils implements ActivityStateListener {
-    public static final int INVALID_TASK_ID = -1; // Defined in android.app.ActivityTaskManager.
+    public static final int INVALID_TASK_ID = MultiInstanceManager.INVALID_TASK_ID;
     private static final int DEFAULT_TAB_COUNT_FOR_RELAUNCH = 0;
 
     static final String HISTOGRAM_NUM_ACTIVITIES_DESKTOP_WINDOW =
@@ -109,18 +109,6 @@ public class MultiWindowUtils implements ActivityStateListener {
     private @Nullable Boolean mTabbedActivity2TaskRunning;
     private @Nullable WeakReference<ChromeTabbedActivity> mLastResumedTabbedActivity;
     private boolean mIsInMultiWindowModeForTesting;
-
-    @IntDef({
-        PersistedInstanceType.ANY,
-        PersistedInstanceType.ACTIVE,
-        PersistedInstanceType.INACTIVE
-    })
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface PersistedInstanceType {
-        int ANY = 0;
-        int ACTIVE = 1;
-        int INACTIVE = 2;
-    }
 
     // Note: these values must match the AndroidMultiWindowActivityType enum in enums.xml.
     @IntDef({MultiWindowActivityType.ENTER, MultiWindowActivityType.EXIT})
@@ -309,6 +297,24 @@ public class MultiWindowUtils implements ActivityStateListener {
         boolean shouldAppCloseWithZeroTabs =
                 HomepageManager.getInstance().shouldCloseAppWithZeroTabs();
         return hasAtMostOneTab && shouldAppCloseWithZeroTabs;
+    }
+
+    /**
+     * @param tabModelSelector Used to pull total tab count and selected tab count.
+     * @return whether it is last tab with homepage enabled and set to an custom url.
+     */
+    public boolean hasAllTabsSelectedWithHomepageEnabled(TabModelSelector tabModelSelector) {
+        boolean hasAllTabsSelected =
+                tabModelSelector.getTotalTabCount()
+                        <= tabModelSelector.getCurrentModel().getMultiSelectedTabsCount();
+
+        // Chrome app is set to close with zero tabs when homepage is enabled and set to a custom
+        // url other than the NTP. We should not allow dragging the last tab or display 'Move to
+        // other window' in this scenario as the source window might be closed before drag n drop
+        // completes properly and thus cause other complications.
+        boolean shouldAppCloseWithZeroTabs =
+                HomepageManager.getInstance().shouldCloseAppWithZeroTabs();
+        return hasAllTabsSelected && shouldAppCloseWithZeroTabs;
     }
 
     /**

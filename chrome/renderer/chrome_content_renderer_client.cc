@@ -68,6 +68,7 @@
 #include "chrome/renderer/v8_unwinder.h"
 #include "chrome/renderer/web_link_preview_triggerer_impl.h"
 #include "chrome/renderer/websocket_handshake_throttle_provider_impl.h"
+#include "chrome/renderer/webui_browser/webui_browser_renderer_extension.h"
 #include "chrome/renderer/worker_content_settings_client.h"
 #include "chrome/services/speech/buildflags/buildflags.h"
 #include "components/autofill/content/renderer/autofill_agent.h"
@@ -118,6 +119,7 @@
 #include "components/subresource_filter/content/renderer/subresource_filter_agent.h"
 #include "components/subresource_filter/content/renderer/unverified_ruleset_dealer.h"
 #include "components/subresource_filter/core/common/common_features.h"
+#include "components/subresource_filter/core/common/memory_mapped_ruleset.h"
 #include "components/variations/net/variations_http_headers.h"
 #include "components/variations/variations_switches.h"
 #include "components/version_info/version_info.h"
@@ -696,8 +698,7 @@ void ChromeContentRendererClient::RenderFrameCreated(
   if (content_based_fingerprinting_protection_enabled_ &&
       fingerprinting_protection_ruleset_dealer_) {
     auto* fingerprinting_protection_renderer_agent =
-        new fingerprinting_protection_filter::RendererAgent(
-            render_frame, fingerprinting_protection_ruleset_dealer_.get());
+        new fingerprinting_protection_filter::RendererAgent(render_frame);
     fingerprinting_protection_renderer_agent->Initialize();
   }
 
@@ -741,6 +742,12 @@ void ChromeContentRendererClient::RenderFrameCreated(
   if (base::FeatureList::IsEnabled(features::kBoardingPassDetector) &&
       render_frame->IsMainFrame()) {
     new wallet::BoardingPassExtractor(render_frame, registry);
+  }
+#endif
+
+#if !BUILDFLAG(IS_ANDROID)
+  if (base::FeatureList::IsEnabled(features::kWebium)) {
+    WebUIBrowserRendererExtension::Create(render_frame);
   }
 #endif
 }
@@ -1589,6 +1596,17 @@ void ChromeContentRendererClient::AppendContentSecurityPolicy(
 bool ChromeContentRendererClient::
     IsContentBasedFingerprintingProtectionEnabled() {
   return content_based_fingerprinting_protection_enabled_;
+}
+
+scoped_refptr<const subresource_filter::MemoryMappedRuleset>
+ChromeContentRendererClient::GetFingerprintingProtectionRuleset() {
+  if (fingerprinting_protection_ruleset_dealer_) {
+    // Returns nullptr if no ruleset file is available.
+    fingerprinting_protection_ruleset_ =
+        fingerprinting_protection_ruleset_dealer_->GetRuleset();
+    return fingerprinting_protection_ruleset_;
+  }
+  return nullptr;
 }
 
 std::unique_ptr<blink::WebLinkPreviewTriggerer>

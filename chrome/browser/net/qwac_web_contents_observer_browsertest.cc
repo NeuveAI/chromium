@@ -22,6 +22,7 @@
 #include "mojo/public/cpp/base/proto_wrapper.h"
 #include "net/base/features.h"
 #include "net/cert/internal/trust_store_chrome.h"
+#include "net/cert/root_store_proto_lite/root_store.pb.h"
 #include "net/cert/x509_certificate.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/http/http_status_code.h"
@@ -885,8 +886,8 @@ IN_PROC_BROWSER_TEST_F(QwacWebContentsObserverBrowserTest, TestInvalidBinding) {
                             k2QwacVerificationFailed);
 }
 
-// TODO(crbug.com/392931069): Test that qwac is not fetched after clicking
+// TODO(crbug.com/436274241): Test that qwac is not fetched after clicking
 // through HTTPS error.
-// TODO(crbug.com/392931069): Test that qwac requests shows up in netlog?
+// TODO(crbug.com/436300891): Test that qwac requests shows up in netlog?
 
 }  // namespace

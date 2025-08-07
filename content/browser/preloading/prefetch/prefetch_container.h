@@ -56,6 +56,7 @@ class ProxyLookupClientImpl;
 class RenderFrameHost;
 class RenderFrameHostImpl;
 class ServiceWorkerClient;
+enum class PrefetchPotentialCandidateServingResult;
 
 // Holds the relevant size information of the prefetched response. The struct is
 // installed onto `PrefetchContainer`, and gets passed into
@@ -767,10 +768,12 @@ class CONTENT_EXPORT PrefetchContainer {
   //
   // This can be called multiple times, because this can be called for multiple
   // `PrefetchMatchResolver`s.
-  void OnUnregisterCandidate(const GURL& navigated_url,
-                             bool is_served,
-                             bool is_nav_prerender,
-                             std::optional<base::TimeDelta> blocked_duration);
+  void OnUnregisterCandidate(
+      const GURL& navigated_url,
+      bool is_served,
+      PrefetchPotentialCandidateServingResult matching_result,
+      bool is_nav_prerender,
+      std::optional<base::TimeDelta> blocked_duration);
 
   // TODO(crbug.com/372186548): Revisit the semantics of
   // `IsLikelyAheadOfPrerender()`.
@@ -912,11 +915,19 @@ class CONTENT_EXPORT PrefetchContainer {
   // Records `Prefetch.PrefetchMatchingBlockedNavigationWithPrefetch.*` UMAs.
   void RecordPrefetchMatchingBlockedNavigationHistogram(bool blocked_until_head,
                                                         bool is_nav_prerender);
+  // Records `Prefetch.PrefetchContainer.ServedCount`.
+  void RecordPrefetchContainerServedCountHistogram();
+
   // Records `Prefetch.BlockUntilHeadDuration.*` UMAs.
   void RecordBlockUntilHeadDurationHistogram(
       const std::optional<base::TimeDelta>& blocked_duration,
       bool served,
       bool is_nav_prerender);
+  // Records
+  // `Prefetch.PrefetchPotentialCandidateServingResult.PerMatchingCandidate.*`
+  // UMAs.
+  void RecordPrefetchPotentialCandidateServingResultHistogram(
+      PrefetchPotentialCandidateServingResult matching_result);
 
   // Should be called only from `OnPrefetchComplete()`, so that
   // `OnPrefetchCompletedOrFailed()` is always called after
@@ -1031,8 +1042,9 @@ class CONTENT_EXPORT PrefetchContainer {
   // The amount of time it took for the headers to be received.
   std::optional<base::TimeDelta> header_latency_;
 
-  // Whether or not a navigation to this prefetch occurred.
-  bool navigated_to_ = false;
+  // Counts how many times this container has been served to the navigation.
+  // Only used for the metrics.
+  base::ClampedNumeric<uint32_t> served_count_ = 0;
 
   // The result of probe when checked on navigation.
   std::optional<PrefetchProbeResult> probe_result_;

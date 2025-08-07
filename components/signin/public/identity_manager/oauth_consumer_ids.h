@@ -16,7 +16,14 @@ enum class OAuthConsumerId {
   kWallpaperFetcherDelegate = 2,
   kIpProtectionService = 3,
   kSanitizedImageSource = 4,
-  kMaxValue = kSanitizedImageSource,
+  kOptimizationGuideGetHints = 5,
+  kOptimizationGuideModelExecution = 6,
+  kNearbySharing = 7,
+  kProjectorTokenFetcher = 8,
+  kAddSupervision = 9,
+  kParentAccess = 10,
+  kDataSharing = 11,
+  kMaxValue = kDataSharing,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/signin/enums.xml:OAuthConsumerId)
 

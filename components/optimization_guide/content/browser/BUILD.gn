@@ -10,6 +10,8 @@ import("//mojo/public/tools/bindings/mojom.gni")
 
 static_library("browser") {
   sources = [
+    "page_content_metadata_observer.cc",
+    "page_content_metadata_observer.h",
     "page_content_proto_provider.cc",
     "page_content_proto_provider.h",
     "page_content_proto_util.cc",
@@ -29,10 +31,10 @@ static_library("browser") {
     "//components/optimization_guide/core:page_content",
     "//components/optimization_guide/proto:optimization_guide_proto",
     "//content/public/browser",
+    "//content/public/common",
     "//services/metrics/public/cpp:metrics_cpp",
     "//services/metrics/public/cpp:ukm_builders",
     "//services/network/public/cpp",
-    "//content/public/common",
   ]
   configs += [ "//build/config/compiler:wexit_time_destructors" ]
 }

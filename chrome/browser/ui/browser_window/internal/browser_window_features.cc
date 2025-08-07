@@ -10,10 +10,12 @@
 #include "base/feature_list.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
+#include "chrome/browser/actor/ui/actor_border_view_controller.h"
 #include "chrome/browser/actor/ui/actor_overlay_window_controller.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/collaboration/collaboration_service_factory.h"
 #include "chrome/browser/commerce/shopping_service_factory.h"
+#include "chrome/browser/devtools/devtools_ui_controller.h"
 #include "chrome/browser/extensions/browser_extension_window_controller.h"
 #include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
 #include "chrome/browser/extensions/mv2_experiment_stage.h"
@@ -65,6 +67,7 @@
 #include "chrome/browser/ui/views/color_provider_browser_helper.h"
 #include "chrome/browser/ui/views/data_sharing/data_sharing_bubble_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/contents_border_controller.h"
 #include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/incognito_clear_browsing_data_dialog_coordinator.h"
@@ -81,8 +84,10 @@
 #include "chrome/browser/ui/views/side_panel/history_clusters/history_clusters_side_panel_coordinator.h"
 #include "chrome/browser/ui/views/side_panel/reading_list/reading_list_side_panel_coordinator.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
+#include "chrome/browser/ui/views/tabs/recent_activity_bubble_dialog_view.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_action_container.h"
 #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_coordinator.h"
+#include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_controller.h"
 #include "chrome/browser/ui/views/translate/translate_bubble_controller.h"
 #include "chrome/browser/ui/views/upgrade_notification_controller.h"
 #include "chrome/browser/ui/views/user_education/impl/browser_user_education_interface_impl.h"
@@ -109,10 +114,10 @@
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 #include "chrome/browser/ui/pdf/infobar/pdf_infobar_controller.h"
+#include "chrome/browser/ui/startup/default_browser_prompt/pin_infobar/pin_infobar_controller.h"
 #endif
 
 #if BUILDFLAG(IS_WIN)
-#include "chrome/browser/ui/startup/default_browser_prompt/pin_infobar/pin_infobar_controller.h"
 #include "chrome/browser/ui/views/frame/windows_taskbar_icon_updater.h"
 #endif
 
@@ -126,8 +131,7 @@
 #include "chrome/browser/glic/browser_ui/glic_button_controller.h"
 #include "chrome/browser/glic/browser_ui/glic_iph_controller.h"
 #include "chrome/browser/glic/glic_enabling.h"
-#include "chrome/browser/glic/glic_keyed_service.h"
-#include "chrome/browser/ui/tabs/glic_actor_task_icon_controller.h"
+#include "chrome/browser/glic/public/glic_keyed_service.h"
 #endif
 
 #if defined(USE_AURA)
@@ -141,6 +145,13 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
   // This is used only for the controllers which will be created on demand
   // later.
   browser_ = browser;
+
+  browser_actions_ = std::make_unique<BrowserActions>(browser);
+
+  browser_command_controller_ =
+      std::make_unique<chrome::BrowserCommandController>(browser);
+
+  browser_actions_->InitializeBrowserActions();
 
   // Initialize bookmark bar controller for all browser types.
   bookmark_bar_controller_ = std::make_unique<BookmarkBarController>(
@@ -200,11 +211,6 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
       glic_iph_controller_ = std::make_unique<glic::GlicIphController>(browser);
       glic_nudge_controller_ =
           std::make_unique<tabs::GlicNudgeController>(browser);
-
-      if (features::kGlicActorUiTaskIcon.Get()) {
-        glic_actor_task_icon_controller_ =
-            std::make_unique<tabs::GlicActorTaskIconController>(browser);
-      }
     }
 #endif  // BUILDFLAG(ENABLE_GLIC)
 
@@ -234,7 +240,7 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
       std::make_unique<memory_saver::MemorySaverBubbleController>(browser);
 
   translate_bubble_controller_ = std::make_unique<TranslateBubbleController>(
-      browser->GetActions()->root_action_item());
+      browser_actions_->root_action_item());
 
   cookie_controls_bubble_coordinator_ =
       std::make_unique<CookieControlsBubbleCoordinator>();
@@ -269,9 +275,6 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
     pdf_infobar_controller_ =
         std::make_unique<pdf::infobar::PdfInfoBarController>(browser);
   }
-#endif
-
-#if BUILDFLAG(IS_WIN)
   if (base::FeatureList::IsEnabled(features::kOfferPinToTaskbarInfoBar)) {
     pin_infobar_controller_ =
         std::make_unique<default_browser::PinInfoBarController>(browser);
@@ -291,8 +294,8 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   extension_browser_window_helper_ =
       std::make_unique<extensions::ExtensionBrowserWindowHelper>(
-          browser->GetBrowserForMigrationOnly()->command_controller(),
-          browser->GetTabStripModel(), browser->GetProfile());
+          browser_command_controller_.get(), browser->GetTabStripModel(),
+          browser->GetProfile());
 #endif
 
   if (breadcrumbs::IsEnabled(g_browser_process->local_state())) {
@@ -306,6 +309,11 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
       tab_strip_model_,
       browser->GetType() == BrowserWindowInterface::Type::TYPE_DEVTOOLS);
 #endif  // defined(USE_AURA)
+
+  if (features::kGlicActorUiBorderGlow.Get()) {
+    actor_border_view_controller_ =
+        std::make_unique<ActorBorderViewController>(browser);
+  }
 }
 
 void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
@@ -339,6 +347,19 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
     send_tab_to_self_toolbar_bubble_controller_ = std::make_unique<
         send_tab_to_self::SendTabToSelfToolbarBubbleController>(browser);
 
+    if (browser_view) {
+      // The controller should only be created if the
+      // PinnedToolbarActionsContainer exists for the browser, this might not be
+      // the case for browsers with a custom tab toolbar.
+      if (auto* pinned_toolbar_actions_container =
+              browser_view->toolbar_button_provider()
+                  ->GetPinnedToolbarActionsContainer()) {
+        pinned_toolbar_actions_controller_ =
+            std::make_unique<PinnedToolbarActionsController>(
+                pinned_toolbar_actions_container);
+      }
+    }
+
     // TODO(crbug.com/350508658): Ideally, we don't pass in a reference to
     // browser as per the guidance in the comment above. However, currently,
     // we need browser to properly determine if the lens overlay is enabled.
@@ -354,7 +375,7 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
         location_bar = browser_view->GetLocationBarView();
       }
       lens_overlay_entry_point_controller_->Initialize(
-          browser, browser->command_controller(), location_bar);
+          browser, browser_command_controller_.get(), location_bar);
     }
 
     auto* experiment_manager =
@@ -389,9 +410,12 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
       if (browser_view) {
         shared_tab_group_feedback_controller_ =
             std::make_unique<tab_groups::SharedTabGroupFeedbackController>(
-                browser_view);
+                browser_view->browser());
         shared_tab_group_feedback_controller_->Init();
       }
+      recent_activity_bubble_coordinator_ =
+          GetUserDataFactory().CreateInstance<RecentActivityBubbleCoordinator>(
+              *browser, browser);
     }
 
     if (base::FeatureList::IsEnabled(features::kSideBySide)) {
@@ -433,6 +457,12 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
   if (browser->is_type_normal() || browser->is_type_app()) {
     toast_service_ = std::make_unique<ToastService>(browser);
   }
+
+  if (BrowserView* browser_view =
+          BrowserView::GetBrowserViewForBrowser(browser)) {
+    contents_border_controller_ =
+        std::make_unique<ContentsBorderController>(browser_view);
+  }
 }
 
 void BrowserWindowFeatures::InitPostBrowserViewConstruction(
@@ -461,7 +491,7 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
 
   if (CommentsSidePanelCoordinator::IsSupported()) {
     comments_side_panel_coordinator_ =
-        std::make_unique<CommentsSidePanelCoordinator>();
+        std::make_unique<CommentsSidePanelCoordinator>(browser_view->browser());
   }
 
   side_panel_coordinator_->Init(browser_view->browser());
@@ -486,6 +516,14 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
           browser_view->GetProfile(),
           browser_view->tab_strip_region_view()->GetTabStripActionContainer(),
           glic_service);
+
+      if (features::kGlicActorUiTaskIcon.Get() &&
+          browser_->GetProfile()->IsRegularProfile()) {
+        glic_actor_task_icon_controller_ =
+            std::make_unique<tabs::GlicActorTaskIconController>(
+                browser_->GetProfile(), browser_view->tab_strip_region_view()
+                                            ->GetTabStripActionContainer());
+      }
     }
 
 #endif  // BUILDFLAG(ENABLE_GLIC)
@@ -501,9 +539,11 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
     }
 
     if (features::kGlicActorUiOverlay.Get()) {
+      // TODO(crbug.com/433999185): Handle split view.
       actor_overlay_window_controller_ =
           std::make_unique<actor::ui::ActorOverlayWindowController>(
-              browser_view->GetActorOverlayView());
+              browser_view->GetActiveContentsContainerView()
+                  ->GetActorOverlayView());
     }
   }
 
@@ -519,6 +559,9 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
             browser_view->GetContentsContainerViews());
   }
 
+  devtools_ui_controller_ = std::make_unique<DevtoolsUIController>(
+      browser_view->GetContentsContainerViews());
+
 #if BUILDFLAG(IS_WIN)
   windows_taskbar_icon_updater_ =
       std::make_unique<WindowsTaskbarIconUpdater>(*browser_view);
@@ -528,6 +571,7 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
 }
 
 void BrowserWindowFeatures::TearDownPreBrowserWindowDestruction() {
+  contents_border_controller_.reset();
   live_tab_context_.reset();
   upgrade_notification_controller_.reset();
   memory_saver_opt_in_iph_controller_.reset();
@@ -536,7 +580,9 @@ void BrowserWindowFeatures::TearDownPreBrowserWindowDestruction() {
   profile_menu_coordinator_.reset();
   toast_service_.reset();
   extension_window_controller_.reset();
+  actor_border_view_controller_.reset();
   actor_overlay_window_controller_.reset();
+  glic_actor_task_icon_controller_.reset();
 
 #if BUILDFLAG(ENABLE_GLIC)
   glic_button_controller_.reset();
@@ -547,6 +593,8 @@ void BrowserWindowFeatures::TearDownPreBrowserWindowDestruction() {
     download_toolbar_ui_controller_->TearDownPreBrowserWindowDestruction();
   }
 #endif
+
+  comments_side_panel_coordinator_.reset();
 
   history_clusters_side_panel_coordinator_.reset();
 
@@ -574,8 +622,16 @@ void BrowserWindowFeatures::TearDownPreBrowserWindowDestruction() {
     new_tab_footer_controller_->TearDown();
   }
 
+  if (devtools_ui_controller_) {
+    devtools_ui_controller_->TearDown();
+  }
+
   desktop_browser_window_capabilities_.reset();
   signin_view_controller_->TearDownPreBrowserWindowDestruction();
+
+  if (pinned_toolbar_actions_controller_) {
+    pinned_toolbar_actions_controller_->TearDown();
+  }
 
   // TODO(crbug.com/423956131): Update reset order once FindBarController is
   // deterministically constructed.

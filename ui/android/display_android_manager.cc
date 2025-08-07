@@ -55,8 +55,6 @@ void SetScreenAndroid(bool use_display_wide_color_gamut) {
 DisplayAndroidManager::DisplayAndroidManager(bool use_display_wide_color_gamut)
     : use_display_wide_color_gamut_(use_display_wide_color_gamut) {}
 
-// Screen interface.
-
 Display DisplayAndroidManager::GetDisplayNearestWindow(
     gfx::NativeWindow window) const {
   if (window) {
@@ -74,16 +72,22 @@ Display DisplayAndroidManager::GetDisplayNearestView(
   return GetDisplayNearestWindow(view ? view->GetWindowAndroid() : nullptr);
 }
 
-// There is no notion of relative display positions on Android.
 Display DisplayAndroidManager::GetDisplayNearestPoint(
     const gfx::Point& point) const {
+  if (base::FeatureList::IsEnabled(kAndroidWindowManagementWebApi)) {
+    return ScreenBase::GetDisplayNearestPoint(point);
+  }
+
   NOTIMPLEMENTED();
   return GetPrimaryDisplay();
 }
 
-// There is no notion of relative display positions on Android.
 Display DisplayAndroidManager::GetDisplayMatching(
     const gfx::Rect& match_rect) const {
+  if (base::FeatureList::IsEnabled(kAndroidWindowManagementWebApi)) {
+    return ScreenBase::GetDisplayMatching(match_rect);
+  }
+
   NOTIMPLEMENTED();
   return GetPrimaryDisplay();
 }
@@ -124,11 +128,7 @@ void DisplayAndroidManager::DoUpdateDisplay(display::Display* display,
       // If the device supports WCG, then use P3 for the output surface when
       // there is WCG content on screen.
       cs_for_wcg = gfx::ColorSpace::CreateDisplayP3D65();
-      // If dynamically changing color gamut is disallowed, then use P3 even
-      // when all content is sRGB.
-      if (!features::IsDynamicColorGamutEnabled()) {
-        cs_for_srgb = cs_for_wcg;
-      }
+      cs_for_srgb = cs_for_wcg;
     }
     // The color space for HDR is scaled to reach the maximum luminance ratio.
     gfx::ColorSpace cs_for_hdr = cs_for_wcg;

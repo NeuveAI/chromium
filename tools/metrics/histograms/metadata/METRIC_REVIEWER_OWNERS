@@ -291,6 +291,9 @@ jdonnelly@chromium.org
 mahmadi@chromium.org
 manukh@chromium.org
 toyoshim@chromium.org
+# on_device_model
+cduvall@chromium.org
+xinghuilu@chromium.org
 # oobe
 bohdanty@google.com
 ziegltrum@google.com
@@ -489,8 +492,6 @@ kenrb@chromium.org
 hcyang@google.com
 # web_core
 schenney@chromium.org
-# weblayer
-cduvall@chromium.org
 # web_rtc
 kron@chromium.org
 # xr

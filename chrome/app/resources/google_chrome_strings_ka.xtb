@@ -86,6 +86,7 @@
 <translation id="2091012649849228750">Google Chrome-ის მომავალი განახლებების მისაღებად დაგჭირდებათ Windows 10 ან უფრო ახალი ვერსია. ეს კომპიუტერი იყენებს Windows 8-ს.</translation>
 <translation id="2094648590148273905">ChromeOS Flex-ის პირობები</translation>
 <translation id="2094919256425865063">მაინც გსურთ Chrome-იდან გასვლა?</translation>
+<translation id="2096213354152647998">ბოლო დროს არ ყოფილხართ. Chrome-მა ამოშალა <ph name="PERMISSION" />.</translation>
 <translation id="2106831557840787829">ChromeOS Flex და <ph name="BEGIN_LINK_LINUX_OSS" />Linux-ის შემუშავების გარემო<ph name="END_LINK_LINUX_OSS" /> მუშაობს <ph name="BEGIN_LINK_CROS_OSS" />ღია კოდის დამატებითი პროგრამული უზრუნველყოფის<ph name="END_LINK_CROS_OSS" /> დამსახურებით.</translation>
 <translation id="2108778574543343055">Chrome-ის აპების ფონურ რეჟიმში მუშაობის გათიშვა</translation>
 <translation id="2120620239521071941">ეს მოქმედება წაშლის <ph name="ITEMS_COUNT" /> ერთეულს ამ მოწყობილობიდან. თქვენი მონაცემების მოგვიანებით მისაღებად, შედით Chrome-ში, როგორც <ph name="USER_EMAIL" />.</translation>
@@ -221,7 +222,6 @@
 <translation id="3595784445906693824">გსურთ, შეხვიდეთ Chrome-ის ახალ პროფილში?</translation>
 <translation id="3596080736082218006">{COUNT,plural, =0{განახლების მისასადაგებლად თქვენი ადმინისტრატორი მოითხოვს Chrome-ის ხელახლა გაშვებას}=1{განახლების მისასადაგებლად თქვენი ადმინისტრატორი მოითხოვს Chrome-ის ხელახლა გაშვებას. თქვენი ინკოგნიტო ფანჯარა ხელახლა არ გაიხსნება.}other{განახლების მისასადაგებლად თქვენი ადმინისტრატორი მოითხოვს Chrome-ის ხელახლა გაშვებას. თქვენი # ინკოგნიტო ფანჯარა ხელახლა არ გაიხსნება.}}</translation>
 <translation id="3597003331831379823">მაღალი პრივილეგიებით დაყენების გაშვება ვერ მოხერხდა. <ph name="METAINSTALLER_ERROR" /></translation>
-<translation id="3609788354808247807">ბოლო დროს არ ყოფილხართ. Chrome-მა ამოშალა <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> და <ph name="PERMISSION_3" /></translation>
 <translation id="3622716124581627104">მოახდინეთ საგნების თუ ადგილების იდენტიფიცირება, დააკოპირეთ ან თარგმნეთ ტექსტი. Google Lens-ის გამოყენებისას გვერდის ეკრანის ანაბეჭდი არ ეგზავნება Google-ს. <ph name="LEARN_MORE" /></translation>
 <translation id="3622797965165704966">ადვილი გახდა თქვენი Google-ის ანგარიშის მეშვეობით Chrome-ის გამოყენება და საერთო მოხმარების კომპიუტერებზეც.</translation>
 <translation id="3635073343384702370">პაროლების შემოწმებას Chrome შეძლებს მათი შენახვის შემდეგ</translation>
@@ -271,6 +271,7 @@
 <translation id="4205939740494406371">Chrome ვერ ახერხებს პაროლების შემოწმებას. ცადეთ 24 საათში ან <ph name="BEGIN_LINK" />შეამოწმეთ პაროლები თქვენს Google ანგარიშში<ph name="END_LINK" />.</translation>
 <translation id="4222932583846282852">მიმდინარეობს გაუქმება…</translation>
 <translation id="4224210481850767180">ინსტალაცია გაუქმდა.</translation>
+<translation id="4230631012078055975">მიიღეთ წვდომა მეტ მონაცემზე Chrome-ში შესვლით</translation>
 <translation id="4242034826641750751">Chrome საჭიროებს კამერისა და მიკროფონზე წვდომის ნებართვას ამ საიტისთვის</translation>
 <translation id="424864128008805179">გსურთ Chrome-იდან გამოსვლა?</translation>
 <translation id="4251615635259297716">მივამაგროთ Chrome-ის მონაცემები ამ ანგარიშზე?</translation>
@@ -314,6 +315,7 @@
 <translation id="4747730611090640388">Chrome-ს შეუძლია თქვენი ინტერესების პროგნოზირება.  მოგვიანებით, თქვენ მიერ მონახულებულ საიტს საშუალება ექნება, Chrome-ს სთხოვოს თქვენი ინტერესების ჩვენება, თქვენთვის ხილული რეკლამის პერსონალიზების მიზნით.</translation>
 <translation id="475321580758063259">განაახლეთ Chrome, რომ განაგრძოთ Chrome-ის მონაცემების გამოყენება თქვენს Google ანგარიშში, <ph name="ACCOUNT_EMAIL" /></translation>
 <translation id="4754614261631455953">Google Chrome Canary (mDNS-In)</translation>
+<translation id="4756182432527369254">აჩქარებს Chrom-ის V8 მექანიზმის მქონე საიტების მუშაობას, მაგრამ Chrom ოდნავ ნაკლებად უძლებს შეტევებს</translation>
 <translation id="479167709087336770">ეს ფუნქცია იყენებს მართლწერის იმ შემმოწმებელს, რომელიც გამოიყენება Google Search-ში. ბრაუზერში თქვენ მიერ აკრეფილი ტექსტი ეგზავნება Google-ს. ამ ქცევის შეცვლა ნებისმიერ დროს შეგიძლიათ პარამეტრებიდან.</translation>
 <translation id="4793679854893018356">შეიტყვეთ, როგორ ზრუნავს Chrome თქვენს უსაფრთხოებაზე</translation>
 <translation id="4828579605166583682">Google Chrome ცდილობს არსებული პაროლების ჩანაცვლებას. აღნიშნულის დასაშვებად აკრიფეთ თქვენი Windows-ის პაროლი.</translation>
@@ -402,10 +404,11 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="5941711191222866238">ჩაკეცვა</translation>
 <translation id="5941830788786076944">Google Chrome გახდეს ნაგულისხმევი ბრაუზერი</translation>
 <translation id="5947104538377036631">Chrome-ის მალსახმობი</translation>
-<translation id="5953954252731207958">ბოლო დროს არ ყოფილხართ. Chrome-მა ამოშალა <ph name="PERMISSION" /></translation>
+<translation id="5968400720580217226">ხელოვნური ინტელექტის რეჟიმი</translation>
 <translation id="5980111191913430208">უცნობი წყაროებიდან მომავალმა გაფართოებებმა, აპებმა და თემებმა შეიძლება დააზიანოს თქვენი მოწყობილობა. Chrome გირჩევთ, ისინი მხოლოდ <ph name="IDS_EXTENSION_WEB_STORE_TITLE" />-დან დააყენოთ</translation>
 <translation id="6003112304606738118">მიმდინარეობს ჩამოტვირთვა… დარჩენილია <ph name="HOURS" /> საათი</translation>
 <translation id="6008161919456049856">ამ მოწყობილობიდან ამოიშლება თქვენი პაროლები, გადახდის მეთოდები და მისამართები, რომლებიც შეინახეთ თქვენს Google ანგარიშში. Chrome-ში რომ ისინი ხელახლა გამოიყენოთ, საჭიროა ანგარიშში შესვლა.</translation>
+<translation id="6009821354356307391">გაგზავნეთ შემდგომი მოთხოვნა</translation>
 <translation id="6014316319780893079"><ph name="BEGIN_LINK" />Chrome-ში არსებული ხელსაწყოები<ph name="END_LINK" /> დაგეხმარებათ, უსაფრთხოდ დაათვალიეროთ ვები და შეინარჩუნოთ კონტროლი</translation>
 <translation id="6022659036123304283">მოირგეთ Chrome</translation>
 <translation id="6025087594896450715">Google Chrome ხელახლა გაეშვება <ph name="REMAINING_TIME" />-ში</translation>
@@ -427,7 +430,6 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="6173637689840186878"><ph name="PAGE_TITLE" /> — Google Chrome Beta</translation>
 <translation id="6180522807229584611">ეს ჩანართი დამატებით რესურსებს იყენებს. ეფექტურობის გაზრდის მიზნით, ნება დართეთ Chrome-ს, ჩანართი უმოქმედო რეჟიმში გადაიტანოს.</translation>
 <translation id="6182736845697986886">ინსტალაცია ვერ მოხერხდა განახლების სერვერის შიდა შეცდომის გამო.</translation>
-<translation id="6200139057479872438">ბოლო დროს არ ყოფილხართ. Chrome-მა ამოშალა <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /></translation>
 <translation id="6235018212288296708">Google Chrome-ის შემომავალი ტრაფიკის წესი mDNS ტრაფიკისთვის.</translation>
 <translation id="624230925347970731">Chrome მალე დაიხურება</translation>
 <translation id="6247557882553405851">Google პაროლების მმართველი</translation>
@@ -465,6 +467,7 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="6696915334902295848">Chrome საჭიროებს მიკროფონზე წვდომის ნებართვას ამ საიტისთვის</translation>
 <translation id="6712881677154121168">შეცდომა ჩამოტვირთვისას: <ph name="DOWNLOAD_ERROR" /></translation>
 <translation id="6718739135284199302">ააჩქარეთ Chrome-ის მუშაობა</translation>
+<translation id="6734827584173583205">ბოლო დროს არ ყოფილხართ. Chrome-მა ამოშალა <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> და კიდევ <ph name="COUNT" />.</translation>
 <translation id="6735387454586646204">ChromeOS Flex სისტემა</translation>
 <translation id="6750954913813541382">მართლწერის შეცდომების შესასწორებლად Chrome უგზავნის Google-ს თქვენ მიერ ბრაუზერში აკრეფილ ტექსტს</translation>
 <translation id="6760235774835597023">აჩქარებს Chrom-ის V8 მექანიზმის მქონე საიტების მუშაობას, მაგრამ Chrom ოდნავ ნაკლებად უძლებს შეტევებს. ეს პარამეტრი ჩართულია.</translation>
@@ -490,6 +493,7 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="7024536598735240744">შეცდომა ამოღებისას: <ph name="UNPACK_ERROR" />.</translation>
 <translation id="7025789849649390912">ინსტალაცია შეწყდა.</translation>
 <translation id="7025800014283535195">აქ შეგიძლიათ Chrome პროფილებს შორის გადართვა</translation>
+<translation id="7051685429025310665">ბოლო დროს არ ყოფილხართ. Chrome-მა ამოშალა <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> და <ph name="PERMISSION_3" />.</translation>
 <translation id="7059914902409643750">მოირგეთ Chrome</translation>
 <translation id="7060643578009939353">ამ ვიდეოს ძიება Google Lens-ის მეშვეობით</translation>
 <translation id="7071827361006050863">Chrome მალე წაშლის დათვალიერების მონაცემებს</translation>
@@ -545,13 +549,13 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="7655455401911432608">თქვენ მიერ ვების დათვალიერების ისტორია, ამ მოწყობილობაზე თქვენ მიერ Chrome-ის მეშვეობით მონახულებული საიტების ჩანაწერი.</translation>
 <translation id="7655472416356262023">ანგარიშის ამოშლა Chrome-იდან</translation>
 <translation id="7658239707568436148">გაუქმება</translation>
-<translation id="7661924425853052955">ბოლო დროს არ ყოფილხართ. Chrome-მა ამოშალა <ph name="PERMISSION_1" />, <ph name="PERMISSION_2" /> და კიდევ <ph name="COUNT" /></translation>
 <translation id="7670287553302121848">Chrome ანგარიში საჭიროებს ხელახლა ავტორიზაციას</translation>
 <translation id="769538538642757151">Chrome გაცნობებთ, თუ რაიმეს შემოწმება დაგჭირდებათ</translation>
 <translation id="7716950018788545737">ამოცანა(ები) დასრულდა.</translation>
 <translation id="77283119132245232">უზრუნველყოფს სისტემის კონტროლის სერვისს <ph name="BROWSER_NAME" />-ისთვის. თუ ეს სერვისი გათიშულია, ბრაუზერის მიერ შექმნილი ეფექტურობის ჩანაწერები არ მიიღებს მონაწილეობას სისტემის დონის მოვლენებში, როგორიცაა კონტექსტის გადართვა თუ მზა ნაკადების მოვლენები.</translation>
 <translation id="7736869414036750079">თქვენი ორგანიზაცია მოითხოვს, რომ Chrome-ში შეხვიდეთ</translation>
 <translation id="7747138024166251722">ინსტალერმა ვერ შექმნა დროებითი დირექტორია. გთხოვთ, გადაამოწმოთ დისკზე თავისუფალი სივრცე და პროგრამული უზრუნველყოფის დაყენების ნებართვა.</translation>
+<translation id="7748969056734910029">ბოლო დროს არ ყოფილხართ. Chrome-მა ამოშალა <ph name="PERMISSION_1" /> და <ph name="PERMISSION_2" />.</translation>
 <translation id="7761834446675418963">დააწკაპუნეთ თქვენს სახელზე Chrome-ის გასახსნელად და დაიწყეთ დათვალიერება.</translation>
 <translation id="7777080907402804672">თუ სურათს არ ექნება სასარგებლო აღწერილობა, Chrome შეეცდება მის უზრუნველყოფას. აღწერილობების შესაქმნელად სურათები იგზავნება Google-ში. ამის გამორთვა ნებისმიერ დროს შეგიძლიათ პარამეტრებიდან.</translation>
 <translation id="778331955594035129">Chrome საჭიროებს მდებარეობაზე წვდომის ნებართვას ამ საიტისთვის</translation>
@@ -597,7 +601,9 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="8321888067342493336">სურათად შენახვა</translation>
 <translation id="8336463659890584292">როცა საიტი გთხოვთ, უფლება მისცეთ, კონფიდენციალურად ჩატვირთოს თავის გვერდზე არსებული ბმულები, Chrome გამოიყენებს Google-ის სერვერებს. აღნიშნული დამალავს თქვენს ვინაობას წინასწარ ჩატვირთული საიტისგან, თუმცა Google-ს ეცოდინება, რომელი საიტები იტვირთება წინასწარ.</translation>
 <translation id="8342675569599923794">Chrome-მა დაბლოკა ეს ფაილი, რადგან ის სახიფათოა.</translation>
+<translation id="8349094670477064572">თქვენ შეინახავთ და გამოიყენეთ პაროლებსა და სხვა მონაცემებს Google ანგარიშში, როცა Chrome-ში შეხვალთ. <ph name="LEARN_MORE" /></translation>
 <translation id="8362914115861174987">თარგმნა შემდეგ ენაზე:</translation>
+<translation id="8366770919198174997">ამცირებს წარმადობას, თუმცა Chrome შეტევების წინაშე უფრო მდგრადი იქნება</translation>
 <translation id="8370517070665726704">© <ph name="YEAR" />, Google LLC. ყველა უფლება დაცულია.</translation>
 <translation id="8387459386171870978">Chrome-ის გამოყენების გაგრძელება</translation>
 <translation id="8394720698884623075">შეამოწმებს URL-ების თანხვედრას Chrome-ში შენახულ არაუსაფრთხო საიტების სიასთან</translation>
@@ -635,7 +641,6 @@ Google Chrome ვერ შეძლებს თქვენი პარამ
 <translation id="8781673607513845160">თქვენი კამერა რომ გამოიყენოთ, გახსენით <ph name="BEGIN_LINK" />სისტემის პარამეტრები<ph name="END_LINK" /> და მიანიჭეთ Chrome-ს წვდომა</translation>
 <translation id="878572486461146056">შეცდომა ინსტალაციისას: თქვენმა ქსელის ადმინისტრატორმა აამოქმედა ჯგუფური წესები, რომლებიც ზღუდავს ინსტალაციას: <ph name="INSTALL_ERROR" /></translation>
 <translation id="8798550110818026746">თქვენს ორგანიზაციას შეუძლია თქვენ მიერ ვების დათვალიერების მონაცემების (მაგალითად, თქვენი სანიშნეების, ისტორიისა და პაროლების) ნახვა და მართვა. ის ვერ შეძლებს თქვენი დათვალიერების მონაცემების ნახვას Chrome-ის სხვა პროფილებში</translation>
-<translation id="8801657293260363985">V8 არის Chrome-ის JavaScript-ისა და WebAssembly-ს ძრავა, რომელიც საიტების წარმადობის გასაუმჯობესებლად გამოიყენება</translation>
 <translation id="8821043148920470810">Google Chrome-ის მომავალი განახლებების მისაღებად დაგჭირდებათ Windows 10 ან უფრო ახალი ვერსია. ეს კომპიუტერი იყენებს Windows 7-ს.</translation>
 <translation id="8823341990149967727">Chrome მოძველებულია</translation>
 <translation id="8825634023950448068">თქვენი კონფიდენციალურობის დაცვის მიზნით, ჩვენ ავტომატურად ვშლით თქვენს ინტერესებს, რომლებიც 4 კვირაზე ძველია. თქვენ მიერ ვების დათვალიერების პარალელურად, ესა თუ ეს ინტერესი შეიძლება ხელახლა გამოჩნდეს სიაში. თუ Chrome შეცდომით გამოიცნობს თქვენს ინტერესს, ან რომელიმე ტიპის რეკლამის ნახვას არ მოისურვებთ, ინტერესის წაშლის საშუალება გექნებათ.</translation>

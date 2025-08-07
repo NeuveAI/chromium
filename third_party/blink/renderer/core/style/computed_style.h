@@ -906,11 +906,8 @@ class ComputedStyle final : public ComputedStyleBase {
 
   // letter-spacing
   float LetterSpacing() const { return GetFontDescription().LetterSpacing(); }
-  // TODO(crbug.com/327740939): Rename this like word spacing because
-  // `Specified` is a term that normally refers to specified styles which could
-  // be a relative length.
-  const Length& SpecifiedLetterSpacing() const {
-    return GetFontDescription().SpecifiedLetterSpacing();
+  const Length& ComputedLetterSpacing() const {
+    return GetFontDescription().ComputedLetterSpacing();
   }
 
   // word-spacing
@@ -2464,7 +2461,8 @@ class ComputedStyle final : public ComputedStyleBase {
     // ::after, but the rest of the pseudo-elements should only be used for
     // elements with an actual layout object.
     return pseudo == kPseudoIdCheckMark || pseudo == kPseudoIdBefore ||
-           pseudo == kPseudoIdAfter || pseudo == kPseudoIdPickerIcon;
+           pseudo == kPseudoIdAfter || pseudo == kPseudoIdPickerIcon ||
+           pseudo == kPseudoIdInterestHint;
   }
 
   bool HasScrollMarkerGroupBefore() const {

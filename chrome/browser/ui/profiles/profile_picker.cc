@@ -86,11 +86,7 @@ ProfilePicker::Params ProfilePicker::Params::ForBackgroundManager(
 ProfilePicker::Params ProfilePicker::Params::ForFirstRun(
     const base::FilePath& profile_path,
     FirstRunExitedCallback first_run_exited_callback) {
-  Params params(
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
-      EntryPoint::kFirstRun,
-#endif
-      profile_path);
+  Params params(EntryPoint::kFirstRun, profile_path);
   params.first_run_exited_callback_ = std::move(first_run_exited_callback);
   return params;
 }
@@ -169,16 +165,19 @@ StartupProfileModeReason ProfilePicker::GetStartupModeReason() {
   // launch the profile creation flow if and a profile with this email does not already
   // exist.
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kCreateProfileEmailIfNotExists) &&
-      base::FeatureList::IsEnabled(features::kCreateProfileIfNoneExists)) {
+  if (command_line->HasSwitch(switches::kProfileEmail)) {
     std::string switch_email =
         command_line->GetSwitchValueASCII(switches::kProfileEmail);
-    if (!switch_email.empty() &&
-        profile_manager->GetProfileDirForEmail(switch_email).empty()) {
-      return StartupProfileModeReason::kProfileEmailSwitchCreateProfile;
+    if (!switch_email.empty()) {
+      if (!profile_manager->GetProfileDirForEmail(switch_email).empty()) {
+        return StartupProfileModeReason::kProfileEmailSwitch;
+      } else if (command_line->HasSwitch(
+                     switches::kCreateProfileEmailIfNotExists) &&
+                 base::FeatureList::IsEnabled(
+                     features::kCreateProfileIfNoneExists)) {
+        return StartupProfileModeReason::kProfileEmailSwitchCreateProfile;
+      }
     }
-    // TODO(crbug.com/432528395): Return kProfileEmailSwitch for instead of
-    // returning kMultipleProfiles or kSingleProfile.
   }
 
   size_t number_of_profiles = profile_manager->GetNumberOfProfiles();

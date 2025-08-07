@@ -26,6 +26,7 @@
 #include "components/autofill/core/browser/data_model/usage_history_information.h"
 #include "components/autofill/core/browser/data_quality/addresses/profile_token_quality.h"
 #include "components/autofill/core/browser/field_types.h"
+#include "components/signin/public/identity_manager/account_info.h"
 
 #if BUILDFLAG(IS_ANDROID)
 #include "base/android/scoped_java_ref.h"
@@ -57,7 +58,12 @@ class AutofillProfile : public FormGroup {
     kAccount = 1,
     kAccountHome = 2,
     kAccountWork = 3,
-    kMaxValue = kAccountWork,
+    // This profile is stored locally. Data for this profile comes from the
+    // account. Not synced at all.
+    // TODO(crbug.com/356845298): Update the comment with the name of the
+    // manager handling the metadata updates once implemented.
+    kAccountNameEmail = 4,
+    kMaxValue = kAccountNameEmail,
   };
 
   // These fields are, by default, the only candidates for being added to the
@@ -107,6 +113,8 @@ class AutofillProfile : public FormGroup {
                   AddressCountryCode country_code);
   AutofillProfile(RecordType record_type, AddressCountryCode country_code);
   explicit AutofillProfile(AddressCountryCode country_code);
+  // This constructor creates a profile of type `kAccountNameEmail`.
+  AutofillProfile(const AccountInfo& info, AddressCountryCode country_code);
 
   AutofillProfile(const AutofillProfile& profile);
   ~AutofillProfile() override;

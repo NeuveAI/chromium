@@ -116,7 +116,11 @@ using collaboration::CollaborationControllerDelegate;
   return YES;
 }
 
-- (LegacyGridTransitionLayout*)transitionLayout {
+- (LegacyGridTransitionLayout*)legacyTransitionLayout {
+  NOTREACHED() << "This should be implemented in subclasses.";
+}
+
+- (TabGridTransitionLayout*)transitionLayout {
   NOTREACHED() << "This should be implemented in subclasses.";
 }
 
@@ -530,6 +534,7 @@ using collaboration::CollaborationControllerDelegate;
       break;
     case TabGroupActionType::kLeaveOrKeepSharedTabGroup:
     case TabGroupActionType::kDeleteOrKeepSharedTabGroup:
+    case TabGroupActionType::kCloseLastTabUnknownRole:
       NOTREACHED();
   }
 

@@ -4,7 +4,7 @@
 
 #import "ios/chrome/browser/intelligence/bwg/ui/bwg_fre_wrapper_view_controller.h"
 
-#import "base/notreached.h"
+#import "base/check.h"
 #import "ios/chrome/browser/intelligence/bwg/ui/bwg_consent_mutator.h"
 #import "ios/chrome/browser/intelligence/bwg/ui/bwg_consent_view_controller.h"
 #import "ios/chrome/browser/intelligence/bwg/ui/bwg_promo_view_controller.h"
@@ -89,6 +89,8 @@ const CGFloat kDamping = 0.85;
   } else {
     _currentChildViewController = _consentViewController;
   }
+
+  [self updateAccessibilityVisibility];
   _contentHeightConstraint = [self.contentScrollView.heightAnchor
       constraintEqualToConstant:[_currentChildViewController contentHeight]];
   _contentHeightConstraint.active = YES;
@@ -304,12 +306,32 @@ const CGFloat kDamping = 0.85;
          kExtraSpacingTitleContent;
 }
 
+// Updates VoiceOver focus to the consent view after promo transition.
+- (void)updateAccessibilityFocus {
+  CHECK(_consentViewController);
+
+  UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification,
+                                  _consentViewController.view);
+}
+
+// Manages which view is visible to VoiceOver.
+- (void)updateAccessibilityVisibility {
+  if (_promoViewController) {
+    _promoViewController.view.accessibilityElementsHidden =
+        (_currentChildViewController != _promoViewController);
+  }
+
+  _consentViewController.view.accessibilityElementsHidden =
+      (_currentChildViewController != _consentViewController);
+}
+
 #pragma mark - BWGPromoViewControllerDelegate
 
 // Handles the primary action from the promo screen. It transitions the view
 // to the consent screen and animates the content scroll view horizontally.
 - (void)didAcceptPromo {
   _currentChildViewController = _consentViewController;
+  [self updateAccessibilityVisibility];
   [self updateContentHeightConstraint];
 
   __weak __typeof(self) weakSelf = self;
@@ -319,15 +341,19 @@ const CGFloat kDamping = 0.85;
 
   CGFloat mainStackViewWidth = _mainStackView.frame.size.width;
   [UIView animateWithDuration:kAnimationDuration
-                        delay:0.0
-       usingSpringWithDamping:kDamping
-        initialSpringVelocity:0.0
-                      options:UIViewAnimationOptionCurveEaseInOut
-                   animations:^{
-                     weakSelf.contentScrollView.contentOffset =
-                         CGPointMake(mainStackViewWidth, 0);
-                   }
-                   completion:nil];
+      delay:0.0
+      usingSpringWithDamping:kDamping
+      initialSpringVelocity:0.0
+      options:UIViewAnimationOptionCurveEaseInOut
+      animations:^{
+        weakSelf.contentScrollView.contentOffset =
+            CGPointMake(mainStackViewWidth, 0);
+      }
+      completion:^(BOOL finished) {
+        if (finished && UIAccessibilityIsVoiceOverRunning()) {
+          [weakSelf updateAccessibilityFocus];
+        }
+      }];
 }
 
 - (void)promoViewControllerWasDismissed {

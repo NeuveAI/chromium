@@ -157,7 +157,7 @@ void OfferNotificationBubbleControllerImpl::ShowOfferNotificationIfApplicable(
   is_user_gesture_ = false;
 
   if (options.show_notification_automatically) {
-    Show();
+    ShowBubble();
   } else {
     HideBubbleAndClearTimestamp(/*should_show_icon=*/true);
   }
@@ -171,7 +171,7 @@ void OfferNotificationBubbleControllerImpl::ReshowBubble() {
 
   is_user_gesture_ = true;
 
-  Show();
+  ShowBubble();
 }
 
 void OfferNotificationBubbleControllerImpl::DismissNotification() {
@@ -182,7 +182,7 @@ void OfferNotificationBubbleControllerImpl::OnVisibilityChanged(
     content::Visibility visibility) {
   if (visibility == content::Visibility::VISIBLE && !bubble_view() &&
       bubble_state_ == BubbleState::kShowingIconAndBubble) {
-    Show();
+    ShowBubble();
   } else if (visibility == content::Visibility::HIDDEN) {
     HideBubbleAndClearTimestamp(bubble_state_ == BubbleState::kShowingIcon);
   }
@@ -222,6 +222,15 @@ void OfferNotificationBubbleControllerImpl::DoShowBubble() {
   if (observer_for_testing_) {
     observer_for_testing_->OnBubbleShown();
   }
+}
+
+BubbleType OfferNotificationBubbleControllerImpl::GetBubbleType() const {
+  return BubbleType::kOfferNotification;
+}
+
+base::WeakPtr<BubbleControllerBase>
+OfferNotificationBubbleControllerImpl::GetBubbleControllerBaseWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
 }
 
 bool OfferNotificationBubbleControllerImpl::IsWebContentsActive() {

@@ -34,6 +34,7 @@
 <translation id="1982637982196732906">Mova para a secção inativa</translation>
 <translation id="2050597508048557928">{TABS_COUNT,plural, =1{Adicionar <ph name="TABS_COUNT_ONE" /> separador selecionado aos marcadores}other{Adicionar <ph name="TABS_COUNT_MANY" /> separadores selecionados aos marcadores}}</translation>
 <translation id="2055057176188061528">Selecione um grupo de separadores ou crie um novo grupo de separadores</translation>
+<translation id="2074527029802029717">Desbloquear o separador</translation>
 <translation id="2118649612461486615">Informações da loja</translation>
 <translation id="2123073051266141035">{INCOGNITO_TABS_COUNT,plural, =1{É possível reabrir os separadores e os grupos fechados a partir das secções Separadores recentes e Grupos de separadores. O separador de navegação anónima não vai estar disponível.}other{É possível reabrir os separadores e os grupos fechados a partir das secções Separadores recentes e Grupos de separadores. Os # separadores de navegação anónima não vão estar disponíveis.}}</translation>
 <translation id="2162620598375156287">Agora a <ph name="CURRENT_PRICE" /> em <ph name="SOURCE_WEBSITE" /></translation>
@@ -44,7 +45,6 @@
 <translation id="2359808026110333948">Continuar</translation>
 <translation id="2371084566192454134">Separadores e grupos de separadores</translation>
 <translation id="2375257132547014176">{TABS_COUNT,plural, =1{Reduza o grupo de separadores <ph name="TITLE_OF_GROUP" /> com <ph name="TABS_COUNT_ONE" /> separador.}other{Reduza o grupo de separadores <ph name="TITLE_OF_GROUP" /> com <ph name="TABS_COUNT_MANY" /> separadores.}}</translation>
-<translation id="2479148705183875116">Aceder às Definições</translation>
 <translation id="2498435670446402865">Mude nome grupo separad.</translation>
 <translation id="2536366509642644298">Os grupos de separadores "<ph name="TAB_GROUP_NAME_1" />" e "<ph name="TAB_GROUP_NAME_2" />" já não estão disponíveis</translation>
 <translation id="2539705006853443997">{TABS_COUNT,plural, =1{Reduza <ph name="TABS_COUNT_ONE" /> separador.}other{Reduza o grupo de separadores com <ph name="TABS_COUNT_MANY" /> separadores.}}</translation>
@@ -61,6 +61,7 @@
 <translation id="2801787514987684416">Quer ver informações sobre a loja?</translation>
 <translation id="2883875523421277445">{NUMBER_OF_TABS_CLOSED,plural, =1{<ph name="ONE_CLOSED" /> separador fechado}other{<ph name="MANY_CLOSED" /> separadores fechados}}</translation>
 <translation id="2894757982205307093">Novo separador no grupo</translation>
+<translation id="2918484639460781603">Ir para definições</translation>
 <translation id="2928243913527329289">Google | Acerca desta loja</translation>
 <translation id="3008554597174452548">Deixar de monitorizar produto</translation>
 <translation id="3026391124054406831">Crie grupos para organizar os seus separadores.</translation>

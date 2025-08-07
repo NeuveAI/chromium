@@ -33,12 +33,12 @@
 #include "content/browser/preloading/prefetch/prefetch_status.h"
 #include "content/browser/preloading/prefetch/prefetch_streaming_url_loader.h"
 #include "content/browser/preloading/prefetch/prefetch_type.h"
-#include "content/browser/preloading/prefetch/proxy_lookup_client_impl.h"
 #include "content/browser/preloading/preloading.h"
 #include "content/browser/preloading/preloading_attempt_impl.h"
 #include "content/browser/preloading/preloading_data_impl.h"
 #include "content/browser/preloading/preloading_trigger_type_impl.h"
 #include "content/browser/preloading/prerender/prerender_features.h"
+#include "content/browser/preloading/proxy_lookup_client_impl.h"
 #include "content/browser/preloading/speculation_rules/speculation_rules_tags.h"
 #include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
@@ -532,12 +532,13 @@ PrefetchContainer::~PrefetchContainer() {
   MaybeRecordPrefetchStatusToUMA(
       prefetch_status_.value_or(PrefetchStatus::kPrefetchNotStarted));
   RecordPrefetchDurationHistogram();
+  RecordPrefetchContainerServedCountHistogram();
 
   ukm::builders::PrefetchProxy_PrefetchedResource builder(ukm_source_id_);
   builder.SetResourceType(/*mainframe*/ 1);
   builder.SetStatus(static_cast<int>(
       prefetch_status_.value_or(PrefetchStatus::kPrefetchNotStarted)));
-  builder.SetLinkClicked(navigated_to_);
+  builder.SetLinkClicked(served_count_ > 0);
 
   if (GetNonRedirectResponseReader()) {
     GetNonRedirectResponseReader()->RecordOnPrefetchContainerDestroyed(
@@ -2004,6 +2005,7 @@ bool PrefetchContainer::ShouldWaitForNoVarySearchHeader(const GURL& url) const {
 void PrefetchContainer::OnUnregisterCandidate(
     const GURL& navigated_url,
     bool is_served,
+    PrefetchPotentialCandidateServingResult matching_result,
     bool is_nav_prerender,
     std::optional<base::TimeDelta> blocked_duration) {
   // Note that this method can be called with `is_in_dtor_` true.
@@ -2012,7 +2014,7 @@ void PrefetchContainer::OnUnregisterCandidate(
   // true.
 
   if (is_served) {
-    navigated_to_ = true;
+    served_count_++;
 
     UMA_HISTOGRAM_COUNTS_100("PrefetchProxy.AfterClick.RedirectChainSize",
                              redirect_chain_.size());
@@ -2023,6 +2025,8 @@ void PrefetchContainer::OnUnregisterCandidate(
 
   RecordBlockUntilHeadDurationHistogram(blocked_duration, is_served,
                                         is_nav_prerender);
+
+  RecordPrefetchPotentialCandidateServingResultHistogram(matching_result);
 
   // Note that `PreloadingAttemptImpl::SetIsAccurateTriggering()` is called for
   // prefetch in
@@ -2344,6 +2348,24 @@ void PrefetchContainer::RecordBlockUntilHeadDurationHistogram(
                     GetMetricsSuffixTriggerTypeAndEagerness(
                         prefetch_type_, embedder_histogram_suffix_)}),
       blocked_duration.value_or(base::Seconds(0)));
+}
+
+void PrefetchContainer::RecordPrefetchPotentialCandidateServingResultHistogram(
+    PrefetchPotentialCandidateServingResult matching_result) {
+  base::UmaHistogramEnumeration(
+      base::StrCat({"Prefetch.PrefetchPotentialCandidateServingResult."
+                    "PerMatchingCandidate.",
+                    GetMetricsSuffixTriggerTypeAndEagerness(
+                        prefetch_type_, embedder_histogram_suffix_)}),
+      matching_result);
+}
+
+void PrefetchContainer::RecordPrefetchContainerServedCountHistogram() {
+  base::UmaHistogramCounts100(
+      base::StrCat({"Prefetch.PrefetchContainer.ServedCount.",
+                    GetMetricsSuffixTriggerTypeAndEagerness(
+                        prefetch_type_, embedder_histogram_suffix_)}),
+      served_count_);
 }
 
 }  // namespace content

@@ -33,15 +33,16 @@ namespace {
 std::vector<std::pair<std::string,
                       scoped_refptr<QueueableResourceState<BufferContentOrt>>>>
 ToNamedBufferStates(
-    const base::flat_map<std::string, WebNNTensorImpl*>& named_tensors) {
+    const base::flat_map<std::string, scoped_refptr<WebNNTensorImpl>>&
+        named_tensors) {
   std::vector<std::pair<
       std::string, scoped_refptr<QueueableResourceState<BufferContentOrt>>>>
       buffer_states_vec;
   buffer_states_vec.reserve(named_tensors.size());
 
   for (const auto& [name, tensor] : named_tensors) {
-    buffer_states_vec.emplace_back(
-        name, static_cast<TensorImplOrt*>(tensor)->GetBufferState());
+    auto* ort_tensor = static_cast<TensorImplOrt*>(tensor.get());
+    buffer_states_vec.emplace_back(name, ort_tensor->GetBufferState());
   }
 
   return buffer_states_vec;
@@ -159,11 +160,10 @@ GraphImplOrt::CreateAndBuildOnBackgroundThread(
     bool is_external_data_supported,
     ScopedTrace scoped_trace) {
   scoped_trace.AddStep("Create model info");
-  ASSIGN_OR_RETURN(
-      std::unique_ptr<ModelEditor::ModelInfo> model_info,
+  std::unique_ptr<ModelEditor::ModelInfo> model_info =
       GraphBuilderOrt::CreateAndBuild(
           *graph_info, std::move(context_properties),
-          std::move(constant_operands), is_external_data_supported));
+          std::move(constant_operands), is_external_data_supported);
 
   scoped_trace.AddStep("Create session from model");
   ScopedOrtSession session;
@@ -202,10 +202,10 @@ void GraphImplOrt::DidCreateAndBuild(
   }
 
   // TODO(crbug.com/418031018): Get devices that will be used for dispatch.
-  std::move(callback).Run(base::WrapUnique(new GraphImplOrt(
+  std::move(callback).Run(base::MakeRefCounted<GraphImplOrt>(
       std::move(receiver), std::move(compute_resource_info),
-      std::move(result.value()), static_cast<ContextImplOrt*>(context.get()),
-      /*devices=*/{})));
+      std::move(result.value()), std::move(context),
+      /*devices=*/std::vector<mojom::Device>()));
 }
 
 GraphImplOrt::~GraphImplOrt() = default;
@@ -214,10 +214,10 @@ GraphImplOrt::GraphImplOrt(
     mojo::PendingAssociatedReceiver<mojom::WebNNGraph> receiver,
     ComputeResourceInfo compute_resource_info,
     std::unique_ptr<GraphImplOrt::ComputeResources> compute_resources,
-    ContextImplOrt* context,
+    base::WeakPtr<WebNNContextImpl> context,
     std::vector<mojom::Device> devices)
     : WebNNGraphImpl(std::move(receiver),
-                     context,
+                     std::move(context),
                      std::move(compute_resource_info),
                      std::move(devices)) {
   compute_resources_state_ =
@@ -226,8 +226,10 @@ GraphImplOrt::GraphImplOrt(
 }
 
 void GraphImplOrt::DispatchImpl(
-    base::flat_map<std::string, WebNNTensorImpl*> named_input_tensors,
-    base::flat_map<std::string, WebNNTensorImpl*> named_output_tensors) {
+    base::flat_map<std::string, scoped_refptr<WebNNTensorImpl>>
+        named_input_tensors,
+    base::flat_map<std::string, scoped_refptr<WebNNTensorImpl>>
+        named_output_tensors) {
   ScopedTrace scoped_trace("GraphImplOrt::DispatchImpl");
   std::vector<std::pair<
       std::string, scoped_refptr<QueueableResourceState<BufferContentOrt>>>>

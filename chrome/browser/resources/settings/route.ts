@@ -22,6 +22,7 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
 
   if (visibility.safetyHub !== false) {
     r.SAFETY_HUB = r.PRIVACY.createChild('/safetyCheck');
+    r.SAFETY_HUB.hasMigratedToPlugin = true;
   }
 
   if (loadTimeData.getBoolean('showPrivacyGuide')) {
@@ -31,6 +32,7 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
   r.SECURITY = r.PRIVACY.createChild('/security');
 
   r.COOKIES = r.PRIVACY.createChild('/cookies');
+  r.COOKIES.hasMigratedToPlugin = true;
   if (loadTimeData.getBoolean('enableIncognitoTrackingProtections') ) {
     r.INCOGNITO_TRACKING_PROTECTIONS = r.PRIVACY.createChild('/incognito');
   }
@@ -56,6 +58,7 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
 
   if (loadTimeData.getBoolean('enableSecurityKeysSubpage')) {
     r.SECURITY_KEYS = r.SECURITY.createChild('/securityKeys');
+    r.SECURITY_KEYS.hasMigratedToPlugin = true;
   }
 
   r.SITE_SETTINGS_ALL = r.SITE_SETTINGS.createChild('all');
@@ -194,6 +197,8 @@ function createRoutes(): SettingsRoutes {
     if (loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos')) {
       r.ACCOUNT = r.PEOPLE.createChild('/account');
       r.ACCOUNT.hasMigratedToPlugin = true;
+      r.GOOGLE_SERVICES = r.PEOPLE.createChild('/googleServices');
+      r.GOOGLE_SERVICES.hasMigratedToPlugin = true;
     }
     r.MANAGE_PROFILE = r.PEOPLE.createChild('/manageProfile');
     r.MANAGE_PROFILE.hasMigratedToPlugin = true;
@@ -252,7 +257,7 @@ function createRoutes(): SettingsRoutes {
     r.ADDRESSES.hasMigratedToPlugin = true;
 
     if (loadTimeData.getBoolean('showAutofillAiControl')) {
-      r.AUTOFILL_AI = r.AUTOFILL.createChild('/autofillAi');
+      r.AUTOFILL_AI = r.AUTOFILL.createChild('/enhancedAutofill');
       r.AUTOFILL_AI.hasMigratedToPlugin = true;
     }
 

@@ -4,6 +4,8 @@
 
 #include "components/user_education/common/ntp_promo/ntp_promo_controller.h"
 
+#include "base/metrics/histogram_functions.h"
+#include "base/strings/strcat.h"
 #include "base/time/time.h"
 #include "components/user_education/common/ntp_promo/ntp_promo_identifier.h"
 #include "components/user_education/common/ntp_promo/ntp_promo_order.h"
@@ -16,12 +18,72 @@ namespace user_education {
 
 namespace {
 
+using Eligibility = NtpPromoSpecification::Eligibility;
+
 constexpr int kNumSessionsBetweenTopPromoRotation = 3;
 constexpr base::TimeDelta kCompletedPromoShowDuration = base::Days(7);
+constexpr base::TimeDelta kClickedPromoHideDuration = base::Days(90);
+
+constexpr char kPromoMetricPrefix[] = "UserEducation.NtpPromos.Promos.";
+// LINT.IfChange(NtpPromoActions)
+constexpr char kPromoMetricShownSuffix[] = ".Shown";
+constexpr char kPromoMetricShownTopSpotSuffix[] = ".ShownTopSpot";
+constexpr char kPromoMetricClickedSuffix[] = ".Clicked";
+constexpr char kPromoMetricCompletedSuffix[] = ".Completed";
+// LINT.ThenChange(//tools/metrics/histograms/metadata/user_education/histograms.xml:NtpPromoActions)
+
+// Decides whether a promo should be shown or not, based on the supplied
+// data. If this logic becomes more complex, consider pulling it out to a
+// separate file (crbug.com/435159508).
+bool ShouldShowPromo(const KeyedNtpPromoData& prefs,
+                     Eligibility eligibility,
+                     const base::Time& now) {
+  // If an eligible promo has been clicked recently, don't show it again for
+  // a period of time.
+  if (eligibility == Eligibility::kEligible && !prefs.last_clicked.is_null() &&
+      ((now - prefs.last_clicked) < kClickedPromoHideDuration)) {
+    return false;
+  }
+
+  // If the promo reports itself as complete, but was never invoked by the
+  // user, don't show it (eg. user is already signed in).
+  if (eligibility == Eligibility::kCompleted && prefs.last_clicked.is_null()) {
+    return false;
+  }
+
+  // If the promo was marked complete sufficiently long ago, don't show it.
+  // Likewise if the completion time is nonsense (in the future).
+  if (!prefs.completed.is_null() &&
+      ((now - prefs.completed >= kCompletedPromoShowDuration) ||
+       (now < prefs.completed))) {
+    return false;
+  }
+
+  return true;
+}
+
+void LogPromoMetric(const NtpPromoIdentifier& id, const std::string& suffix) {
+  base::UmaHistogramBoolean(base::StrCat({kPromoMetricPrefix, id, suffix}),
+                            true);
+}
+
+void LogPromoShown(const NtpPromoIdentifier& id) {
+  LogPromoMetric(id, kPromoMetricShownSuffix);
+}
+
+void LogPromoShownTopSpot(const NtpPromoIdentifier& id) {
+  LogPromoMetric(id, kPromoMetricShownTopSpotSuffix);
+}
+
+void LogPromoClicked(const NtpPromoIdentifier& id) {
+  LogPromoMetric(id, kPromoMetricClickedSuffix);
+}
+
+void LogPromoCompleted(const NtpPromoIdentifier& id) {
+  LogPromoMetric(id, kPromoMetricCompletedSuffix);
+}
 
 }  // namespace
-
-using Eligibility = NtpPromoSpecification::Eligibility;
 
 NtpShowablePromo::NtpShowablePromo() = default;
 NtpShowablePromo::NtpShowablePromo(std::string_view id_,
@@ -54,19 +116,21 @@ NtpPromoController::NtpPromoController(
 
 NtpPromoController::~NtpPromoController() = default;
 
-bool NtpPromoController::HasShowablePromos(Profile* profile) const {
-  for (const auto& id : registry_->GetNtpPromoIdentifiers()) {
-    if (const auto* spec = registry_->GetNtpPromoSpecification(id)) {
-      if (spec->eligibility_callback().Run(profile) !=
-          NtpPromoSpecification::Eligibility::kIneligible) {
-        return true;
-      }
-    }
-  }
-  return false;
+bool NtpPromoController::HasShowablePromos(Profile* profile) {
+  // Generate promo lists here, since the Eligibility callback results are
+  // insufficient. Promo callbacks may report Eligible or Completed, but be
+  // suppressed for several reasons.
+  auto promos = GenerateShowablePromos(profile, /*apply_ordering=*/false);
+  return !promos.pending.empty() || !promos.completed.empty();
 }
 
 NtpShowablePromos NtpPromoController::GenerateShowablePromos(Profile* profile) {
+  return GenerateShowablePromos(profile, /*apply_ordering=*/true);
+}
+
+NtpShowablePromos NtpPromoController::GenerateShowablePromos(
+    Profile* profile,
+    bool apply_ordering) {
   std::vector<NtpPromoIdentifier> pending_promo_ids;
   std::vector<NtpPromoIdentifier> completed_promo_ids;
   const auto now = base::Time::Now();
@@ -85,26 +149,16 @@ NtpShowablePromos NtpPromoController::GenerateShowablePromos(Profile* profile) {
     auto prefs =
         storage_service_->ReadNtpPromoData(id).value_or(KeyedNtpPromoData());
 
-    // If the promo reports itself as complete, but was never invoked by the
-    // user, don't show it (eg. user is already signed in).
-    if (eligibility == Eligibility::kCompleted &&
-        prefs.last_clicked.is_null()) {
-      continue;
-    }
-
     // Record the first evidence of completion. In the future, promos may
     // explicitly notify of completion, but we'll also use this opportunity.
     if (eligibility == Eligibility::kCompleted &&
         !prefs.last_clicked.is_null() && prefs.completed.is_null()) {
       prefs.completed = now;
       storage_service_->SaveNtpPromoData(id, prefs);
+      LogPromoCompleted(id);
     }
 
-    // If the promo was marked complete sufficiently long ago, don't show it.
-    // Likewise if the completion time is nonsense (in the future).
-    if (!prefs.completed.is_null() &&
-        ((now - prefs.completed >= kCompletedPromoShowDuration) ||
-         (now < prefs.completed))) {
+    if (!ShouldShowPromo(prefs, eligibility, now)) {
       continue;
     }
 
@@ -112,9 +166,11 @@ NtpShowablePromos NtpPromoController::GenerateShowablePromos(Profile* profile) {
         .push_back(id);
   }
 
-  pending_promo_ids = order_policy_->OrderPendingPromos(pending_promo_ids);
-  completed_promo_ids =
-      order_policy_->OrderCompletedPromos(completed_promo_ids);
+  if (apply_ordering) {
+    pending_promo_ids = order_policy_->OrderPendingPromos(pending_promo_ids);
+    completed_promo_ids =
+        order_policy_->OrderCompletedPromos(completed_promo_ids);
+  }
 
   NtpShowablePromos showable_promos;
   showable_promos.pending = MakeShowablePromos(pending_promo_ids);
@@ -129,6 +185,13 @@ void NtpPromoController::OnPromosShown(
   // updated. However, metrics should be output for every promo shown in this
   // way.
   if (!eligible_shown.empty()) {
+    for (const auto& id : eligible_shown) {
+      LogPromoShown(id);
+
+      const auto* spec = registry_->GetNtpPromoSpecification(id);
+      spec->show_callback().Run();
+    }
+
     OnPromoShownInTopSpot(eligible_shown[0]);
   }
 }
@@ -141,11 +204,17 @@ void NtpPromoController::OnPromoClicked(NtpPromoIdentifier id,
       storage_service_->ReadNtpPromoData(id).value_or(KeyedNtpPromoData());
   prefs.last_clicked = base::Time::Now();
   storage_service_->SaveNtpPromoData(id, prefs);
+  LogPromoClicked(id);
 }
 
 // static
 base::TimeDelta NtpPromoController::GetCompletedPromoShowDurationForTest() {
   return kCompletedPromoShowDuration;
+}
+
+// static
+base::TimeDelta NtpPromoController::GetClickedPromoHideDurationForTest() {
+  return kClickedPromoHideDuration;
 }
 
 void NtpPromoController::OnPromoShownInTopSpot(NtpPromoIdentifier id) {
@@ -155,9 +224,14 @@ void NtpPromoController::OnPromoShownInTopSpot(NtpPromoIdentifier id) {
       storage_service_->ReadNtpPromoData(id).value_or(KeyedNtpPromoData());
   if (data.last_top_spot_session != current_session) {
     data.last_top_spot_session = current_session;
-    ++data.top_spot_session_count;
+    // If this promo is reclaiming the top spot, start a fresh count.
+    if (id != GetMostRecentTopSpotPromo()) {
+      data.top_spot_session_count = 0;
+    }
+    data.top_spot_session_count++;
     storage_service_->SaveNtpPromoData(id, data);
   }
+  LogPromoShownTopSpot(id);
 }
 
 std::vector<NtpShowablePromo> NtpPromoController::MakeShowablePromos(
@@ -166,13 +240,26 @@ std::vector<NtpShowablePromo> NtpPromoController::MakeShowablePromos(
   for (const auto& id : ids) {
     const auto* spec = registry_->GetNtpPromoSpecification(id);
     promos.emplace_back(
-
         spec->id(), spec->content().icon_name(),
         l10n_util::GetStringUTF8(spec->content().body_text_string_id()),
         l10n_util::GetStringUTF8(
             spec->content().action_button_text_string_id()));
   }
   return promos;
+}
+
+NtpPromoIdentifier NtpPromoController::GetMostRecentTopSpotPromo() {
+  int most_recent_session = 0;
+  NtpPromoIdentifier most_recent_id;
+  for (const auto& id : registry_->GetNtpPromoIdentifiers()) {
+    auto prefs =
+        storage_service_->ReadNtpPromoData(id).value_or(KeyedNtpPromoData());
+    if (prefs.last_top_spot_session > most_recent_session) {
+      most_recent_session = prefs.last_top_spot_session;
+      most_recent_id = id;
+    }
+  }
+  return most_recent_id;
 }
 
 }  // namespace user_education

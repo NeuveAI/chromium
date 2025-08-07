@@ -4,6 +4,7 @@
 
 #include "components/optimization_guide/core/model_execution/on_device_model_adaptation_loader.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -43,7 +44,7 @@ void RecordAdaptationModelAvailability(
 
 base::expected<OnDeviceModelAdaptationMetadata,
                OnDeviceModelAdaptationAvailability>
-CreateAdaptatonMetadataFromModelExecutionConfig(
+CreateAdaptationMetadataFromModelExecutionConfig(
     ModelBasedCapabilityKey feature,
     std::unique_ptr<on_device_model::AdaptationAssetPaths> asset_paths,
     int64_t version,
@@ -79,9 +80,21 @@ MaybeAdaptationMetadata OnDeviceModelAdaptationMetadataCreated(
   return std::move(metadata.value());
 }
 
+bool ArePerformanceHintsCompatible(
+    const proto::OnDeviceBaseModelMetadata& adaptation_metadata,
+    const OnDeviceBaseModelSpec& base_spec) {
+  // If the adaptation model has no specific hints, it supports all.
+  if (adaptation_metadata.supported_performance_hints().empty()) {
+    return true;
+  }
+  // Check if the adaptation model supports any of the base model's hints.
+  return base::Contains(adaptation_metadata.supported_performance_hints(),
+                        base_spec.selected_performance_hint);
+}
+
 std::optional<OnDeviceModelAdaptationAvailability>
 DetectBaseModelIncompatibility(const optimization_guide::ModelInfo& model_info,
-                               const OnDeviceBaseModelSpec registered_spec) {
+                               const OnDeviceBaseModelSpec& registered_spec) {
   const std::optional<proto::Any>& metadata = model_info.GetModelMetadata();
   if (!metadata.has_value()) {
     return OnDeviceModelAdaptationAvailability::kAdaptationModelInvalid;
@@ -97,6 +110,11 @@ DetectBaseModelIncompatibility(const optimization_guide::ModelInfo& model_info,
         supported_model_spec->base_model_version() !=
             registered_spec.model_version) {
       return OnDeviceModelAdaptationAvailability::kAdaptationModelIncompatible;
+    }
+    if (!ArePerformanceHintsCompatible(*supported_model_spec,
+                                       registered_spec)) {
+      return OnDeviceModelAdaptationAvailability::
+          kAdaptationModelHintsIncompatible;
     }
   }
   return std::nullopt;
@@ -225,9 +243,8 @@ void OnDeviceModelAdaptationLoader::MaybeRegisterModelDownload(
     proto::OnDeviceBaseModelMetadata model_metadata;
     model_metadata.set_base_model_version(registered_spec_->model_version);
     model_metadata.set_base_model_name(registered_spec_->model_name);
-    *model_metadata.mutable_supported_performance_hints() = {
-        registered_spec_->supported_performance_hints.begin(),
-        registered_spec_->supported_performance_hints.end()};
+    model_metadata.add_supported_performance_hints(
+        registered_spec_->selected_performance_hint);
     model_metadata.SerializeToString(any_metadata.mutable_value());
   }
 
@@ -283,8 +300,8 @@ void OnDeviceModelAdaptationLoader::OnModelUpdated(
   background_task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
       base::BindOnce(&ReadOnDeviceModelExecutionConfig, *execution_config_file),
-      base::BindOnce(&CreateAdaptatonMetadataFromModelExecutionConfig, feature_,
-                     MaybeGetAdaptationPaths(*model_info),
+      base::BindOnce(&CreateAdaptationMetadataFromModelExecutionConfig,
+                     feature_, MaybeGetAdaptationPaths(*model_info),
                      model_info->GetVersion())
           .Then(
               base::BindOnce(&OnDeviceModelAdaptationMetadataCreated, feature_))
